@@ -17,7 +17,7 @@ use crate::algorithm::security::SecurityPolicyManager;
 use crate::algorithm::security_auto::AutoSecurityAdjuster;
 use crate::data::DataBatch;
 use crate::storage::Storage;
-// Model manager removed - using compat stub types
+use crate::compat::manager::traits::ModelManager;
 use crate::event::EventSystem;
 use crate::core::unified_algorithm_service::ExecutionConfig;
 use crate::algorithm::types::{ExecutionContext, ExecutionStatus};

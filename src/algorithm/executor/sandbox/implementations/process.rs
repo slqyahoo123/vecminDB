@@ -28,6 +28,7 @@ use std::os::unix::process::ExitStatusExt;
 pub struct ProcessSandbox {
     id: String,
     config: ExecutorConfig,
+    #[cfg(feature = "tempfile")]
     temp_dir: Option<TempDir>,
     status: RwLock<SandboxStatus>,
     child_process: Option<Mutex<Child>>,
@@ -37,7 +38,10 @@ pub struct ProcessSandbox {
 impl ProcessSandbox {
     pub async fn new(config: &ExecutorConfig) -> Result<Self> {
         let id = format!("process-sandbox-{}", Uuid::new_v4());
+        #[cfg(feature = "tempfile")]
         let temp_dir = TempDir::new().ok();
+        #[cfg(not(feature = "tempfile"))]
+        let temp_dir = None;
         
         // 子进程对象将在实际执行时创建
         let child_process = None;
@@ -45,7 +49,10 @@ impl ProcessSandbox {
         Ok(Self {
             id,
             config: config.clone(),
+            #[cfg(feature = "tempfile")]
             temp_dir,
+            #[cfg(not(feature = "tempfile"))]
+            temp_dir: None,
             status: RwLock::new(SandboxStatus::Uninitialized),
             child_process,
             environment: None,

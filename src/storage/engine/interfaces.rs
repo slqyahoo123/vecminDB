@@ -8,7 +8,6 @@ use serde_json::Value;
 use std::future::Future;
 use std::pin::Pin;
 use crate::core::{InferenceResultDetail, InferenceResult};
-use crate::compat::TrainingResultDetail; // 使用 compat 模块中的 stub 类型
 
 /// 存储服务接口
 /// 
@@ -46,71 +45,6 @@ pub trait StorageService: Send + Sync {
     /// 返回模型架构，如果不存在则返回None
     fn get_model_architecture(&self, model_id: &str) -> Result<Option<ModelArchitecture>>;
     
-    /// 获取训练状态
-    /// 
-    /// # 参数
-    /// - `model_id`: 模型唯一标识符
-    /// 
-    /// # 返回值
-    /// 返回训练状态，如果不存在则返回None
-    fn get_training_state(&self, model_id: &str) -> Result<Option<TrainingState>>;
-    
-    /// 获取训练状态管理器
-    /// 
-    /// # 参数
-    /// - `model_id`: 模型唯一标识符
-    /// 
-    /// # 返回值
-    /// 返回训练状态管理器，如果不存在则返回None
-    fn get_training_state_manager(&self, model_id: &str) -> Result<Option<TrainingStateManager>>;
-    
-    /// 保存训练状态管理器
-    /// 
-    /// # 参数
-    /// - `model_id`: 模型唯一标识符
-    /// - `state_manager`: 训练状态管理器对象
-    fn save_training_state_manager(&self, model_id: &str, state_manager: &TrainingStateManager) -> Result<()>;
-    
-    /// 更新训练状态
-    /// 
-    /// # 参数
-    /// - `model_id`: 模型唯一标识符
-    /// - `state`: 训练状态对象
-    fn update_training_state(&self, model_id: &str, state: &TrainingState) -> Result<()>;
-    
-    /// 获取训练结果列表
-    /// 
-    /// # 参数
-    /// - `model_id`: 模型唯一标识符
-    /// 
-    /// # 返回值
-    /// 返回训练结果列表
-    fn list_training_results(&self, model_id: &str) -> Result<Vec<HashMap<String, Value>>>;
-    
-    /// 获取训练结果
-    /// 
-    /// # 参数
-    /// - `model_id`: 模型唯一标识符
-    /// - `training_id`: 训练唯一标识符
-    /// 
-    /// # 返回值
-    /// 返回训练结果，如果不存在则返回None
-    fn get_training_result(&self, model_id: &str, training_id: &str) -> Result<Option<HashMap<String, Value>>>;
-    
-    /// 保存训练状态
-    /// 
-    /// # 参数
-    /// - `model_id`: 模型唯一标识符
-    /// - `state`: 训练状态对象
-    fn save_training_state(&self, model_id: &str, state: &TrainingState) -> Result<()>;
-    
-    /// 保存训练结果详情
-    /// 
-    /// # 参数
-    /// - `model_id`: 模型唯一标识符
-    /// - `result`: 训练结果详情对象
-    fn save_training_result(&self, model_id: &str, result: &crate::core::TrainingResultDetail) -> Result<()>;
-    
     /// 保存推理结果
     /// 
     /// # 参数
@@ -126,21 +60,6 @@ pub trait StorageService: Send + Sync {
     /// # 返回值
     /// 返回推理结果，如果不存在则返回None
     fn get_inference_result(&self, model_id: &str) -> Result<Option<crate::core::InferenceResult>>;
-    
-    /// 保存详细训练结果
-    /// 
-    /// # 参数
-    /// - `model_id`: 模型唯一标识符
-    /// - `training_id`: 训练唯一标识符
-    /// - `result`: 训练结果对象
-    /// - `detail`: 训练结果详情对象
-    fn save_detailed_training_result(
-        &self,
-        model_id: &str,
-        training_id: &str,
-        result: &HashMap<String, Value>,
-        detail: &TrainingResultDetail,
-    ) -> Result<()>;
     
     /// 存储键值对
     /// 

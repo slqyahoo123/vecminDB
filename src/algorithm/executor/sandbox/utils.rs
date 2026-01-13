@@ -46,8 +46,9 @@ async fn enforce_resource_limits(
 }
 
 /// 在沙箱中执行WASM模块
+#[cfg(feature = "wasmtime")]
 pub async fn execute_in_sandbox(
-    module: &Arc<Module>,
+    module: &Arc<wasmtime::Module>,
     input: &[u8],
     config: &SandboxConfig,
     limits: ResourceLimits,
@@ -158,6 +159,7 @@ pub async fn execute_in_sandbox(
 
     let limits_check_future = enforce_resource_limits(&env, &limits);
 
+    #[cfg(feature = "wasmtime")]
     let execution_result = tokio::select! {
         res = tokio::time::timeout(timeout, wasm_execution_future) => {
             match res {
@@ -186,6 +188,9 @@ pub async fn execute_in_sandbox(
             }
         }
     };
+    
+    #[cfg(not(feature = "wasmtime"))]
+    let execution_result: Result<SandboxResult> = Err(Error::feature_not_enabled("wasmtime"));
     
     // 停止资源监控
     if let Err(e) = env.stop_monitoring().await {
@@ -265,7 +270,8 @@ pub fn copy_input_to_memory(instance: &wasmtime::Instance, store: &mut wasmtime:
 }
 
 /// 从WASM内存读取数据
-pub fn read_from_memory(instance: &wasmtime::Instance, store: &mut wasmtime::Store<WasiCtx>, ptr: u32, len: u32) -> Result<Vec<u8>> {
+#[cfg(feature = "wasmtime")]
+pub fn read_from_memory(instance: &wasmtime::Instance, store: &mut wasmtime::Store<wasmtime_wasi::WasiCtx>, ptr: u32, len: u32) -> Result<Vec<u8>> {
     debug!("从WASM内存读取数据, 指针: {}, 长度: {}", ptr, len);
     
     // 1. 获取WASM内存
@@ -321,15 +327,17 @@ pub fn free_memory(instance: &wasmtime::Instance, store: &mut wasmtime::Store<Wa
 }
 
 /// 安全的WASM内存访问封装
+#[cfg(feature = "wasmtime")]
 pub struct WasmMemoryManager<'a> {
     instance: &'a wasmtime::Instance,
-    store: &'a mut wasmtime::Store<WasiCtx>,
+    store: &'a mut wasmtime::Store<wasmtime_wasi::WasiCtx>,
     allocated_blocks: Vec<(u32, u32)>, // (指针, 长度)
 }
 
+#[cfg(feature = "wasmtime")]
 impl<'a> WasmMemoryManager<'a> {
     /// 创建新的内存管理器
-    pub fn new(instance: &'a wasmtime::Instance, store: &'a mut wasmtime::Store<WasiCtx>) -> Self {
+    pub fn new(instance: &'a wasmtime::Instance, store: &'a mut wasmtime::Store<wasmtime_wasi::WasiCtx>) -> Self {
         Self {
             instance,
             store,
@@ -382,6 +390,7 @@ impl<'a> WasmMemoryManager<'a> {
     }
 }
 
+#[cfg(feature = "wasmtime")]
 impl<'a> Drop for WasmMemoryManager<'a> {
     fn drop(&mut self) {
         // 释放所有尚未手动释放的内存块
@@ -614,30 +623,210 @@ where
     Ok(())
 }
 
-/// 获取当前内存使用情况（KB）
+/// 获取当前内存使用情况（KB）（生产级实现：使用 sysinfo 查询真实系统内存）
 fn get_current_memory_usage() -> Result<u64, anyhow::Error> {
-    // 实际实现应该查询系统内存使用情况
-    // 这里返回一个模拟值
-    Ok(1024) // 1MB
+    #[cfg(feature = "sysinfo")]
+    {
+        use sysinfo::{System, SystemExt, ProcessExt, Pid};
+        
+        let mut system = System::new();
+        system.refresh_process(Pid::from(std::process::id() as usize));
+        
+        if let Some(process) = system.process(Pid::from(std::process::id() as usize)) {
+            // 返回内存使用量（KB）
+            Ok(process.memory() / 1024)
+        } else {
+            // 如果无法获取进程信息，返回系统总内存使用量
+            system.refresh_memory();
+            Ok(system.used_memory() / 1024)
+        }
+    }
+    
+    #[cfg(not(feature = "sysinfo"))]
+    {
+        // 降级实现：使用平台特定的方法
+        #[cfg(target_os = "linux")]
+        {
+            use std::fs;
+            use std::io::BufRead;
+            
+            if let Ok(file) = fs::File::open("/proc/self/status") {
+                let reader = std::io::BufReader::new(file);
+                for line in reader.lines() {
+                    if let Ok(line) = line {
+                        if line.starts_with("VmRSS:") {
+                            let parts: Vec<&str> = line.split_whitespace().collect();
+                            if parts.len() >= 2 {
+                                if let Ok(kb) = parts[1].parse::<u64>() {
+                                    return Ok(kb);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // 如果所有方法都失败，返回错误
+        Err(anyhow::anyhow!("无法获取内存使用情况：sysinfo 功能未启用且平台特定方法失败"))
+    }
 }
 
-/// 获取当前CPU使用率
+/// 获取当前CPU使用率（生产级实现：使用 sysinfo 查询真实CPU使用率）
 fn get_current_cpu_usage() -> Result<f32, anyhow::Error> {
-    // 实际实现应该查询系统CPU使用率
-    // 这里返回一个模拟值
-    Ok(25.0) // 25%
+    #[cfg(feature = "sysinfo")]
+    {
+        use sysinfo::{System, SystemExt, ProcessExt, Pid};
+        
+        let mut system = System::new();
+        system.refresh_process(Pid::from(std::process::id() as usize));
+        
+        if let Some(process) = system.process(Pid::from(std::process::id() as usize)) {
+            Ok(process.cpu_usage())
+        } else {
+            // 如果无法获取进程信息，返回系统全局CPU使用率
+            system.refresh_cpu();
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            system.refresh_cpu();
+            Ok(system.global_cpu_info().cpu_usage())
+        }
+    }
+    
+    #[cfg(not(feature = "sysinfo"))]
+    {
+        // 降级实现：返回0.0表示无法获取
+        Ok(0.0)
+    }
 }
 
-/// 获取可用磁盘空间
+/// 获取可用磁盘空间（生产级实现：使用系统调用查询真实磁盘空间）
 fn get_available_disk_space() -> Result<i64, anyhow::Error> {
-    // 实际实现应该查询文件系统信息
-    // 这里返回一个模拟值
-    Ok(1024 * 1024 * 1024) // 1GB
+    use std::path::Path;
+    
+    // 获取当前工作目录
+    let current_dir = std::env::current_dir()
+        .map_err(|e| anyhow::anyhow!("无法获取当前目录: {}", e))?;
+    
+    #[cfg(unix)]
+    {
+        use std::ffi::CString;
+        use std::mem;
+        use std::os::unix::ffi::OsStrExt;
+        
+        #[repr(C)]
+        struct StatVfs {
+            f_bsize: u64,
+            f_frsize: u64,
+            f_blocks: u64,
+            f_bfree: u64,
+            f_bavail: u64,
+            f_files: u64,
+            f_ffree: u64,
+            f_favail: u64,
+            f_fsid: u64,
+            f_flag: u64,
+            f_namemax: u64,
+        }
+        
+        extern "C" {
+            fn statvfs(path: *const i8, buf: *mut StatVfs) -> i32;
+        }
+        
+        let path_cstr = CString::new(current_dir.as_os_str().as_bytes())
+            .map_err(|e| anyhow::anyhow!("路径转换失败: {}", e))?;
+        
+        let mut statvfs_buf: StatVfs = unsafe { mem::zeroed() };
+        let result = unsafe { statvfs(path_cstr.as_ptr(), &mut statvfs_buf) };
+        
+        if result == 0 {
+            let block_size = statvfs_buf.f_frsize;
+            let available = statvfs_buf.f_bavail * block_size;
+            Ok(available as i64)
+        } else {
+            Err(anyhow::anyhow!("statvfs调用失败: {}", std::io::Error::last_os_error()))
+        }
+    }
+    
+    #[cfg(windows)]
+    {
+        use std::ffi::OsStr;
+        use std::iter::once;
+        use std::os::windows::ffi::OsStrExt;
+        
+        // 获取驱动器根路径
+        let path_str = current_dir.to_string_lossy();
+        let drive_letter = if path_str.len() >= 2 && path_str.chars().nth(1) == Some(':') {
+            path_str.chars().next().unwrap().to_ascii_uppercase()
+        } else {
+            return Err(anyhow::anyhow!("无法确定Windows驱动器字母"));
+        };
+        
+        let drive_path = format!("{}:\\", drive_letter);
+        
+        // 转换为宽字符
+        let wide_path: Vec<u16> = OsStr::new(&drive_path)
+            .encode_wide()
+            .chain(once(0))
+            .collect();
+        
+        let mut free_bytes_available = 0u64;
+        
+        extern "system" {
+            fn GetDiskFreeSpaceExW(
+                directory_name: *const u16,
+                free_bytes_available: *mut u64,
+                _total_bytes: *mut u64,
+                _total_free_bytes: *mut u64,
+            ) -> i32;
+        }
+        
+        let result = unsafe {
+            GetDiskFreeSpaceExW(
+                wide_path.as_ptr(),
+                &mut free_bytes_available,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+            )
+        };
+        
+        if result != 0 {
+            Ok(free_bytes_available as i64)
+        } else {
+            Err(anyhow::anyhow!("GetDiskFreeSpaceExW调用失败: {}", std::io::Error::last_os_error()))
+        }
+    }
+    
+    #[cfg(not(any(unix, windows)))]
+    {
+        Err(anyhow::anyhow!("当前平台不支持磁盘空间查询"))
+    }
 }
 
-/// 检查网络连接状态
+/// 检查网络连接状态（生产级实现：尝试连接外部服务验证网络可用性）
 fn is_network_available() -> bool {
-    // 实际实现应该检查网络连接
-    // 这里返回一个模拟值
-    true
+    // 方法1：检查是否有活动的网络接口
+    #[cfg(feature = "sysinfo")]
+    {
+        use sysinfo::{System, SystemExt};
+        
+        let mut system = System::new();
+        system.refresh_networks_list();
+        system.refresh_networks();
+        
+        // 检查是否有活动的网络接口
+        for (_interface_name, network) in system.networks() {
+            if network.total_received() > 0 || network.total_transmitted() > 0 {
+                return true;
+            }
+        }
+    }
+    
+    // 方法2：尝试解析DNS（轻量级检查）
+    use std::net::ToSocketAddrs;
+    if "google.com:80".to_socket_addrs().is_ok() {
+        return true;
+    }
+    
+    // 如果所有检查都失败，返回false
+    false
 } 

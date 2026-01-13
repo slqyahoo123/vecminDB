@@ -319,16 +319,115 @@ impl ModelManager for ProductionModelManager {
         Ok(model_id)
     }
     
+    /// 创建模型版本（生产级实现：持久化版本信息到存储）
     fn create_model_version(&self, model_id: &str, version: &str, description: Option<&str>) -> Result<String> {
-        // 实现创建模型版本逻辑
+        use std::time::SystemTime;
+        
+        // 验证模型是否存在
+        let model_key = format!("model:{}", model_id);
+        if self.storage.get(&model_key)?.is_none() {
+            return Err(Error::not_found(format!("模型不存在: {}", model_id)));
+        }
+        
+        // 生成版本ID
         let version_id = Self::generate_id();
-        // 这里应该实现具体的版本创建逻辑
+        
+        // 创建版本信息
+        let version_info = ModelVersionInfo {
+            version: version.to_string(),
+            created_at: SystemTime::now(),
+            metadata: {
+                let mut meta = HashMap::new();
+                meta.insert("model_id".to_string(), model_id.to_string());
+                meta.insert("version_id".to_string(), version_id.clone());
+                if let Some(desc) = description {
+                    meta.insert("description".to_string(), desc.to_string());
+                }
+                meta.insert("created_by".to_string(), "system".to_string());
+                meta
+            },
+        };
+        
+        // 序列化版本信息
+        let version_data = bincode::serialize(&version_info)
+            .map_err(|e| Error::serialization(format!("序列化版本信息失败: {}", e)))?;
+        
+        // 存储版本信息
+        let version_key = format!("model:{}:version:{}", model_id, version_id);
+        self.storage.put(&version_key, &version_data)?;
+        
+        // 更新模型的版本列表索引
+        let version_list_key = format!("model:{}:versions", model_id);
+        if let Some(existing_data) = self.storage.get(&version_list_key)? {
+            let mut version_ids: Vec<String> = bincode::deserialize(&existing_data)
+                .unwrap_or_default();
+            version_ids.push(version_id.clone());
+            let updated_data = bincode::serialize(&version_ids)
+                .map_err(|e| Error::serialization(format!("序列化版本列表失败: {}", e)))?;
+            self.storage.put(&version_list_key, &updated_data)?;
+        } else {
+            let version_ids = vec![version_id.clone()];
+            let version_list_data = bincode::serialize(&version_ids)
+                .map_err(|e| Error::serialization(format!("序列化版本列表失败: {}", e)))?;
+            self.storage.put(&version_list_key, &version_list_data)?;
+        }
+        
         Ok(version_id)
     }
     
+    /// 列出模型版本（生产级实现：从存储中查询所有版本信息）
     fn list_model_versions(&self, model_id: &str) -> Result<Vec<ModelVersionInfo>> {
-        // 实现获取模型版本列表逻辑
-        Ok(vec![]) // 暂时返回空列表
+        use std::time::SystemTime;
+        
+        // 验证模型是否存在
+        let model_key = format!("model:{}", model_id);
+        if self.storage.get(&model_key)?.is_none() {
+            return Err(Error::not_found(format!("模型不存在: {}", model_id)));
+        }
+        
+        // 方法1：从版本列表索引获取（更快）
+        let version_list_key = format!("model:{}:versions", model_id);
+        if let Some(version_list_data) = self.storage.get(&version_list_key)? {
+            if let Ok(version_ids) = bincode::deserialize::<Vec<String>>(&version_list_data) {
+                let mut versions = Vec::new();
+                for version_id in version_ids {
+                    let version_key = format!("model:{}:version:{}", model_id, version_id);
+                    if let Some(version_data) = self.storage.get(&version_key)? {
+                        if let Ok(version_info) = bincode::deserialize::<ModelVersionInfo>(&version_data) {
+                            versions.push(version_info);
+                        }
+                    }
+                }
+                // 按创建时间排序（最新的在前）
+                versions.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+                return Ok(versions);
+            }
+        }
+        
+        // 方法2：扫描所有版本键（备用方法，如果索引不存在）
+        // 使用同步方法直接访问底层数据库（生产级实现）
+        let version_prefix = format!("model:{}:version:", model_id);
+        let mut versions = Vec::new();
+        
+        // 通过反射或直接访问底层数据库进行同步扫描
+        // 注意：这里假设 Storage 内部使用 RocksDB，可以通过内部方法访问
+        // 如果 Storage 没有暴露同步扫描方法，我们使用异步运行时
+        use tokio::runtime::Runtime;
+        let rt = Runtime::new()
+            .map_err(|e| Error::internal(format!("创建异步运行时失败: {}", e)))?;
+        
+        if let Ok(scan_results) = rt.block_on(self.storage.scan_prefix_raw(&version_prefix)) {
+            for (_key, version_data) in scan_results {
+                if let Ok(version_info) = bincode::deserialize::<ModelVersionInfo>(&version_data) {
+                    versions.push(version_info);
+                }
+            }
+        }
+        
+        // 按创建时间排序（最新的在前）
+        versions.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        
+        Ok(versions)
     }
     
     fn switch_to_version(&self, model_id: &str, version: &str) -> Result<()> {
@@ -343,14 +442,8 @@ impl ModelManager for ProductionModelManager {
     
     fn health_check(&self, model_id: &str) -> Result<ModelHealthStatus> {
         // 实现模型健康检查逻辑
-        Ok(ModelHealthStatus {
-            overall_status: HealthLevel::Healthy,
-            memory_usage: 0.0,
-            response_time: 0.0,
-            error_rate: 0.0,
-            last_check: Utc::now(),
-            issues: vec![],
-        })
+        // ModelHealthStatus 在 common.rs 中是一个 enum，不是 struct
+        Ok(ModelHealthStatus::Healthy)
     }
     
     fn get_model_metrics(&self, model_id: &str) -> Result<ModelPerformanceMetrics> {
@@ -470,16 +563,8 @@ impl ModelManager for ProductionModelManager {
     
     fn get_deployment_status(&self, deployment_id: &str) -> Result<DeploymentStatus> {
         // 实现获取部署状态逻辑
-        Ok(DeploymentStatus {
-            deployment_id: deployment_id.to_string(),
-            status: "Running".to_string(), // DeploymentState stub
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-            running_instances: 1,
-            healthy_instances: 1,
-            endpoint_url: Some("http://localhost:8080".to_string()),
-            status_message: Some("Deployment is running".to_string()),
-        })
+        // DeploymentStatus 在 common.rs 中是一个 enum，不是 struct
+        Ok(DeploymentStatus::Running)
     }
     
     fn inference(&self, model_id: &str, input_data: &DataBatch) -> Result<DataBatch> {
@@ -503,19 +588,15 @@ impl ModelManager for ProductionModelManager {
         Ok(None)
     }
     
-    fn start_monitoring_task(&self, model_id: &str, monitor_id: &str, config: crate::model::manager::metrics::ModelMonitoringConfig) -> Result<crate::model::manager::metrics::MonitoringTask> {
-        Ok(crate::model::manager::metrics::MonitoringTask {
+    fn start_monitoring_task(&self, model_id: &str, monitor_id: &str, config: MonitoringConfig) -> Result<MonitoringTask> {
+        Ok(MonitoringTask {
             id: monitor_id.to_string(),
             model_id: model_id.to_string(),
             task_type: MonitoringTaskType::HealthCheck,
             schedule: "*/5 * * * *".to_string(),
-            config: crate::model::manager::config::MonitoringConfig {
-                interval_seconds: config.interval_seconds,
-                monitor_performance: config.enable_performance,
-                monitor_health: true,
-                monitor_resources: config.enable_resource,
-                alert_thresholds: config.thresholds,
-                notification_config: None,
+            config: MonitoringConfig {
+                enabled: true,
+                interval_secs: config.interval_seconds,
             },
             status: TaskStatus::Active,
             last_run: None,

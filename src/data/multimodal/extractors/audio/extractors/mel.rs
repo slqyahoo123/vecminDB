@@ -106,6 +106,7 @@ impl MelSpectrogramExtractor {
     }
     
     /// 提取梅尔谱图特征
+    #[cfg(feature = "multimodal")]
     pub fn extract(&self, samples: &[f32]) -> Result<Array2<f32>> {
         // 1. 预加重
         let preemphasized = self.apply_preemphasis(samples);

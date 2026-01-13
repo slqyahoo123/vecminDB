@@ -58,6 +58,7 @@ pub struct DockerSandbox {
     /// 执行器配置
     config: ExecutorConfig,
     /// 临时目录
+    #[cfg(feature = "tempfile")]
     temp_dir: Option<TempDir>,
     /// 状态
     status: RwLock<SandboxStatus>,
@@ -92,7 +93,10 @@ impl DockerSandbox {
     /// 创建新的Docker沙箱
     pub async fn new(config: &ExecutorConfig) -> Result<Self> {
         let id = format!("docker-sandbox-{}", Uuid::new_v4());
+        #[cfg(feature = "tempfile")]
         let temp_dir = TempDir::new().ok();
+        #[cfg(not(feature = "tempfile"))]
+        let temp_dir = None;
         
         // 验证Docker是否可用
         Self::verify_docker_available().await?;

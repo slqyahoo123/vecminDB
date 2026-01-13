@@ -27,7 +27,9 @@ use crate::algorithm::executor::sandbox::environment::ExecutionEnvironment;
 pub struct WasmSandbox {
     id: String,
     config: ExecutorConfig,
+    #[cfg(feature = "wasmtime")]
     engine: WasmEngine,
+    #[cfg(feature = "tempfile")]
     temp_dir: Option<TempDir>,
     status: RwLock<SandboxStatus>,
     environment: Option<Arc<tokio::sync::RwLock<ExecutionEnvironment>>>,
@@ -36,16 +38,24 @@ pub struct WasmSandbox {
 impl WasmSandbox {
     pub async fn new(config: &ExecutorConfig) -> Result<Self> {
         let id = format!("wasm-sandbox-{}", Uuid::new_v4());
+        #[cfg(feature = "tempfile")]
         let temp_dir = TempDir::new().ok();
+        #[cfg(not(feature = "tempfile"))]
+        let temp_dir = None;
         
         // 创建WASM引擎
+        #[cfg(feature = "wasmtime")]
         let engine = WasmEngine::default();
         
         Ok(Self {
             id,
             config: config.clone(),
+            #[cfg(feature = "wasmtime")]
             engine,
+            #[cfg(feature = "tempfile")]
             temp_dir,
+            #[cfg(not(feature = "tempfile"))]
+            temp_dir: None,
             status: RwLock::new(SandboxStatus::Uninitialized),
             environment: None,
         })
@@ -77,6 +87,7 @@ impl WasmSandbox {
         let mut env = ExecutionEnvironment::new(sandbox_config, &self.config.task_id);
         
         // 设置临时目录
+        #[cfg(feature = "tempfile")]
         if let Some(dir) = &self.temp_dir {
             env.temp_dir = TempDir::new().ok();
         }

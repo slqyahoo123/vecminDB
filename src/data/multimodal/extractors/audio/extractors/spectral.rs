@@ -131,6 +131,7 @@ impl ChromaExtractor {
     }
     
     /// 提取色度特征
+    #[cfg(feature = "multimodal")]
     pub fn extract(&self, samples: &[f32]) -> Result<Array2<f32>> {
         // 1. 预加重
         let preemphasized = self.apply_preemphasis(samples);
@@ -255,6 +256,7 @@ impl SpectralCentroidExtractor {
     }
     
     /// 提取谱质心特征
+    #[cfg(feature = "multimodal")]
     pub fn extract(&self, samples: &[f32]) -> Result<Array2<f32>> {
         // 1. 预加重
         let preemphasized = self.apply_preemphasis(samples);
@@ -387,6 +389,7 @@ impl SpectralRolloffExtractor {
     }
     
     /// 提取谱衰减特征
+    #[cfg(feature = "multimodal")]
     pub fn extract(&self, samples: &[f32]) -> Result<Array2<f32>> {
         // 1. 预加重
         let preemphasized = self.apply_preemphasis(samples);
@@ -495,6 +498,7 @@ impl ZeroCrossingRateExtractor {
     }
     
     /// 提取零交叉率特征
+    #[cfg(feature = "multimodal")]
     pub fn extract(&self, samples: &[f32]) -> Result<Array2<f32>> {
         // 1. 分帧
         let frames = frame_signal(samples, self.frame_size, self.hop_size);
@@ -590,6 +594,7 @@ impl EnergyExtractor {
     }
     
     /// 提取能量特征
+    #[cfg(feature = "multimodal")]
     pub fn extract(&self, samples: &[f32]) -> Result<Array2<f32>> {
         // 1. 分帧
         let frames = frame_signal(samples, self.frame_size, self.hop_size);

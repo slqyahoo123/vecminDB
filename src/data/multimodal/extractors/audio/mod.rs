@@ -44,6 +44,7 @@ pub use extractor::AudioFeatureExtractor;
 pub use extractor::create_default_audio_extractor;
 
 // 公开频谱分析函数
+#[cfg(feature = "multimodal")]
 pub use spectral::{
     compute_mfcc,
     compute_melspectrogram,
@@ -67,6 +68,7 @@ pub use temporal::{
 };
 
 // 公开信号转换函数
+#[cfg(feature = "multimodal")]
 pub use conversion::{
     hz_to_mel,
     mel_to_hz,

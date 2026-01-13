@@ -35,6 +35,7 @@ pub struct ExecutionEnvironment {
     /// 安全上下文
     pub security_context: SecurityContext,
     /// 临时目录
+    #[cfg(feature = "tempfile")]
     pub temp_dir: Option<TempDir>,
     /// 监控通道发送端 - 使用内部可变性
     monitor_tx: Arc<Mutex<Option<mpsc::Sender<MonitorCommand>>>>,
@@ -55,8 +56,10 @@ pub struct ExecutionEnvironment {
     /// 标准错误缓冲
     stderr_buffer: Mutex<Vec<u8>>,
     /// WASM引擎 - 使用内部可变性
+    #[cfg(feature = "wasmtime")]
     pub wasm_engine: Arc<Mutex<Option<Arc<WasmEngine>>>>,
     /// WASM存储 - 使用内部可变性
+    #[cfg(feature = "wasmtime")]
     pub wasm_store: Arc<Mutex<Option<WasmStore<wasmtime_wasi::WasiCtx>>>>,
     /// 任务ID
     pub task_id: String,
@@ -392,12 +395,14 @@ impl ExecutionEnvironment {
     }
 
     /// 取得WASM引擎的引用
+    #[cfg(feature = "wasmtime")]
     pub fn get_wasm_engine(&self) -> Option<Arc<WasmEngine>> {
         let engine_guard = self.wasm_engine.lock().unwrap();
         engine_guard.clone()
     }
 
     /// 取得WASM存储的可变引用
+    #[cfg(feature = "wasmtime")]
     pub fn take_wasm_store(&self) -> Option<WasmStore<wasmtime_wasi::WasiCtx>> {
         let mut store_guard = self.wasm_store.lock().unwrap();
         store_guard.take()

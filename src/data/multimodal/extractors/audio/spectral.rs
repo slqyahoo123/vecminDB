@@ -374,6 +374,7 @@ pub fn compute_spectral_rolloff(
 ///
 /// # 返回值
 /// 返回零交叉率 (n_frames)
+#[cfg(feature = "multimodal")]
 pub fn compute_zero_crossing_rate(
     signal: &[f64],
     frame_length: Option<usize>,
@@ -414,6 +415,7 @@ pub fn compute_zero_crossing_rate(
 ///
 /// # 返回值
 /// 返回能量 (n_frames)
+#[cfg(feature = "multimodal")]
 pub fn compute_energy(
     signal: &[f64],
     frame_length: Option<usize>,

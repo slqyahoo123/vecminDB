@@ -160,6 +160,7 @@ pub struct AlgorithmExecutor {
     /// 执行器配置
     config: ExecutorConfig,
     /// WASM引擎
+    #[cfg(feature = "wasmtime")]
     wasm_engine: wasmtime::Engine,
     /// 资源管理器
     resource_manager: Arc<ResourceManager>,
@@ -180,6 +181,7 @@ impl AlgorithmExecutor {
         
         Self {
             config,
+            #[cfg(feature = "wasmtime")]
             wasm_engine: wasmtime::Engine::default(),
             resource_manager: Arc::new(ResourceManager::new(ResourceManagerConfig::default())),
             resource_allocations: Mutex::new(HashMap::new()),
@@ -337,8 +339,11 @@ impl ExecutorTrait for AlgorithmExecutor {
         info!("为算法 {} 创建沙箱，ID: {}", algorithm.id, sandbox_id);
 
         let wasm_binary = algorithm.code.as_bytes();
+        #[cfg(feature = "wasmtime")]
         let wasm_module = Arc::new(Module::new(wasm_binary)
             .map_err(|e| Error::compilation(format!("无法编译WASM模块: {}", e)))?);
+        #[cfg(not(feature = "wasmtime"))]
+        return Err(Error::feature_not_enabled("wasmtime"));
 
         let input_bytes = bincode::serialize(&input_data)
             .map_err(|e| Error::serialization(format!("无法序列化输入数据: {}", e)))?;
@@ -347,6 +352,7 @@ impl ExecutorTrait for AlgorithmExecutor {
         let limits = ResourceLimits::from(config.resource_limits.clone());
         let timeout = config.timeout;
 
+        #[cfg(feature = "wasmtime")]
         let sandbox_result = sandbox::utils::execute_in_sandbox(
             &wasm_module,
             &input_bytes,
@@ -356,24 +362,31 @@ impl ExecutorTrait for AlgorithmExecutor {
         )
         .await?;
 
-        let status = match sandbox_result.status {
-            AlgoSandboxStatus::Success => ExecutionStatus::Completed,
-            AlgoSandboxStatus::Error => ExecutionStatus::Failed(sandbox_result.stderr.clone()),
-            AlgoSandboxStatus::Timeout => ExecutionStatus::Timeout,
-        };
-        
-        let execution_id = sandbox_id;
-        let result = ExecutionResult::new(
-            execution_id,
-            algorithm.id.clone(),
-            sandbox_result.stdout.clone().into_bytes(),
-            status,
-            sandbox_result.resource_usage.clone(),
-            ExecutionMetrics::from(sandbox_result.clone()),
-            Some(sandbox_result),
-        );
+        #[cfg(feature = "wasmtime")]
+        {
+            let status = match sandbox_result.status {
+                AlgoSandboxStatus::Success => ExecutionStatus::Completed,
+                AlgoSandboxStatus::Error => ExecutionStatus::Failed(sandbox_result.stderr.clone()),
+                AlgoSandboxStatus::Timeout => ExecutionStatus::Timeout,
+            };
+            
+            let execution_id = sandbox_id;
+            let result = ExecutionResult::new(
+                execution_id,
+                algorithm.id.clone(),
+                sandbox_result.stdout.clone().into_bytes(),
+                status,
+                sandbox_result.resource_usage.clone(),
+                ExecutionMetrics::from(sandbox_result.clone()),
+                Some(sandbox_result),
+            );
 
-        Ok(result)
+            Ok(result)
+        }
+        #[cfg(not(feature = "wasmtime"))]
+        {
+            Err(Error::feature_not_enabled("wasmtime"))
+        }
     }
 
     async fn cancel_execution(&self, task_id: &crate::task_scheduler::core::TaskId) -> crate::error::Result<()> {
@@ -420,9 +433,12 @@ impl ExecutorTrait for AlgorithmExecutor {
         if let Err(e) = crate::algorithm::wasm::check_security(wasm_binary) {
              return Err(Error::validation(format!("WASM 安全检查失败: {}", e)));
         }
+        #[cfg(feature = "wasmtime")]
         if let Err(e) = Module::new(wasm_binary) {
             return Err(Error::validation(format!("WASM 模块验证失败: {}", e)));
         }
+        #[cfg(not(feature = "wasmtime"))]
+        return Err(Error::feature_not_enabled("wasmtime"));
 
         Ok(())
     }

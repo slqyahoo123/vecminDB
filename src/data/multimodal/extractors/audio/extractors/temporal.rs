@@ -5,6 +5,7 @@
 
 use ndarray::Array2;
 use crate::{Result, Error};
+#[cfg(feature = "multimodal")]
 use crate::data::multimodal::extractors::audio::extractors::frame_signal;
 
 /// 时域特征提取器
@@ -221,6 +222,7 @@ impl TemporalFeaturesExtractor {
     }
     
     /// 提取时域特征
+    #[cfg(feature = "multimodal")]
     pub fn extract(&self, samples: &[f32]) -> Result<Array2<f32>> {
         // 1. 分帧
         let frames = frame_signal(samples, self.frame_size, self.hop_size);

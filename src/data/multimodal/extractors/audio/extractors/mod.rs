@@ -118,6 +118,7 @@ pub fn create_mel_filterbank(n_filters: usize, fft_size: usize, sample_rate: u32
 }
 
 /// 应用汉宁窗
+#[cfg(feature = "multimodal")]
 pub fn apply_hanning_window(samples: &[f32]) -> Vec<f32> {
     let n = samples.len();
     samples.iter()
@@ -130,6 +131,7 @@ pub fn apply_hanning_window(samples: &[f32]) -> Vec<f32> {
 }
 
 /// 应用分帧处理
+#[cfg(feature = "multimodal")]
 pub fn frame_signal(signal: &[f32], frame_size: usize, hop_size: usize) -> Vec<Vec<f32>> {
     let n_frames = ((signal.len() - frame_size) as f32 / hop_size as f32).ceil() as usize + 1;
     let mut frames = Vec::with_capacity(n_frames);

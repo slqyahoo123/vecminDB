@@ -707,20 +707,22 @@ impl VideoFeatureExtractor {
             #[cfg(feature = "winapi")]
             use winapi::um::processthreadsapi::GetCurrentProcess;
             #[cfg(feature = "winapi")]
-            use winapi::um::psapi::{GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS_EX};
-            
-            unsafe {
-                let h_process = GetCurrentProcess();
-                let mut pmc: PROCESS_MEMORY_COUNTERS_EX = std::mem::zeroed();
-                let cb = std::mem::size_of::<PROCESS_MEMORY_COUNTERS_EX>() as u32;
+            {
+                use winapi::um::psapi::{GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS_EX};
                 
-                if GetProcessMemoryInfo(
-                    h_process,
-                    &mut pmc as *mut _ as *mut _,
-                    cb
-                ) != 0 {
-                    // WorkingSetSize是进程当前驻留在物理内存中的大小
-                    usage.memory_usage_mb = (pmc.WorkingSetSize as f64 / (1024.0 * 1024.0)) as f32;
+                unsafe {
+                    let h_process = GetCurrentProcess();
+                    let mut pmc: PROCESS_MEMORY_COUNTERS_EX = std::mem::zeroed();
+                    let cb = std::mem::size_of::<PROCESS_MEMORY_COUNTERS_EX>() as u32;
+                    
+                    if GetProcessMemoryInfo(
+                        h_process,
+                        &mut pmc as *mut _ as *mut _,
+                        cb
+                    ) != 0 {
+                        // WorkingSetSize是进程当前驻留在物理内存中的大小
+                        usage.memory_usage_mb = (pmc.WorkingSetSize as f64 / (1024.0 * 1024.0)) as f32;
+                    }
                 }
             }
         }

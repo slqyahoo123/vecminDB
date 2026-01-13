@@ -32,6 +32,7 @@ pub use executor::*;
 
 // 工具函数
 pub mod utils;
+#[cfg(feature = "wasmtime")]
 pub use utils::{execute_in_sandbox};
 
 // 导出核心类型

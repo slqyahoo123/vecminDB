@@ -3,6 +3,7 @@
 /// 提供在沙箱环境中安全执行WASM代码的功能
 
 use crate::{Result, Error};
+#[cfg(feature = "wasmtime")]
 use crate::algorithm::executor::sandbox::utils::execute_in_sandbox;
 use crate::algorithm::executor::config::SandboxConfig;
 use crate::algorithm::types::ResourceLimits;

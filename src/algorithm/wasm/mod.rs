@@ -159,11 +159,13 @@ impl WasmModuleResult {
 }
 
 /// WebAssembly模块执行器
+#[cfg(feature = "wasmtime")]
 pub struct Module {
-    instance: Arc<Mutex<Instance>>,
-    store: Arc<Mutex<Store<()>>>,
+    instance: Arc<Mutex<wasmtime::Instance>>,
+    store: Arc<Mutex<wasmtime::Store<()>>>,
 }
 
+#[cfg(feature = "wasmtime")]
 impl Module {
     /// 从Wasm字节码或wat文本创建一个新的模块实例
     ///
@@ -173,13 +175,13 @@ impl Module {
     /// # 返回
     /// 成功时返回一个新的`Module`实例，否则返回错误
     pub fn new(wasm_bytes: &[u8]) -> Result<Self> {
-        let engine = Engine::default();
-        let mut store = Store::new(&engine, ());
+        let engine = wasmtime::Engine::default();
+        let mut store = wasmtime::Store::new(&engine, ());
 
-        let wasm_module = WasmtimeModule::new(&engine, wasm_bytes)
+        let wasm_module = wasmtime::Module::new(&engine, wasm_bytes)
             .context("Failed to compile Wasm bytes/wat into a module")?;
 
-        let linker = Linker::new(&engine);
+        let linker = wasmtime::Linker::new(&engine);
         // 如果有导入项，可以在这里定义和链接，例如：
         // linker.func_wrap("env", "your_import_func", |param: i32| -> i32 { ... })?;
 
@@ -272,30 +274,32 @@ pub fn check_security(wasm_bytes: &[u8]) -> Result<WasmSecurityReport> {
     
     let mut report = WasmSecurityReport::new(module_id);
     
-    // 创建引擎和编译模块
-    let engine = Engine::default();
-    let wasm_module = match WasmtimeModule::new(&engine, wasm_bytes) {
-        Ok(module) => module,
-        Err(e) => {
-            report.add_error(format!("WASM模块编译失败: {}", e));
-            return Ok(report);
+    #[cfg(feature = "wasmtime")]
+    {
+        // 创建引擎和编译模块
+        let engine = wasmtime::Engine::default();
+        let wasm_module = match wasmtime::Module::new(&engine, wasm_bytes) {
+            Ok(module) => module,
+            Err(e) => {
+                report.add_error(format!("WASM模块编译失败: {}", e));
+                return Ok(report);
+            }
+        };
+        
+        // 检查模块大小
+        let module_size = wasm_bytes.len();
+        if module_size > 10 * 1024 * 1024 { // 10MB限制
+            report.add_error("WASM模块过大（超过10MB）".to_string());
+        } else {
+            report.add_check("模块大小检查".to_string(), true);
         }
-    };
-    
-    // 检查模块大小
-    let module_size = wasm_bytes.len();
-    if module_size > 10 * 1024 * 1024 { // 10MB限制
-        report.add_error("WASM模块过大（超过10MB）".to_string());
-    } else {
-        report.add_check("模块大小检查".to_string(), true);
-    }
-    
-    // 检查导入/导出
-    let mut import_count = 0;
-    let mut export_count = 0;
-    let mut has_suspicious_imports = false;
-    
-    for import in wasm_module.imports() {
+        
+        // 检查导入/导出
+        let mut import_count = 0;
+        let mut export_count = 0;
+        let mut has_suspicious_imports = false;
+        
+        for import in wasm_module.imports() {
         import_count += 1;
         
         // 检查可疑的导入
@@ -313,53 +317,59 @@ pub fn check_security(wasm_bytes: &[u8]) -> Result<WasmSecurityReport> {
         }
     }
     
-    for export in wasm_module.exports() {
-        export_count += 1;
+        for export in wasm_module.exports() {
+            export_count += 1;
+            
+            // 检查是否有main函数
+            if export.name() == "main" || export.name() == "_start" {
+                report.add_check("主入口函数".to_string(), true);
+            }
+        }
         
-        // 检查是否有main函数
-        if export.name() == "main" || export.name() == "_start" {
-            report.add_check("主入口函数".to_string(), true);
+        // 导入数量检查
+        if import_count > 100 {
+            report.add_error("导入函数过多（超过100个）".to_string());
+        } else {
+            report.add_check("导入数量检查".to_string(), true);
+        }
+        
+        // 导出数量检查
+        if export_count > 50 {
+            report.add_warning("导出函数较多（超过50个）".to_string());
+        } else {
+            report.add_check("导出数量检查".to_string(), true);
+        }
+        
+        // 可疑导入检查
+        if has_suspicious_imports {
+            report.add_warning("发现可疑的导入函数".to_string());
+        } else {
+            report.add_check("可疑导入检查".to_string(), true);
+        }
+        
+        // 设置资源使用情况
+        let resource_usage = WasmResourceUsage {
+            memory_bytes: module_size,
+            max_memory_bytes: 64 * 1024 * 1024, // 64MB默认最大内存
+            function_count: export_count,
+            import_count,
+            export_count,
+            exceeds_limits: import_count > 100 || export_count > 50,
+        };
+        
+        report.set_resource_usage(resource_usage);
+        
+        // 最终安全评估
+        if report.errors.is_empty() && !has_suspicious_imports {
+            report.is_safe = true;
+        } else {
+            report.is_safe = false;
         }
     }
-    
-    // 导入数量检查
-    if import_count > 100 {
-        report.add_error("导入函数过多（超过100个）".to_string());
-    } else {
-        report.add_check("导入数量检查".to_string(), true);
-    }
-    
-    // 导出数量检查
-    if export_count > 50 {
-        report.add_warning("导出函数较多（超过50个）".to_string());
-    } else {
-        report.add_check("导出数量检查".to_string(), true);
-    }
-    
-    // 可疑导入检查
-    if has_suspicious_imports {
-        report.add_warning("发现可疑的导入函数".to_string());
-    } else {
-        report.add_check("可疑导入检查".to_string(), true);
-    }
-    
-    // 设置资源使用情况
-    let resource_usage = WasmResourceUsage {
-        memory_bytes: module_size,
-        max_memory_bytes: 64 * 1024 * 1024, // 64MB默认最大内存
-        function_count: export_count,
-        import_count,
-        export_count,
-        exceeds_limits: import_count > 100 || export_count > 50,
-    };
-    
-    report.set_resource_usage(resource_usage);
-    
-    // 最终安全评估
-    if report.errors.is_empty() && !has_suspicious_imports {
-        report.is_safe = true;
-    } else {
-        report.is_safe = false;
+    #[cfg(not(feature = "wasmtime"))]
+    {
+        // 如果未启用 wasmtime，返回基本检查结果
+        report.add_error("WASM安全检查需要启用 'wasmtime' feature".to_string());
     }
     
     Ok(report)
