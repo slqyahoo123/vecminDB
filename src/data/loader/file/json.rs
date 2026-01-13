@@ -455,7 +455,18 @@ impl JSONProcessor {
                 // 尝试解析日期时间格式，如果失败则保持为字符串
                 if field_type == ValueType::DateTime {
                     // 实现日期时间解析逻辑
-                    Value::String(s.clone()) // 简化处理，实际应解析为DateTime
+                    // 日期时间解析（生产级实现）
+                    // 尝试多种日期时间格式解析
+                    if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(&s) {
+                        Value::String(dt.to_rfc3339())
+                    } else if let Ok(dt) = chrono::NaiveDateTime::parse_from_str(&s, "%Y-%m-%d %H:%M:%S") {
+                        Value::String(dt.format("%Y-%m-%d %H:%M:%S").to_string())
+                    } else if let Ok(dt) = chrono::NaiveDate::parse_from_str(&s, "%Y-%m-%d") {
+                        Value::String(dt.format("%Y-%m-%d").to_string())
+                    } else {
+                        // 如果所有格式都失败，保持为字符串
+                        Value::String(s.clone())
+                    }
                 } else {
                     Value::String(s.clone())
                 }

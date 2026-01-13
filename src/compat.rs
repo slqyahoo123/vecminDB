@@ -65,6 +65,15 @@ pub struct SmartModelParameters {
     pub metadata: HashMap<String, String>,
 }
 
+impl Default for SmartModelParameters {
+    fn default() -> Self {
+        Self {
+            data: HashMap::new(),
+            metadata: HashMap::new(),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ModelMemoryMonitor {
     pub current_usage: usize,
@@ -77,6 +86,12 @@ impl ModelMemoryMonitor {
             current_usage: 0,
             peak_usage: 0,
         }
+    }
+}
+
+impl Default for ModelMemoryMonitor {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -201,8 +216,6 @@ pub mod parameters {
 
 // Additional stubs for various modules
 pub mod interface {
-    use super::*;
-    
     pub type ModelType = String;
     pub use super::ModelState;
 }

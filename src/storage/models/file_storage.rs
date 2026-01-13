@@ -7,23 +7,18 @@ use std::sync::{Arc, Mutex};
 use chrono::{Utc};
 
 use crate::{Result, Error};
-use crate::compat::{Model, ModelArchitecture, ModelParameters};
+use crate::compat::{Model, ModelArchitecture, ModelParameters, TensorData, ManagedTensorData, SmartModelParameters, ModelStatus, ModelMemoryMonitor};
 use crate::storage::models::implementation::{
     ModelStorage, StoredModel,
     ModelInfo, ModelMetrics, StorageFormat, StorageOptions
 };
 
 /// 将 ManagedTensorData 转换为 TensorData
+/// 注意：由于 TensorData 在 compat 模块中被定义为 Vec<f32>，这里直接返回
 fn convert_managed_to_tensor_data(tensor: &ManagedTensorData) -> Result<TensorData> {
-    let data = tensor.to_vec_f32()?;
-    
-    Ok(TensorData {
-        shape: tensor.shape().to_vec(),
-        data: crate::model::tensor::TensorValues::F32(data),
-        dtype: crate::model::tensor::DataType::Float32,
-        metadata: std::collections::HashMap::new(),
-        version: 1,
-    })
+    // TensorData 和 ManagedTensorData 在 compat 模块中都是 Vec<f32> 的类型别名
+    // 直接克隆即可
+    Ok(tensor.clone())
 }
 
 /// 文件模型存储实现
@@ -243,10 +238,13 @@ impl ModelStorage for FileModelStorage {
             model_type: "generic".to_string(),
             smart_parameters: match parameters {
                 Some(p) => {
-                    // 使用 from_parameters 方法转换
-                    crate::model::memory_management::SmartModelParameters::from_parameters(p)
+                    // 从 ModelParameters 转换为 SmartModelParameters
+                    // ModelParameters 只有 data 字段，没有 metadata
+                    let mut smart_params = SmartModelParameters::default();
+                    smart_params.data = p.data.clone();
+                    smart_params
                 },
-                None => crate::model::memory_management::SmartModelParameters::default(),
+                None => SmartModelParameters::default(),
             },
             architecture: architecture.unwrap_or_default(),
             status: ModelStatus::Created,
@@ -258,7 +256,7 @@ impl ModelStorage for FileModelStorage {
             input_shape: architecture.as_ref().map(|a| a.input_shape.clone()).unwrap_or_default(),
             output_shape: architecture.as_ref().map(|a| a.output_shape.clone()).unwrap_or_default(),
             import_source: None,
-            memory_monitor: Arc::new(Mutex::new(crate::model::memory_monitor::ModelMemoryMonitor::new())),
+            memory_monitor: Arc::new(Mutex::new(ModelMemoryMonitor::new())),
         };
 
         Ok(Some(model))
@@ -604,7 +602,10 @@ impl ModelStorage for FileModelStorage {
                             let params_data = fs::read(params_path)?;
                             let params: ModelParameters = bincode::deserialize(&params_data)?;
                             // 使用 from_parameters 方法转换
-                            model.smart_parameters = crate::model::memory_management::SmartModelParameters::from_parameters(params);
+                            // 从 ModelParameters 转换为 SmartModelParameters
+                            let mut smart_params = SmartModelParameters::default();
+                            smart_params.data = params.data.clone();
+                            model.smart_parameters = smart_params;
                         }
                         
                         let arch_path = path.join(format!("{}_arch.json", model.id));

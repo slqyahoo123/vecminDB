@@ -7,7 +7,7 @@ use flate2::write::{GzEncoder, ZlibEncoder};
 use brotli;
 use zstd::stream::{encode_all, decode_all};
 use std::path::Path;
-use std::fs::{self, File};
+use std::fs::File;
 use std::io::{BufReader, BufWriter};
 
 use crate::error::{Error, Result};

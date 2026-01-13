@@ -5,7 +5,7 @@ use crate::storage::engine::StorageService;
 use crate::compat::{ModelArchitecture, ModelParameters, TrainingMetrics};
 // remove unused Enhanced* imports
 use crate::core::{InferenceResultDetail, InferenceResult};
-use crate::compat::TrainingResultDetail; // 使用 compat 模块中的 stub 类型
+// 注意：向量数据库系统不需要训练相关功能，已移除所有训练相关导入
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, RwLock};
@@ -81,89 +81,7 @@ impl StorageService for RocksDBStorage {
         }
     }
     
-    fn get_training_state(&self, model_id: &str) -> Result<Option<TrainingState>> {
-        let key = format!("training:state:{}", model_id);
-        if let Some(value) = self.db.read().map_err(|e| Error::lock(e.to_string()))?.get(key.as_bytes())? {
-            let state = bincode::deserialize(&value)?;
-            Ok(Some(state))
-        } else {
-            Ok(None)
-        }
-    }
-    
-    fn get_training_state_manager(&self, model_id: &str) -> Result<Option<TrainingStateManager>> {
-        let key = format!("training:state_manager:{}", model_id);
-        if let Some(value) = self.db.read().map_err(|e| Error::lock(e.to_string()))?.get(key.as_bytes())? {
-            let state_manager = bincode::deserialize(&value)?;
-            Ok(Some(state_manager))
-        } else {
-            Ok(None)
-        }
-    }
-    
-    fn save_training_state_manager(&self, model_id: &str, state_manager: &TrainingStateManager) -> Result<()> {
-        let key = format!("training:state_manager:{}", model_id);
-        let value = bincode::serialize(state_manager)?;
-        self.db.write().map_err(|e| Error::lock(e.to_string()))?.put(key.as_bytes(), value.as_slice())?;
-        Ok(())
-    }
-    
-    fn update_training_state(&self, model_id: &str, state: &TrainingState) -> Result<()> {
-        let key = format!("training:state:{}", model_id);
-        let value = bincode::serialize(state)?;
-        self.db.write().map_err(|e| Error::lock(e.to_string()))?.put(key.as_bytes(), value.as_slice())?;
-        Ok(())
-    }
-    
-    fn list_training_results(&self, model_id: &str) -> Result<Vec<HashMap<String, serde_json::Value>>> {
-        let prefix = format!("training:results:{}:", model_id);
-        let mut results = Vec::new();
-        
-        let db = self.db.read().map_err(|e| Error::lock(e.to_string()))?;
-        let iter = db.prefix_iterator(prefix.as_bytes());
-        
-        for item in iter {
-            if let Ok((_, value)) = item {
-                if let Ok(result) = serde_json::from_slice::<HashMap<String, serde_json::Value>>(&value) {
-                    results.push(result);
-                }
-            }
-        }
-        
-        Ok(results)
-    }
-    
-    fn get_training_result(&self, model_id: &str, training_id: &str) -> Result<Option<HashMap<String, serde_json::Value>>> {
-        let key = format!("training:results:{}:{}", model_id, training_id);
-        if let Some(value) = self.db.read().map_err(|e| Error::lock(e.to_string()))?.get(key.as_bytes())? {
-            let result = serde_json::from_slice(&value)?;
-            Ok(Some(result))
-        } else {
-            Ok(None)
-        }
-    }
-    
-    fn save_detailed_training_result(
-        &self,
-        model_id: &str,
-        training_id: &str,
-        result: &HashMap<String, serde_json::Value>,
-        detail: &TrainingResultDetail,
-    ) -> Result<()> {
-        // 保存基本结果
-        let result_key = format!("training:results:{}:{}", model_id, training_id);
-        let result_value = serde_json::to_vec(result)?;
-        
-        // 保存详细信息
-        let detail_key = format!("training:details:{}:{}", model_id, training_id);
-        let detail_value = bincode::serialize(detail)?;
-        
-        let db = self.db.write().map_err(|e| Error::lock(e.to_string()))?;
-        db.put(result_key.as_bytes(), result_value.as_slice())?;
-        db.put(detail_key.as_bytes(), detail_value.as_slice())?;
-        
-        Ok(())
-    }
+    // 注意：向量数据库系统不需要训练相关功能，已移除所有训练相关方法
     
     fn list_inference_results(&self, model_id: &str) -> Result<Vec<InferenceResult>> {
         let prefix = format!("inference:results:{}:", model_id);
@@ -191,20 +109,6 @@ impl StorageService for RocksDBStorage {
         } else {
             Ok(None)
         }
-    }
-    
-    fn save_training_state(&self, model_id: &str, state: &TrainingState) -> Result<()> {
-        let key = format!("training:state:{}", model_id);
-        let value = bincode::serialize(state)?;
-        self.db.write().map_err(|e| Error::lock(e.to_string()))?.put(key.as_bytes(), value.as_slice())?;
-        Ok(())
-    }
-    
-    fn save_training_result(&self, model_id: &str, result: &crate::core::TrainingResultDetail) -> Result<()> {
-        let key = format!("training:result:{}", model_id);
-        let value = bincode::serialize(result)?;
-        self.db.write().map_err(|e| Error::lock(e.to_string()))?.put(key.as_bytes(), value.as_slice())?;
-        Ok(())
     }
     
     fn save_inference_result(&self, model_id: &str, result: &crate::core::InferenceResult) -> Result<()> {
@@ -634,36 +538,7 @@ impl StorageEngine for RocksDBStorage {
         Box::pin(async move { result.map_err(Into::into) })
     }
     
-    fn get_training_metrics_history(
-        &self,
-        model_id: &str,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<TrainingMetrics>>> + Send + '_>> {
-        let prefix = format!("training_metrics:{}", model_id);
-        let db = self.db.read().unwrap();
-        let mut metrics = Vec::new();
-        
-        let iter = db.prefix_iterator(prefix.as_bytes());
-        for item in iter {
-            if let Ok((_, value)) = item {
-                if let Ok(metric) = serde_json::from_slice(&value) {
-                    metrics.push(metric);
-                }
-            }
-        }
-        
-        Box::pin(async move { Ok(metrics) })
-    }
-    
-    fn record_training_metrics(
-        &self,
-        model_id: &str,
-        metrics: &TrainingMetrics,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send + '_>> {
-        let key = format!("training_metrics:{}:{}", model_id, uuid::Uuid::new_v4());
-        let value = serde_json::to_vec(metrics).unwrap_or_default();
-        let result = self.db.write().unwrap().put(key.as_bytes(), &value);
-        Box::pin(async move { result.map_err(Into::into) })
-    }
+    // 注意：向量数据库系统不需要训练相关功能，已移除 get_training_metrics_history 和 record_training_metrics 方法
     
     fn query_dataset(
         &self,

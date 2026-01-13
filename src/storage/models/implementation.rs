@@ -2,7 +2,7 @@ use serde::{Serialize, Deserialize};
 use chrono::{DateTime, Utc, TimeZone};
 use crate::data::DataFormat;
 use crate::error::Result;
-use crate::compat::{Model, ModelArchitecture, ModelParameters};
+use crate::compat::{Model, ModelArchitecture, ModelParameters, TensorData, SmartModelParameters, ModelStatus, ModelMemoryMonitor};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::path::Path;

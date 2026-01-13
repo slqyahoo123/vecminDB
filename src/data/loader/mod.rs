@@ -73,12 +73,12 @@ pub mod progress;
 pub mod result;
 pub mod batch_importer;
 
-// 如果存在，也导出file和utils模块
-#[cfg(feature = "file_processor")]
-pub mod file;
+// 注意：file_processor 和 utils 特性未在 Cargo.toml 中定义，已注释
+// #[cfg(feature = "file_processor")]
+// pub mod file;
 
-#[cfg(feature = "utils")]
-pub mod utils;
+// #[cfg(feature = "utils")]
+// pub mod utils;
 
 // 重新导出常用结构体和枚举
 pub use self::config::{BatchImportConfig};

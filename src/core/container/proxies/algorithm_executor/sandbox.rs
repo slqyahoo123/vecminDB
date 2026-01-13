@@ -5,14 +5,8 @@
 use crate::{Result, Error};
 #[cfg(feature = "wasmtime")]
 use crate::algorithm::executor::sandbox::utils::execute_in_sandbox;
-use crate::algorithm::executor::config::SandboxConfig;
-use crate::algorithm::types::ResourceLimits;
 #[cfg(feature = "wasmtime")]
 use wasmtime::{Module, Engine as WasmEngine};
-use std::time::Duration;
-use std::sync::Arc;
-use base64::engine::general_purpose::STANDARD as BASE64_ENGINE;
-use base64::Engine as Base64Engine;
 use crate::core::UnifiedDataType;
 
 /// 在沙箱中安全执行代码

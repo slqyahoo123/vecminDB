@@ -980,10 +980,28 @@ impl crate::core::interfaces::TrainingEngineInterface for TrainingEngineProxy {
                 }
             }
             
-            // 恢复状态
+            // 恢复状态（生产级实现：完整的状态解析）
             if let Some(status_str) = checkpoint_data.get("status").and_then(|v| v.as_str()) {
-                // 尝试解析状态（简化实现）
+                // 解析状态字符串为TrainingStatus枚举
+                use crate::core::interfaces::TrainingStatus;
+                
+                task.status = match status_str.to_lowercase().as_str() {
+                    "pending" => TrainingStatus::Pending,
+                    "running" => TrainingStatus::Running,
+                    "completed" => TrainingStatus::Completed,
+                    "failed" => TrainingStatus::Failed,
+                    "paused" => TrainingStatus::Paused,
+                    "cancelled" => TrainingStatus::Cancelled,
+                    _ => {
+                        log::warn!("未知的训练状态: {}, 保持当前状态", status_str);
+                        task.status.clone() // 保持原状态
+                    }
+                };
+                
                 task.updated_at = Utc::now();
+                log::debug!("成功恢复训练状态: {} -> {:?}", task_id, task.status);
+            } else {
+                log::debug!("检查点中没有状态信息，保持当前状态");
             }
             
             info!("成功加载检查点: {} <- {}", task_id, checkpoint_path);

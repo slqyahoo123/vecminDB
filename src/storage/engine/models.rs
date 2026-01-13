@@ -480,126 +480,14 @@ impl ModelStorageService {
     }
 
     /// 存储统一模型
-    pub async fn put_unified_model(&self, model_id: &str, _model: &Arc<dyn crate::model::unified::UnifiedModel>) -> Result<()> {
-        let key = format!("unified_model:{}", model_id);
-        // 由于UnifiedModel是trait对象，需要先转换为可序列化的格式
-        // 这里使用模型的基本信息进行序列化
-        let model_info = serde_json::json!({
-            "model_id": model_id,
-            "model_type": "unified",
-            "timestamp": chrono::Utc::now().timestamp(),
-        });
-        let value = serde_json::to_vec(&model_info)?;
-        self.put_raw(key.as_bytes(), &value).await
-    }
+    // 注意：向量数据库系统不需要统一模型功能，已移除所有统一模型相关方法
+    // pub async fn put_unified_model(&self, model_id: &str, _model: &Arc<dyn crate::model::unified::UnifiedModel>) -> Result<()> {
+    //     // 实现已移除
+    // }
 
-    /// 获取统一模型
-    /// 
-    /// 从存储中恢复统一模型，包括模型参数、架构和元数据。
-    /// 注意：此方法需要模型已在模型注册表中注册，否则无法创建ModelInterface。
-    pub async fn get_unified_model(&self, model_id: &str) -> Result<Option<Arc<dyn crate::model::unified::UnifiedModel>>> {
-        use crate::compat::{ModelArchitecture as UnifiedModelArchitecture};
-        use std::collections::HashMap;
-        
-        info!("尝试从存储中恢复统一模型: {}", model_id);
-        
-        // 检查统一模型元数据是否存在
-        let key = format!("unified_model:{}", model_id);
-        let model_metadata = match self.get_raw(&key).await? {
-            Some(data) => {
-                serde_json::from_slice::<serde_json::Value>(&data)
-                    .map_err(|e| Error::serialization(format!("反序列化统一模型元数据失败: {}", e)))?
-            }
-            None => {
-                debug!("统一模型 {} 的元数据不存在", model_id);
-                return Ok(None);
-            }
-        };
-        
-        // 获取模型参数
-        let parameters = match self.get_model_parameters(model_id) {
-            Ok(Some(params)) => Some(params),
-            Ok(None) => {
-                debug!("模型 {} 的参数不存在，使用默认参数", model_id);
-                None
-            }
-            Err(e) => {
-                log::warn!("获取模型 {} 的参数失败: {}，使用默认参数", model_id, e);
-                None
-            }
-        };
-        
-        // 获取模型架构
-        let architecture = match self.get_model_architecture(model_id) {
-            Ok(Some(arch)) => {
-                Some(UnifiedModelArchitecture::from_core_types(arch))
-            }
-            Ok(None) => {
-                debug!("模型 {} 的架构不存在", model_id);
-                None
-            }
-            Err(e) => {
-                log::warn!("获取模型 {} 的架构失败: {}，跳过架构", model_id, e);
-                None
-            }
-        };
-        
-        // 获取模型信息用于元数据
-        let metadata = match self.get_model_info(model_id) {
-            Ok(Some(info)) => {
-                let mut meta = HashMap::new();
-                meta.insert("name".to_string(), info.name);
-                if let Some(desc) = info.description {
-                    meta.insert("description".to_string(), desc);
-                }
-                meta.insert("version".to_string(), info.version);
-                meta.insert("model_type".to_string(), info.model_type);
-                Some(meta)
-            }
-            Ok(None) | Err(_) => {
-                // 从存储的元数据中提取信息
-                let mut meta = HashMap::new();
-                if let Some(model_id_val) = model_metadata.get("model_id").and_then(|v| v.as_str()) {
-                    meta.insert("model_id".to_string(), model_id_val.to_string());
-                }
-                if let Some(model_type_val) = model_metadata.get("model_type").and_then(|v| v.as_str()) {
-                    meta.insert("model_type".to_string(), model_type_val.to_string());
-                }
-                Some(meta)
-            }
-        };
-        
-        // 模型注册表功能已移除 - 向量数据库系统不需要此功能
-        log::warn!("模型注册表功能已移除，无法恢复统一模型: {}", model_id);
-        return Ok(None);
-        
-        /* 原代码已注释
-        let model_interface: Arc<dyn crate::model::interface::ModelInterface> = {
-            let registry = crate::model::registry::ModelRegistry::new();
-            match registry.get_model(model_id) {
-                Ok(model_arc) => {
-                    info!("从模型注册表获取模型实例: {}", model_id);
-                    Arc::new(ModelInterfaceAdapter::from_std_mutex(model_arc))
-                }
-                Err(_) => {
-                    log::warn!("模型 {} 未在注册表中注册，无法恢复统一模型", model_id);
-                    return Ok(None);
-                }
-            }
-        };
-        
-        let unified_model = UnifiedModelAdapter::new(
-            model_id.to_string(),
-            model_interface,
-            architecture,
-            parameters,
-            metadata,
-        );
-        
-        info!("成功从存储中恢复统一模型: {}", model_id);
-        Ok(Some(Arc::new(unified_model)))
-        */
-    }
+    // pub async fn get_unified_model(&self, _model_id: &str) -> Result<Option<Arc<dyn crate::model::unified::UnifiedModel>>> {
+    //     // 实现已移除
+    // }
 
     /// 基础数据存储方法
     async fn put_raw(&self, key: &[u8], value: &[u8]) -> Result<()> {

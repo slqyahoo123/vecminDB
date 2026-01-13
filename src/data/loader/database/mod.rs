@@ -159,6 +159,10 @@ impl DatabaseLoader {
         metadata.insert("db_type".to_string(), "sqlite".to_string());
         metadata.insert("query".to_string(), config.query.clone());
         
+        // 注意：sqlite 特性未在 Cargo.toml 中定义，直接返回未实现错误
+        return Err(Error::not_implemented("SQLite支持需要启用sqlite特性"));
+        
+        /* SQLite 代码已注释，因为 sqlite 特性未定义
         #[cfg(feature = "sqlite")]
         {
             use rusqlite::{Connection, params};
@@ -226,17 +230,10 @@ impl DatabaseLoader {
                     features.push(feature_row);
                 }
             }
-        }
-        
-        #[cfg(not(feature = "sqlite"))]
-        {
-            return Err(Error::not_implemented("SQLite支持需要启用sqlite特性"));
-        }
-        
-        #[cfg(feature = "sqlite")]
-        {
+            
             return Ok(());
         }
+        */
     }
     
     // 从PostgreSQL数据库加载数据

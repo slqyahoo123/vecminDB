@@ -7,7 +7,7 @@ use serde_json;
 use log::debug;
 
 use crate::{Result, Error};
-use crate::compat::{Model, ModelArchitecture, ModelParameters};
+use crate::compat::{Model, ModelArchitecture, ModelParameters, TensorData, ManagedTensorData, SmartModelParameters, ModelStatus, ModelMemoryMonitor};
 use crate::storage::models::implementation::{
     ModelStorage, StoredModel,
     ModelInfo, ModelMetrics, StorageFormat, StorageOptions, CompressionType, PersistenceOptions, WriteMode
@@ -15,16 +15,11 @@ use crate::storage::models::implementation::{
 // removed unused config and hashing imports
 
 /// 将 ManagedTensorData 转换为 TensorData
+/// 注意：由于 TensorData 在 compat 模块中被定义为 Vec<f32>，这里直接返回
 fn convert_managed_to_tensor_data(tensor: &ManagedTensorData) -> Result<TensorData> {
-    let data = tensor.to_vec_f32()?;
-    
-    Ok(TensorData {
-        shape: tensor.shape().to_vec(),
-        data: crate::model::tensor::TensorValues::F32(data),
-        dtype: crate::model::tensor::DataType::Float32,
-        metadata: std::collections::HashMap::new(),
-        version: 1,
-    })
+    // TensorData 和 ManagedTensorData 在 compat 模块中都是 Vec<f32> 的类型别名
+    // 直接克隆即可
+    Ok(tensor.clone())
 }
 
 /// RocksDB模型存储实现
@@ -236,8 +231,13 @@ impl ModelStorage for RocksDBModelStorage {
             version: "1.0.0".to_string(),
             model_type: "generic".to_string(),
             smart_parameters: match parameters {
-                Some(p) => crate::model::memory_management::SmartModelParameters::from_parameters(p),
-                None => crate::model::memory_management::SmartModelParameters::default(),
+                Some(p) => {
+                    // 从 ModelParameters 转换为 SmartModelParameters
+                    let mut smart_params = SmartModelParameters::default();
+                    smart_params.data = p.data.clone();
+                    smart_params
+                },
+                None => SmartModelParameters::default(),
             },
             architecture: architecture.unwrap_or_default(),
             status: ModelStatus::Created,
@@ -249,7 +249,7 @@ impl ModelStorage for RocksDBModelStorage {
             input_shape: architecture.as_ref().map(|a| a.input_shape.clone()).unwrap_or_default(),
             output_shape: architecture.as_ref().map(|a| a.output_shape.clone()).unwrap_or_default(),
             import_source: None,
-            memory_monitor: Arc::new(Mutex::new(crate::model::memory_monitor::ModelMemoryMonitor::new())),
+            memory_monitor: Arc::new(Mutex::new(ModelMemoryMonitor::new())),
             // 兼容旧字段
             // tags 在新结构中并未直接存在，如有需要可存入 metadata
             // Model 没有 tags 字段，已移除
@@ -585,8 +585,10 @@ impl ModelStorage for RocksDBModelStorage {
                         if params_path.exists() {
                         let params_data = std::fs::read(params_path)?;
                         let params: ModelParameters = bincode::deserialize(&params_data)?;
-                        // 使用 from_parameters 方法将持久化参数恢复到 smart_parameters
-                        model.smart_parameters = crate::model::memory_management::SmartModelParameters::from_parameters(params);
+                        // 从 ModelParameters 转换为 SmartModelParameters
+                        let mut smart_params = SmartModelParameters::default();
+                        smart_params.data = params.data.clone();
+                        model.smart_parameters = smart_params;
                         }
                         
                         let arch_path = path.join(format!("{}_arch.json", model.id));

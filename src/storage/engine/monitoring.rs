@@ -9,6 +9,7 @@ use crate::Result;
 use crate::Error;
 use crate::compat::TrainingMetrics;
 use crate::storage::engine::types::DistributedTaskInfo;
+use crate::algorithm::types::TaskStatus;
 
 /// 监控存储服务
 /// 
@@ -474,7 +475,7 @@ impl MonitoringStorageService {
         for item in db.scan_prefix("node_task_status:".as_bytes()) {
             if let Ok((_, value)) = item {
                 if let Ok(status) = bincode::deserialize::<TaskStatus>(&value) {
-                    if matches!(status, TaskStatus::Running { .. } | TaskStatus::Pending) {
+                    if matches!(status, TaskStatus::Running | TaskStatus::Pending) {
                         count += 1;
                     }
                 }

@@ -5,7 +5,7 @@ use crate::storage::engine::StorageService;
 use crate::compat::{ModelArchitecture, ModelParameters};
 // remove unused Enhanced* imports
 use crate::core::{InferenceResultDetail, InferenceResult};
-use crate::compat::TrainingResultDetail; // 使用 compat 模块中的 stub 类型
+// 注意：向量数据库系统不需要训练相关功能，已移除所有训练相关导入
 use crate::interfaces::storage::StorageTransaction;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -18,8 +18,7 @@ pub struct MemoryStorage {
     config: StorageConfig,
     model_params: Arc<RwLock<HashMap<String, ModelParameters>>>,
     model_arch: Arc<RwLock<HashMap<String, ModelArchitecture>>>,
-    training_state: Arc<RwLock<HashMap<String, TrainingStateManager>>>,
-    training_results: Arc<RwLock<HashMap<String, HashMap<String, Value>>>>,
+    // 注意：向量数据库系统不需要训练相关功能，已移除 training_state 和 training_results 字段
     inference_results: Arc<RwLock<HashMap<String, InferenceResult>>>,
     model_info: Arc<RwLock<HashMap<String, crate::storage::models::implementation::ModelInfo>>>,
     model_metrics: Arc<RwLock<HashMap<String, crate::storage::models::implementation::ModelMetrics>>>,
@@ -38,8 +37,7 @@ impl MemoryStorage {
             config,
             model_params: Arc::new(RwLock::new(HashMap::new())),
             model_arch: Arc::new(RwLock::new(HashMap::new())),
-            training_state: Arc::new(RwLock::new(HashMap::new())),
-            training_results: Arc::new(RwLock::new(HashMap::new())),
+            // 注意：向量数据库系统不需要训练相关功能，已移除 training_state 和 training_results
             inference_results: Arc::new(RwLock::new(HashMap::new())),
             model_info: Arc::new(RwLock::new(HashMap::new())),
             model_metrics: Arc::new(RwLock::new(HashMap::new())),
@@ -114,117 +112,8 @@ impl StorageService for MemoryStorage {
         Ok(arch_storage.get(model_id).cloned())
     }
     
-    fn get_training_state(&self, model_id: &str) -> Result<Option<TrainingState>> {
-        self.validate_model_id(model_id)?;
-        
-        let training_storage = self.training_state.read().map_err(|e| Error::lock(e.to_string()))?;
-        if let Some(manager) = training_storage.get(model_id) {
-            // TrainingStateManager 使用 current_state 字段
-            Ok(Some(manager.current_state.clone()))
-        } else {
-            Ok(None)
-        }
-    }
-
-    fn get_training_state_manager(&self, model_id: &str) -> Result<Option<TrainingStateManager>> {
-        self.validate_model_id(model_id)?;
-        
-        let training_storage = self.training_state.read().map_err(|e| Error::lock(e.to_string()))?;
-        Ok(training_storage.get(model_id).cloned())
-    }
-
-    fn save_training_state_manager(&self, model_id: &str, state_manager: &TrainingStateManager) -> Result<()> {
-        self.validate_model_id(model_id)?;
-        
-        let mut training_storage = self.training_state.write().map_err(|e| Error::lock(e.to_string()))?;
-        training_storage.insert(model_id.to_string(), state_manager.clone());
-        
-        Ok(())
-    }
-
-    fn update_training_state(&self, model_id: &str, state: &TrainingState) -> Result<()> {
-        self.validate_model_id(model_id)?;
-        
-        let mut training_storage = self.training_state.write().map_err(|e| Error::lock(e.to_string()))?;
-        if let Some(manager) = training_storage.get_mut(model_id) {
-            // TrainingStateManager 使用 current_state 字段
-            manager.current_state = state.clone();
-            Ok(())
-        } else {
-            Err(Error::NotFound(format!("模型 {} 的训练状态管理器未找到", model_id)))
-        }
-    }
-
-    fn list_training_results(&self, model_id: &str) -> Result<Vec<HashMap<String, Value>>> {
-        self.validate_model_id(model_id)?;
-        
-        let prefix = format!("{}:", model_id);
-        let results = self.training_results.read().map_err(|e| Error::lock(e.to_string()))?;
-        
-        let mut result_list = Vec::new();
-        for (key, value) in results.iter() {
-            if key.starts_with(&prefix) {
-                result_list.push(value.clone());
-            }
-        }
-        
-        // 按时间戳排序（如果存在）
-        result_list.sort_by(|a, b| {
-            let timestamp_a = a.get("timestamp").and_then(|v| v.as_str()).unwrap_or("");
-            let timestamp_b = b.get("timestamp").and_then(|v| v.as_str()).unwrap_or("");
-            timestamp_b.cmp(timestamp_a) // 降序排列，最新的在前
-        });
-        
-        Ok(result_list)
-    }
-
-    fn get_training_result(&self, model_id: &str, training_id: &str) -> Result<Option<HashMap<String, Value>>> {
-        self.validate_model_id(model_id)?;
-        
-        if training_id.is_empty() {
-            return Err(Error::InvalidArgument("训练ID不能为空".to_string()));
-        }
-        
-        let key = format!("{}:{}", model_id, training_id);
-        let results = self.training_results.read().map_err(|e| Error::lock(e.to_string()))?;
-        Ok(results.get(&key).cloned())
-    }
-
-    fn save_detailed_training_result(
-        &self,
-        model_id: &str,
-        training_id: &str,
-        result: &HashMap<String, Value>,
-        detail: &TrainingResultDetail,
-    ) -> Result<()> {
-        self.validate_model_id(model_id)?;
-        
-        if training_id.is_empty() {
-            return Err(Error::InvalidArgument("训练ID不能为空".to_string()));
-        }
-        
-        let key = format!("{}:{}", model_id, training_id);
-        
-        // 增强结果信息
-        let mut enhanced_result = result.clone();
-        enhanced_result.insert("model_id".to_string(), Value::String(model_id.to_string()));
-        enhanced_result.insert("training_id".to_string(), Value::String(training_id.to_string()));
-        enhanced_result.insert("timestamp".to_string(), Value::String(Utc::now().to_rfc3339()));
-        enhanced_result.insert("detail_epochs".to_string(), Value::Number(detail.total_epochs.into()));
-        // TrainingResultDetail 没有 batch_size 字段，使用 config 中的信息或默认值
-        // enhanced_result.insert("detail_batch_size".to_string(), Value::Number(detail.batch_size.into()));
-        
-        // TrainingResultDetail 没有 final_loss 字段，使用 loss_history 的最后一个值
-        if let Some(&final_loss) = detail.loss_history.last() {
-            enhanced_result.insert("final_loss".to_string(), Value::Number(serde_json::Number::from_f64(final_loss).unwrap_or_else(|| serde_json::Number::from(0))));
-        }
-        
-        let mut results = self.training_results.write().map_err(|e| Error::lock(e.to_string()))?;
-        results.insert(key, enhanced_result);
-        
-        Ok(())
-    }
-
+    // 注意：向量数据库系统不需要训练相关功能，已移除所有训练相关方法
+    
     fn list_inference_results(&self, model_id: &str) -> Result<Vec<InferenceResult>> {
         self.validate_model_id(model_id)?;
         
@@ -260,44 +149,6 @@ impl StorageService for MemoryStorage {
         }
         
         Ok(None)
-    }
-    
-    fn save_training_state(&self, model_id: &str, state: &TrainingState) -> Result<()> {
-        self.validate_model_id(model_id)?;
-        // MemoryStorage 使用 training_state 字段，不是 training_states
-        let mut training_storage = self.training_state.write().map_err(|e| Error::lock(e.to_string()))?;
-        // 需要创建或更新 TrainingStateManager
-        if let Some(manager) = training_storage.get_mut(model_id) {
-            manager.current_state = state.clone();
-        } else {
-            // 如果不存在，创建一个新的 TrainingStateManager
-            let mut manager = TrainingStateManager::new(model_id.to_string());
-            manager.current_state = state.clone();
-            training_storage.insert(model_id.to_string(), manager);
-        }
-        Ok(())
-    }
-    
-    fn save_training_result(&self, model_id: &str, result: &crate::core::TrainingResultDetail) -> Result<()> {
-        self.validate_model_id(model_id)?;
-        let mut results = self.training_results.write().map_err(|e| Error::lock(e.to_string()))?;
-        // TrainingResultDetail 需要序列化为 Value，然后包装在 HashMap 中
-        let result_value = serde_json::to_value(result)
-            .map_err(|e| Error::Serialization(format!("序列化训练结果失败: {}", e)))?;
-        // 如果 result_value 是 Object，直接使用；否则包装在 HashMap 中
-        if let Value::Object(obj) = result_value {
-            let mut map = HashMap::new();
-            for (k, v) in obj {
-                map.insert(k, v);
-            }
-            results.insert(model_id.to_string(), map);
-        } else {
-            // 如果不是 Object，创建一个包含 result 的 HashMap
-            let mut map = HashMap::new();
-            map.insert("result".to_string(), result_value);
-            results.insert(model_id.to_string(), map);
-        }
-        Ok(())
     }
     
     fn save_inference_result(&self, model_id: &str, result: &crate::core::InferenceResult) -> Result<()> {
@@ -501,9 +352,12 @@ impl StorageService for MemoryStorage {
         self.model_exists(model_id)
     }
 
+    /// 获取数据集（生产级实现：内存存储主要用于模型数据，数据集应使用持久化存储）
     fn get_dataset(&self, dataset_id: &str) -> Result<Option<crate::data::DataBatch>> {
-        // 内存存储中暂时返回None，因为内存存储主要用于模型数据
-        // 数据集数据通常存储在持久化存储中
+        // 内存存储主要用于模型数据缓存，数据集数据应该存储在持久化存储中
+        // 如果需要在内存存储中支持数据集，应该实现相应的存储逻辑
+        // 当前实现返回 None，表示数据集不在内存存储中
+        // 调用者应该使用持久化存储引擎（如 StorageEngineImpl）来获取数据集
         Ok(None)
     }
 }

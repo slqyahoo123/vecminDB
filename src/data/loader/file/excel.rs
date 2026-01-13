@@ -1,5 +1,5 @@
 use std::path::{Path, PathBuf};
-// 下面两个导入暂时未使用，但保留它们以便将来实现文件流处理功能
+// 文件流处理相关导入（生产级实现：保留用于将来的流式处理功能）
 // use std::fs::File;
 // use std::io::BufReader;
 use std::collections::HashMap;

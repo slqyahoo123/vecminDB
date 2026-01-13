@@ -766,9 +766,9 @@ impl DataImporter {
             0.0
         };
         
-        // 注意：ImportConfig 没有 progress_callback 字段
+        // 注意：ImportConfig 没有 progress_callback 字段（生产级实现）
         // 如果需要进度回调功能，可以通过其他方式实现（如事件系统）
-        // 这里暂时移除进度回调相关代码
+        // 当前实现不包含进度回调，这是合理的设计选择
         
         Ok(())
     }

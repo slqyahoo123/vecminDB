@@ -187,7 +187,7 @@ impl StorageEngineImpl {
         // ModelManager 是一个 trait，需要使用具体的实现
         // ProductionModelManager 需要 Arc<Storage>，因此创建 Storage 实例
         // 使用与当前存储引擎相同的配置路径，确保数据一致性
-        use crate::storage::module::core::Storage;
+        use crate::storage::module::Storage;
         use crate::storage::config::StorageConfig;
         use crate::algorithm::manager::models::ProductionModelManager;
         
@@ -683,15 +683,7 @@ impl StorageEngineImpl {
         self.delete_raw(key.as_bytes()).await
     }
 
-    /// 存储统一模型
-    pub async fn put_unified_model(&self, model_id: &str, model: &Arc<dyn crate::model::unified::UnifiedModel>) -> Result<()> {
-        self.model_storage.put_unified_model(model_id, model).await
-    }
-
-    /// 获取统一模型
-    pub async fn get_unified_model(&self, model_id: &str) -> Result<Option<Arc<dyn crate::model::unified::UnifiedModel>>> {
-        self.model_storage.get_unified_model(model_id).await
-    }
+    // 注意：向量数据库系统不需要统一模型功能，已移除所有统一模型相关方法
 
     /// 获取模型
     pub async fn get_model(&self, model_id: &str) -> Result<Option<crate::model::Model>> {

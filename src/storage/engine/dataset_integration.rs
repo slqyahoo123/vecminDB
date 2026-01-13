@@ -51,30 +51,101 @@ impl DatasetIntegration {
         let datasets = self.dataset_storage.list_datasets().await.unwrap_or_default();
         stats.insert("total_datasets".to_string(), serde_json::Value::Number(serde_json::Number::from(datasets.len())));
         
-        // 数据集类型统计 - 简化实现，因为datasets是Vec<String>
+        // 数据集类型统计（生产级实现：基于实际元数据）
         let mut type_stats = HashMap::new();
-        for _dataset in &datasets {
-            // 简化：假设所有数据集都是相同类型
-            *type_stats.entry("standard".to_string()).or_insert(0) += 1;
+        let mut total_size_bytes = 0u64;
+        let mut size_distribution = HashMap::new();
+        let mut recent_access_times = Vec::new();
+        
+        for dataset_id in &datasets {
+            // 获取数据集的实际元数据
+            let metadata_key = format!("dataset:{}:metadata", dataset_id);
+            if let Ok(metadata_bytes) = self.db.read().await.get(metadata_key.as_bytes()) {
+                if let Some(bytes) = metadata_bytes {
+                    // 尝试解析元数据
+                    if let Ok(metadata) = serde_json::from_slice::<serde_json::Value>(&bytes) {
+                        // 统计数据集类型
+                        let dataset_type = metadata.get("type")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("unknown")
+                            .to_string();
+                        *type_stats.entry(dataset_type).or_insert(0) += 1;
+                        
+                        // 统计数据集大小
+                        if let Some(size) = metadata.get("size_bytes").and_then(|v| v.as_u64()) {
+                            total_size_bytes += size;
+                            
+                            // 按大小分类：small(<10MB), medium(10MB-100MB), large(>100MB)
+                            let size_category = if size < 10 * 1024 * 1024 {
+                                "small"
+                            } else if size < 100 * 1024 * 1024 {
+                                "medium"
+                            } else {
+                                "large"
+                            };
+                            *size_distribution.entry(size_category.to_string()).or_insert(0) += 1;
+                        } else {
+                            // 如果没有大小信息，尝试从数据键获取实际大小
+                            let data_key = format!("dataset:{}:data", dataset_id);
+                            if let Ok(Some(data)) = self.db.read().await.get(data_key.as_bytes()) {
+                                let size = data.len() as u64;
+                                total_size_bytes += size;
+                                
+                                let size_category = if size < 10 * 1024 * 1024 {
+                                    "small"
+                                } else if size < 100 * 1024 * 1024 {
+                                    "medium"
+                                } else {
+                                    "large"
+                                };
+                                *size_distribution.entry(size_category.to_string()).or_insert(0) += 1;
+                            } else {
+                                // 无法获取大小，归类为unknown
+                                *size_distribution.entry("unknown".to_string()).or_insert(0) += 1;
+                            }
+                        }
+                        
+                        // 统计最近访问时间
+                        if let Some(last_access) = metadata.get("last_accessed_at").and_then(|v| v.as_str()) {
+                            recent_access_times.push(serde_json::Value::String(last_access.to_string()));
+                        } else {
+                            // 如果没有访问时间，使用创建时间
+                            let created_at = metadata.get("created_at")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or_else(|| "unknown");
+                            recent_access_times.push(serde_json::Value::String(created_at.to_string()));
+                        }
+                    } else {
+                        // 元数据解析失败，使用默认值
+                        *type_stats.entry("unknown".to_string()).or_insert(0) += 1;
+                        *size_distribution.entry("unknown".to_string()).or_insert(0) += 1;
+                        recent_access_times.push(serde_json::Value::String("unknown".to_string()));
+                    }
+                } else {
+                    // 元数据不存在，使用默认值
+                    *type_stats.entry("no_metadata".to_string()).or_insert(0) += 1;
+                    *size_distribution.entry("unknown".to_string()).or_insert(0) += 1;
+                    recent_access_times.push(serde_json::Value::String("no_metadata".to_string()));
+                }
+            } else {
+                // 数据库访问失败，使用默认值
+                *type_stats.entry("error".to_string()).or_insert(0) += 1;
+                *size_distribution.entry("error".to_string()).or_insert(0) += 1;
+                recent_access_times.push(serde_json::Value::String("error".to_string()));
+            }
         }
+        
+        // 添加统计数据到结果
         stats.insert("dataset_types".to_string(), serde_json::to_value(type_stats)?);
+        stats.insert("size_distribution".to_string(), serde_json::to_value(size_distribution)?);
+        stats.insert("total_size_bytes".to_string(), serde_json::Value::Number(serde_json::Number::from(total_size_bytes)));
+        stats.insert("average_size_bytes".to_string(), serde_json::Value::Number(serde_json::Number::from(
+            if datasets.is_empty() { 0 } else { total_size_bytes / datasets.len() as u64 }
+        )));
+        stats.insert("recent_accesses".to_string(), serde_json::Value::Array(recent_access_times));
         
-        // 数据集大小统计 - 简化实现
-        let mut size_stats = HashMap::new();
-        for _dataset in &datasets {
-            // 简化：假设所有数据集都是中等大小
-            *size_stats.entry("medium".to_string()).or_insert(0) += 1;
-        }
-        stats.insert("size_distribution".to_string(), serde_json::to_value(size_stats)?);
-        
-        // 最近访问统计 - 简化实现
-        let mut recent_access = Vec::new();
-        for _dataset in &datasets {
-            // 简化：使用当前时间作为最后访问时间
-            recent_access.push(serde_json::Value::String(chrono::Utc::now().to_rfc3339()));
-        }
-        stats.insert("recent_accesses".to_string(), serde_json::Value::Array(recent_access));
-        info!("dataset statistics collected (total: {})", datasets.len());
+        info!("dataset statistics collected (total: {}, total_size: {} bytes)", 
+              datasets.len(), total_size_bytes);
         
         Ok(serde_json::Value::Object(stats))
     }
@@ -125,8 +196,20 @@ impl DatasetIntegration {
                 integrity.insert("data_size_valid".to_string(), serde_json::Value::Bool(data_size > 0));
             }
             
-            // 检查数据格式
-            integrity.insert("data_format_valid".to_string(), serde_json::Value::Bool(true)); // 简化实现
+            // 检查数据格式（生产级实现：实际验证数据格式）
+            let format_valid = if let Some(data) = self.db.read().await.get(data_key.as_bytes())? {
+                // 尝试验证数据格式
+                match self.validate_data_format(&data, dataset_id).await {
+                    Ok(is_valid) => is_valid,
+                    Err(e) => {
+                        log::warn!("数据格式验证失败: {}", e);
+                        false
+                    }
+                }
+            } else {
+                false
+            };
+            integrity.insert("data_format_valid".to_string(), serde_json::Value::Bool(format_valid));
         }
         
         Ok(integrity)
@@ -181,6 +264,72 @@ impl DatasetIntegration {
         }
         
         Ok(integrity)
+    }
+
+    /// 验证数据格式
+    async fn validate_data_format(&self, data: &[u8], dataset_id: &str) -> Result<bool> {
+        // 获取数据集的元数据以确定预期格式
+        let metadata_key = format!("dataset:{}:metadata", dataset_id);
+        let expected_format = if let Some(metadata) = self.db.read().await.get(metadata_key.as_bytes())? {
+            if let Ok(metadata_value) = serde_json::from_slice::<serde_json::Value>(&metadata) {
+                metadata_value.get("format")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("json")
+                    .to_string()
+            } else {
+                "json".to_string()
+            }
+        } else {
+            "json".to_string()
+        };
+        
+        // 根据预期格式验证数据
+        let is_valid = match expected_format.as_str() {
+            "json" => {
+                // 验证JSON格式
+                serde_json::from_slice::<serde_json::Value>(data).is_ok()
+            },
+            "bincode" => {
+                // 验证Bincode格式（尝试反序列化为通用值）
+                bincode::deserialize::<serde_json::Value>(data).is_ok()
+            },
+            "msgpack" | "messagepack" => {
+                // 验证MessagePack格式
+                rmp_serde::from_slice::<serde_json::Value>(data).is_ok()
+            },
+            "csv" => {
+                // 验证CSV格式（检查是否包含有效的行）
+                if data.is_empty() {
+                    return Ok(false);
+                }
+                // 简单验证：检查是否包含换行符和可打印字符
+                let data_str = String::from_utf8_lossy(data);
+                !data_str.is_empty() && data_str.chars().any(|c| c == '\n' || c == '\r')
+            },
+            "parquet" => {
+                // Parquet格式验证（检查文件头）
+                if data.len() < 4 {
+                    return Ok(false);
+                }
+                // Parquet文件以"PAR1"开头
+                data.starts_with(b"PAR1")
+            },
+            "binary" | "raw" => {
+                // 二进制格式：只要有数据就认为有效
+                !data.is_empty()
+            },
+            _ => {
+                // 未知格式：尝试JSON验证作为后备
+                log::warn!("未知的数据格式: {}, 使用JSON验证作为后备", expected_format);
+                serde_json::from_slice::<serde_json::Value>(data).is_ok()
+            }
+        };
+        
+        if !is_valid {
+            log::warn!("数据格式验证失败：数据集 {}, 预期格式 {}", dataset_id, expected_format);
+        }
+        
+        Ok(is_valid)
     }
 
     /// 计算完整性评分
