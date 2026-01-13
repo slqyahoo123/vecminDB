@@ -1,0 +1,5594 @@
+use crate::{Error, Result};
+use serde::{Serialize, Deserialize};
+use std::collections::HashMap;
+use crate::model::TensorData;
+use crate::data::text_features::{TextFeatureExtractor, TextFeatureConfig};
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+use base64::Engine as Base64Engine;
+use image;
+use serde_json::Value;
+use lru::LruCache;
+use std::hash::{Hash, Hasher, DefaultHasher};
+use rayon::prelude::*;
+use rand::{Rng, thread_rng, SeedableRng};
+use rand::rngs::StdRng;
+use rand_distr::Normal;
+use rand_chacha::ChaChaRng;
+use self::extractors::{
+    ModalityExtractor, 
+    ImageExtractor, 
+    TextExtractor, 
+    FusionExtractor,
+    VideoExtractor,
+};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ModalityType {
+    Text,
+    Image,
+    Audio,
+    Video,
+    TimeSeries,
+    Tabular,
+    Custom(String),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MultiModalConfig {
+    pub modalities: HashMap<String, ModalityConfig>,
+    pub fusion_strategy: FusionStrategy,
+    pub alignment_config: Option<AlignmentConfig>,
+    pub batch_size: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModalityConfig {
+    pub modality_type: ModalityType,
+    pub feature_dimension: usize,
+    pub extraction_config: ExtractionConfig,
+    pub text_config: Option<TextFeatureConfig>,
+    pub image_config: Option<ImageFeatureConfig>,
+    pub audio_config: Option<AudioFeatureConfig>,
+    pub video_config: Option<VideoFeatureConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ExtractionConfig {
+    Text(TextFeatureConfig),
+    Image(ImageFeatureConfig),
+    Audio(AudioFeatureConfig),
+    Custom(HashMap<String, serde_json::Value>),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImageFeatureConfig {
+    pub model_type: String,
+    pub input_size: (usize, usize),
+    pub normalize: bool,
+    pub extract_layers: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AudioFeatureConfig {
+    pub sampling_rate: usize,
+    pub feature_type: String,
+    pub window_size: usize,
+    pub hop_length: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum FusionStrategy {
+    Concatenation,
+    Attention,
+    Weighted,
+    Gated,
+    TensorFusion,
+    Custom(String),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AlignmentConfig {
+    pub method: AlignmentMethod,
+    pub reference_modality: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum AlignmentMethod {
+    TemporalAlignment,
+    CrossModalAttention,
+    EmbeddingAlignment,
+    Custom(String),
+}
+
+pub struct MultiModalExtractor {
+    config: MultiModalConfig,
+    modality_extractors: HashMap<ModalityType, Box<dyn ModalityExtractor>>,
+    alignment_module: Option<Box<dyn ModalityAlignment>>,
+    fusion_module: Option<Box<dyn ModalityFusion>>,
+}
+
+pub trait ModalityExtractor {
+    fn extract_features(&self, data: &serde_json::Value) -> Result<TensorData>;
+    fn get_config(&self) -> Result<serde_json::Value>;
+}
+
+pub trait ModalityAlignment {
+    fn align_features(&self, features: HashMap<ModalityType, Vec<TensorData>>) -> Result<HashMap<ModalityType, Vec<TensorData>>>;
+}
+
+pub trait ModalityFusion {
+    fn fuse_features(&self, features: Vec<TensorData>) -> Result<TensorData>;
+}
+
+impl MultiModalExtractor {
+    /// 创建一个新的多模态特征提取器
+    pub fn new(config: MultiModalConfig) -> Result<Self> {
+        let mut modality_extractors: HashMap<ModalityType, Box<dyn ModalityExtractor>> = HashMap::new();
+        
+        // 初始化各个模态提取器
+        for modality_config in &config.modalities {
+            match modality_config.modality_type {
+                ModalityType::Text => {
+                    if let Some(text_config) = modality_config.text_config.clone() {
+                        // 使用优化的文本提取器，启用缓存和批处理
+                        modality_extractors.insert(
+                            ModalityType::Text,
+                            Box::new(OptimizedTextModalityExtractor::new(
+                                text_config,
+                                true, // 启用缓存
+                                config.batch_size.unwrap_or(16) // 批处理大小，默认为16
+                            )?)
+                        );
+                    }
+                },
+                ModalityType::Image => {
+                    if let Some(image_config) = modality_config.image_config.clone() {
+                        // 使用优化的图像提取器，启用缓存和批处理
+                        modality_extractors.insert(
+                            ModalityType::Image,
+                            Box::new(OptimizedImageModalityExtractor::new(
+                                image_config,
+                                true, // 启用缓存
+                                config.batch_size.unwrap_or(8) // 批处理大小，默认为8
+                            )?)
+                        );
+                    }
+                },
+                ModalityType::Audio => {
+                    if let Some(audio_config) = modality_config.audio_config.clone() {
+                        // 使用优化的音频提取器，启用缓存和批处理
+                        modality_extractors.insert(
+                            ModalityType::Audio,
+                            Box::new(OptimizedAudioModalityExtractor::new(
+                                audio_config,
+                                true, // 启用缓存
+                                config.batch_size.unwrap_or(4) // 批处理大小，默认为4（音频处理较重）
+                            )?)
+                        );
+                    }
+                },
+                ModalityType::Video => {
+                    if let Some(video_config) = modality_config.video_config.clone() {
+                        // 使用优化的视频提取器，启用缓存和批处理
+                        modality_extractors.insert(
+                            ModalityType::Video,
+                            Box::new(OptimizedVideoModalityExtractor::new(
+                                video_config,
+                                true, // 启用缓存
+                                config.batch_size.unwrap_or(2) // 批处理大小，默认为2（视频处理较重）
+                            )?)
+                        );
+                    }
+                },
+                // 其他模态类型...
+            }
+        }
+        
+        // 创建模态对齐模块
+        let alignment_module = if config.enable_alignment {
+            Some(ModalityAlignmentModule::new(config.alignment_config.clone().unwrap_or_default())?)
+        } else {
+            None
+        };
+        
+        // 创建模态融合模块
+        let fusion_module = if config.enable_fusion {
+            Some(ModalityFusionModule::new(config.fusion_strategy.clone().unwrap_or_default())?)
+        } else {
+            None
+        };
+        
+        Ok(Self {
+            config,
+            modality_extractors,
+            alignment_module,
+            fusion_module,
+        })
+    }
+    
+    /// 提取多模态特征
+    pub fn extract_features(&self, data: &MultiModalData) -> Result<(MultiModalFeatures, ProcessingStats)> {
+        // 创建处理统计对象
+        let mut stats = ProcessingStats::default();
+        let start_time = std::time::Instant::now();
+        
+        // 用于存储各模态提取的特征
+        let mut modality_features: HashMap<ModalityType, Vec<TensorData>> = HashMap::new();
+        let mut modality_names: HashMap<ModalityType, String> = HashMap::new();
+        
+        // 遍历所有模态提取器提取特征
+        for (modality_type, extractor) in &self.modality_extractors {
+            // 记录模态处理开始时间
+            let modality_start = std::time::Instant::now();
+            
+            let modality_name = self.config.modalities.iter()
+                .find(|(_, config)| &config.modality_type == modality_type)
+                .map(|(name, _)| name.clone())
+                .unwrap_or_else(|| format!("{:?}", modality_type));
+            
+            // 提取特征
+            match extractor.extract_features(data) {
+                Ok(features) => {
+                    // 记录特征数量
+                    stats.feature_counts.insert(modality_name.clone(), features.len());
+                    
+                    // 记录模态处理时间
+                    let modality_duration = modality_start.elapsed().as_millis() as u64;
+                    stats.modality_times_ms.insert(modality_name.clone(), modality_duration);
+                    
+                    // 存储提取的特征
+                    modality_features.insert(modality_type.clone(), features);
+                    modality_names.insert(modality_type.clone(), modality_name);
+                    
+                    // 更新模态计数
+                    stats.modality_count += 1;
+                },
+                Err(e) => {
+                    log::warn!("从{}模态提取特征失败: {}", modality_name, e);
+                }
+            }
+        }
+        
+        // 记录特征提取时间
+        stats.extraction_time_ms = start_time.elapsed().as_millis() as u64;
+        
+        // 如果所有模态都未提取到特征，返回错误
+        if modality_features.is_empty() {
+            return Err(Error::ProcessingError("所有模态特征提取失败".to_string()));
+        }
+        
+        // 进行特征对齐（如果配置了对齐模块）
+        let aligned_features = if let Some(align_module) = &self.alignment_module {
+            let align_start = std::time::Instant::now();
+            let aligned = align_module.align_features(modality_features)?;
+            stats.alignment_time_ms = align_start.elapsed().as_millis() as u64;
+            aligned
+        } else {
+            modality_features
+        };
+        
+        // 执行特征融合（如果配置了融合模块）
+        let fused_feature = if let Some(fusion_module) = &self.fusion_module {
+            let fusion_start = std::time::Instant::now();
+            
+            // 准备融合输入
+            let mut fusion_input = Vec::new();
+            for features_vec in aligned_features.values() {
+                fusion_input.extend(features_vec.iter().cloned());
+            }
+            
+            // 执行融合
+            let fused = fusion_module.fuse_features(fusion_input)?;
+            stats.fusion_time_ms = fusion_start.elapsed().as_millis() as u64;
+            Some(fused)
+        } else {
+            None
+        };
+        
+        // 整理特征
+        let mut features_by_modality = HashMap::new();
+        for (modality_type, features) in aligned_features {
+            let modality_name = modality_names.get(&modality_type)
+                .cloned()
+                .unwrap_or_else(|| format!("{:?}", modality_type));
+            
+            features_by_modality.insert(modality_name, features);
+        }
+        
+        // 计算总处理时间
+        stats.total_processing_time_ms = start_time.elapsed().as_millis() as u64;
+        
+        // 返回结果和统计信息
+        Ok((
+            MultiModalFeatures {
+                features_by_modality,
+                fused_feature,
+            },
+            stats
+        ))
+    }
+    
+    /// 批量提取多模态特征
+    pub fn batch_extract_features(&self, data_batch: &[MultiModalData]) -> Result<Vec<(MultiModalFeatures, ProcessingStats)>> {
+        let batch_size = self.config.batch_size.unwrap_or(8);
+        let mut results = Vec::with_capacity(data_batch.len());
+        
+        // 按批次处理
+        for chunk in data_batch.chunks(batch_size) {
+            // 并行处理每个批次
+            let chunk_results: Vec<Result<(MultiModalFeatures, ProcessingStats)>> = chunk
+                .par_iter()
+                .map(|data| self.extract_features(data))
+                .collect();
+            
+            // 收集结果
+            for result in chunk_results {
+                results.push(result?);
+            }
+        }
+        
+        Ok(results)
+    }
+}
+
+// 文本模态提取器
+pub struct TextModalityExtractor {
+    extractor: Box<dyn TextFeatureExtractor>,
+}
+
+impl TextModalityExtractor {
+    pub fn new(config: TextFeatureConfig) -> Result<Self> {
+        let extractor = Box::new(TextFeatureExtractor::new(config)?);
+        Ok(Self { extractor })
+    }
+}
+
+impl ModalityExtractor for TextModalityExtractor {
+    fn extract_features(&self, data: &serde_json::Value) -> Result<TensorData> {
+        // 将JSON数据转换为文本提取器可用的格式
+        let text = match data {
+            serde_json::Value::String(s) => s.clone(),
+            serde_json::Value::Object(obj) => {
+                if let Some(serde_json::Value::String(s)) = obj.get("text") {
+                    s.clone()
+                } else {
+                    return Err(Error::InvalidArgument("Text data not found in JSON object".to_string()));
+                }
+            },
+            _ => return Err(Error::InvalidArgument("Invalid text data format".to_string())),
+        };
+        
+        // 提取特征
+        let features = self.extractor.extract_features(&text)?;
+        
+        // 转换为TensorData
+        let tensor = TensorData {
+            shape: vec![1, features.len()],
+            data: features,
+            dtype: crate::model::DataType::Float32,
+        };
+        
+        Ok(tensor)
+    }
+    
+    fn get_config(&self) -> Result<serde_json::Value> {
+        // 返回提取器配置
+        let config = self.extractor.get_config()?;
+        Ok(serde_json::to_value(config)?)
+    }
+}
+
+// 图像模态提取器
+pub struct ImageModalityExtractor {
+    config: ImageFeatureConfig,
+    model: Box<dyn ImageFeatureModel>,
+}
+
+impl ImageModalityExtractor {
+    /// 创建新的图像模态提取器
+    pub fn new(config: ImageFeatureConfig) -> Result<Self> {
+        // 根据配置选择适当的特征提取模型
+        let model: Box<dyn ImageFeatureModel> = match config.model_type.as_deref() {
+            Some("resnet") => Box::new(ResNetFeatureModel::new(config.clone())?),
+            Some("mobilenet") => Box::new(MobileNetFeatureModel::new(config.clone())?),
+            Some("vit") => Box::new(ViTFeatureModel::new(config.clone())?),
+            Some("simple") => Box::new(SimpleFeatureModel::new(config.clone())?),
+            _ => Box::new(ResNetFeatureModel::new(config.clone())?), // 默认使用ResNet
+        };
+
+        Ok(Self { config, model })
+    }
+}
+
+impl ModalityExtractor for ImageModalityExtractor {
+    fn extract_features(&self, data: &MultiModalData) -> Result<Vec<TensorData>> {
+        // 获取图像数据
+        let image_data = match data.get_modality_data(&ModalityType::Image) {
+            Some(data) => data,
+            None => return Err(Error::InvalidInput("未找到图像数据".to_string())),
+        };
+        
+        match image_data {
+            ModalityData::Json(json_value) => {
+                // 检查是否为数组
+                if let Some(array) = json_value.as_array() {
+                    // 批量处理多个图像
+                    let mut image_data_batch = Vec::with_capacity(array.len());
+                    
+                    for item in array {
+                        if let Some(base64_str) = item.as_str() {
+                            // 去除可能的前缀
+                            let base64_data = if let Some(pos) = base64_str.find(";base64,") {
+                                &base64_str[pos + 8..]
+                } else {
+                                base64_str
+                            };
+                            
+                            // 解码base64
+                            let image_bytes = base64::decode(base64_data)
+                                .map_err(|e| Error::InvalidInput(format!("Base64解码失败: {}", e)))?;
+                            
+                            image_data_batch.push(image_bytes);
+                        }
+                    }
+                    
+                    if !image_data_batch.is_empty() {
+                        // 批量提取特征
+                        self.batch_extract(image_data_batch)
+                    } else {
+                        Err(Error::InvalidInput("JSON数组中未找到有效的base64图像数据".to_string()))
+                    }
+                } else if let Some(base64_str) = json_value.as_str() {
+                    // 单个图像处理
+                    // 去除可能的前缀
+                    let base64_data = if let Some(pos) = base64_str.find(";base64,") {
+                        &base64_str[pos + 8..]
+                    } else {
+                        base64_str
+                    };
+                    
+                    // 解码base64
+                    let image_bytes = base64::decode(base64_data)
+                        .map_err(|e| Error::InvalidInput(format!("Base64解码失败: {}", e)))?;
+                    
+                    // 提取特征
+                    let features = self.extract_from_image_data(&image_bytes)?;
+                    
+                    Ok(vec![features])
+                } else {
+                    Err(Error::InvalidInput("JSON中未找到有效的base64图像数据".to_string()))
+                }
+            },
+            ModalityData::Binary(binary_data) => {
+                // 直接处理二进制图像数据
+                let features = self.extract_from_image_data(binary_data)?;
+                Ok(vec![features])
+            },
+            ModalityData::Text(_) => {
+                Err(Error::InvalidInput("无法从文本数据中提取图像特征".to_string()))
+            },
+            ModalityData::Tensor(tensor_data) => {
+                // 假设张量已经是提取的特征
+                Ok(vec![tensor_data.clone()])
+            },
+        }
+    }
+    
+    fn modality_type(&self) -> ModalityType {
+        ModalityType::Image
+    }
+    
+    fn get_feature_dim(&self) -> usize {
+        match self.config.model_type.as_deref() {
+            Some("resnet") => 2048,
+            Some("mobilenet") => 1280,
+            Some("vit") => 768,
+            Some("simple") => 262, // 256(直方图) + 6(颜色统计)
+            _ => 2048, // 默认ResNet特征维度
+        }
+    }
+    
+    fn supports_batch_processing(&self) -> bool {
+        true
+    }
+}
+
+/// 图像特征提取缓存
+pub struct ImageFeatureCache {
+    cache: LruCache<String, TensorData>,
+    max_size: usize,
+}
+
+impl ImageFeatureCache {
+    /// 创建新的特征缓存
+    pub fn new(max_size: usize) -> Self {
+        Self {
+            cache: LruCache::new(max_size),
+            max_size,
+        }
+    }
+    
+    /// 获取缓存的特征
+    pub fn get(&mut self, key: &str) -> Option<TensorData> {
+        self.cache.get(key).cloned()
+    }
+    
+    /// 存储特征到缓存
+    pub fn put(&mut self, key: String, features: TensorData) {
+        self.cache.put(key, features);
+    }
+    
+    /// 清除缓存
+    pub fn clear(&mut self) {
+        self.cache.clear();
+    }
+    
+    /// 获取缓存大小
+    pub fn len(&self) -> usize {
+        self.cache.len()
+    }
+    
+    /// 检查缓存是否为空
+    pub fn is_empty(&self) -> bool {
+        self.cache.is_empty()
+    }
+}
+
+/// 优化的图像模态提取器
+pub struct OptimizedImageModalityExtractor {
+    config: ImageFeatureConfig,
+    model: Box<dyn ImageFeatureModel>,
+    cache: Option<ImageFeatureCache>,
+    batch_size: usize,
+}
+
+impl OptimizedImageModalityExtractor {
+    /// 创建新的优化图像模态提取器
+    pub fn new(config: ImageFeatureConfig, use_cache: bool, batch_size: usize) -> Result<Self> {
+        // 根据配置选择适当的特征提取模型
+        let model: Box<dyn ImageFeatureModel> = match config.model_type.as_deref() {
+            Some("resnet") => Box::new(ResNetFeatureModel::new(config.clone())?),
+            Some("mobilenet") => Box::new(MobileNetFeatureModel::new(config.clone())?),
+            Some("vit") => Box::new(ViTFeatureModel::new(config.clone())?),
+            Some("simple") => Box::new(SimpleFeatureModel::new(config.clone())?),
+            _ => Box::new(ResNetFeatureModel::new(config.clone())?), // 默认使用ResNet
+        };
+
+        let cache = if use_cache {
+            Some(ImageFeatureCache::new(1000)) // 默认缓存1000个条目
+        } else {
+            None
+        };
+
+        Ok(Self { 
+            config, 
+            model, 
+            cache,
+            batch_size: batch_size.max(1), // 确保批处理大小至少为1
+        })
+    }
+    
+    /// 从图像数据中提取特征
+    fn extract_from_image_data(&self, image_data: &[u8]) -> Result<TensorData> {
+        // 如果启用了缓存，先检查缓存
+        if let Some(cache) = &self.cache {
+            // 计算图像数据的哈希作为缓存键
+            let mut hasher = DefaultHasher::new();
+            image_data.hash(&mut hasher);
+            let hash_key = format!("{:x}", hasher.finish());
+            
+            // 尝试从缓存获取
+            if let Some(cached_features) = cache.get(&hash_key) {
+                return Ok(cached_features);
+            }
+            
+            // 缓存未命中，提取特征
+            let features = self.model.extract_features(image_data)?;
+            
+            // 存入缓存
+            cache.put(hash_key, features.clone());
+            
+            Ok(features)
+        } else {
+            // 未启用缓存，直接提取特征
+            self.model.extract_features(image_data)
+        }
+    }
+    
+    /// 批量提取特征
+    fn batch_extract(&self, image_data_batch: Vec<Vec<u8>>) -> Result<Vec<TensorData>> {
+        let mut results = Vec::with_capacity(image_data_batch.len());
+        
+        // 处理每个批次
+        for chunk in image_data_batch.chunks(self.batch_size) {
+            let mut batch_results = Vec::with_capacity(chunk.len());
+            
+            // 并行处理批次内的图像
+            let parallel_results: Vec<Result<TensorData>> = chunk.par_iter()
+                .map(|image_data| self.extract_from_image_data(image_data))
+                .collect();
+            
+            // 收集结果
+            for result in parallel_results {
+                batch_results.push(result?);
+            }
+            
+            results.extend(batch_results);
+        }
+        
+        Ok(results)
+    }
+}
+
+impl ModalityExtractor for OptimizedImageModalityExtractor {
+    fn extract_features(&self, data: &MultiModalData) -> Result<Vec<TensorData>> {
+        // 获取图像数据
+        let image_data = match data.get_modality_data(&ModalityType::Image) {
+            Some(data) => data,
+            None => return Err(Error::InvalidInput("未找到图像数据".to_string())),
+        };
+        
+        match image_data {
+            ModalityData::Json(json_value) => {
+                // 检查是否为数组
+                if let Some(array) = json_value.as_array() {
+                    // 批量处理多个图像
+                    let mut image_data_batch = Vec::with_capacity(array.len());
+                    
+                    for item in array {
+                        if let Some(base64_str) = item.as_str() {
+                            // 去除可能的前缀
+                            let base64_data = if let Some(pos) = base64_str.find(";base64,") {
+                                &base64_str[pos + 8..]
+                            } else {
+                                base64_str
+                            };
+                            
+                            // 解码base64
+                            let image_bytes = base64::decode(base64_data)
+                                .map_err(|e| Error::InvalidInput(format!("Base64解码失败: {}", e)))?;
+                            
+                            image_data_batch.push(image_bytes);
+                        }
+                    }
+                    
+                    if !image_data_batch.is_empty() {
+                        // 批量提取特征
+                        self.batch_extract(image_data_batch)
+                    } else {
+                        Err(Error::InvalidInput("JSON数组中未找到有效的base64图像数据".to_string()))
+                    }
+                } else if let Some(base64_str) = json_value.as_str() {
+                    // 单个图像处理
+                    // 去除可能的前缀
+                    let base64_data = if let Some(pos) = base64_str.find(";base64,") {
+                        &base64_str[pos + 8..]
+                    } else {
+                        base64_str
+                    };
+                    
+                    // 解码base64
+                    let image_bytes = base64::decode(base64_data)
+                        .map_err(|e| Error::InvalidInput(format!("Base64解码失败: {}", e)))?;
+                    
+                    // 提取特征
+                    let features = self.extract_from_image_data(&image_bytes)?;
+                    
+                    Ok(vec![features])
+                } else {
+                    Err(Error::InvalidInput("JSON中未找到有效的base64图像数据".to_string()))
+                }
+            },
+            ModalityData::Binary(binary_data) => {
+                // 直接处理二进制图像数据
+                let features = self.extract_from_image_data(binary_data)?;
+                Ok(vec![features])
+            },
+            ModalityData::Text(_) => {
+                Err(Error::InvalidInput("无法从文本数据中提取图像特征".to_string()))
+            },
+            ModalityData::Tensor(tensor_data) => {
+                // 假设张量已经是提取的特征
+                Ok(vec![tensor_data.clone()])
+            },
+        }
+    }
+    
+    fn modality_type(&self) -> ModalityType {
+        ModalityType::Image
+    }
+    
+    fn get_feature_dim(&self) -> usize {
+        match self.config.model_type.as_deref() {
+            Some("resnet") => 2048,
+            Some("mobilenet") => 1280,
+            Some("vit") => 768,
+            Some("simple") => 262, // 256(直方图) + 6(颜色统计)
+            _ => 2048, // 默认ResNet特征维度
+        }
+    }
+    
+    fn supports_batch_processing(&self) -> bool {
+        true
+    }
+}
+
+// 音频模态提取器
+pub struct AudioModalityExtractor {
+    config: AudioFeatureConfig,
+}
+
+impl AudioModalityExtractor {
+    pub fn new(config: AudioFeatureConfig) -> Result<Self> {
+        Ok(Self { config })
+    }
+}
+
+impl ModalityExtractor for AudioModalityExtractor {
+    fn extract_features(&self, data: &serde_json::Value) -> Result<TensorData> {
+        // 音频特征提取实现
+        // 这里是一个简化实现，实际应用中可能需要调用外部库
+        let audio_data = match data {
+            serde_json::Value::String(s) => {
+                // 假设这是Base64编码的音频数据
+                BASE64_STANDARD.decode(s)
+                    .map_err(|e| Error::InvalidArgument(format!("Invalid base64 audio data: {}", e)))?
+            },
+            serde_json::Value::Object(obj) => {
+                if let Some(serde_json::Value::String(s)) = obj.get("audio_data") {
+                    BASE64_STANDARD.decode(s)
+                    .map_err(|e| Error::InvalidArgument(format!("Invalid base64 audio data: {}", e)))?
+                } else {
+                    return Err(Error::InvalidArgument("Audio data not found in JSON object".to_string()));
+                }
+            },
+            _ => return Err(Error::InvalidArgument("Invalid audio data format".to_string())),
+        };
+        
+        // 实际应用中，这里应该调用音频处理库
+        // 简化实现，生成随机特征
+        let feature_dim = 128; // 假设音频特征维度
+        let mut features = Vec::with_capacity(feature_dim);
+        for _ in 0..feature_dim {
+            features.push(rand::random::<f32>());
+        }
+        
+        let tensor = TensorData {
+            shape: vec![1, feature_dim],
+            data: features,
+            dtype: crate::model::DataType::Float32,
+        };
+        
+        Ok(tensor)
+    }
+    
+    fn get_config(&self) -> Result<serde_json::Value> {
+        Ok(serde_json::to_value(&self.config)?)
+    }
+}
+
+// 自定义模态提取器
+pub struct CustomModalityExtractor {
+    config: HashMap<String, serde_json::Value>,
+}
+
+impl CustomModalityExtractor {
+    pub fn new(config: HashMap<String, serde_json::Value>) -> Result<Self> {
+        Ok(Self { config })
+    }
+}
+
+impl ModalityExtractor for CustomModalityExtractor {
+    fn extract_features(&self, data: &serde_json::Value) -> Result<TensorData> {
+        // 自定义特征提取实现
+        // 根据配置参数进行特征提取
+        let feature_dim = if let Some(serde_json::Value::Number(n)) = self.config.get("feature_dimension") {
+            n.as_u64().unwrap_or(128) as usize
+        } else {
+            128 // 默认维度
+        };
+        
+        // 简化实现，生成随机特征
+        let mut features = Vec::with_capacity(feature_dim);
+        for _ in 0..feature_dim {
+            features.push(rand::random::<f32>());
+        }
+        
+        let tensor = TensorData {
+            shape: vec![1, feature_dim],
+            data: features,
+            dtype: crate::model::DataType::Float32,
+        };
+        
+        Ok(tensor)
+    }
+    
+    fn get_config(&self) -> Result<serde_json::Value> {
+        Ok(serde_json::to_value(&self.config)?)
+    }
+}
+
+// 创建对齐模块
+fn create_alignment_module(config: &AlignmentConfig) -> Result<Box<dyn ModalityAlignment + Send + Sync>> {
+    match &config.method {
+        AlignmentMethod::TemporalAlignment => {
+            Ok(Box::new(TemporalAlignmentModule::new(config.reference_modality.clone())?))
+        },
+        AlignmentMethod::CrossModalAttention => {
+            Ok(Box::new(CrossModalAttentionModule::new(config.reference_modality.clone())?))
+        },
+        AlignmentMethod::EmbeddingAlignment => {
+            Ok(Box::new(EmbeddingAlignmentModule::new(config.reference_modality.clone())?))
+        },
+        AlignmentMethod::Custom(method_name) => {
+            match method_name.as_str() {
+                // 可以根据名称加载不同的自定义对齐模块
+                "custom_align_1" => Ok(Box::new(CustomAlignmentModule::new(config.reference_modality.clone())?)),
+                _ => Err(Error::InvalidArgument(format!("Unknown custom alignment method: {}", method_name)))
+            }
+        }
+    }
+}
+
+// 创建融合模块
+fn create_fusion_module(strategy: &FusionStrategy) -> Result<Box<dyn ModalityFusion + Send + Sync>> {
+    match strategy {
+        FusionStrategy::Concatenation => {
+            Ok(Box::new(ConcatenationFusion::new()?))
+        },
+        FusionStrategy::Attention => {
+            Ok(Box::new(AttentionFusion::new()?))
+        },
+        FusionStrategy::Weighted => {
+            Ok(Box::new(WeightedFusion::new()?))
+        },
+        FusionStrategy::Gated => {
+            Ok(Box::new(GatedFusion::new()?))
+        },
+        FusionStrategy::TensorFusion => {
+            Ok(Box::new(TensorFusionModule::new()?))
+        },
+        FusionStrategy::Custom(method_name) => {
+            match method_name.as_str() {
+                // 可以根据名称加载不同的自定义融合模块
+                "custom_fusion_1" => Ok(Box::new(CustomFusionModule::new()?)),
+                _ => Err(Error::InvalidArgument(format!("Unknown custom fusion method: {}", method_name)))
+            }
+        }
+    }
+}
+
+// 实现各种对齐模块
+pub struct TemporalAlignmentModule {
+    reference_modality: String,
+}
+
+impl TemporalAlignmentModule {
+    pub fn new(reference_modality: String) -> Result<Self> {
+        Ok(Self { reference_modality })
+    }
+}
+
+impl ModalityAlignment for TemporalAlignmentModule {
+    fn align_features(&self, features: HashMap<String, TensorData>) -> Result<HashMap<String, TensorData>> {
+        // 时间对齐实现
+        // 简化实现，直接返回原始特征
+        Ok(features)
+    }
+}
+
+pub struct CrossModalAttentionModule {
+    reference_modality: String,
+}
+
+impl CrossModalAttentionModule {
+    pub fn new(reference_modality: String) -> Result<Self> {
+        Ok(Self { reference_modality })
+    }
+}
+
+impl ModalityAlignment for CrossModalAttentionModule {
+    fn align_features(&self, features: HashMap<String, TensorData>) -> Result<HashMap<String, TensorData>> {
+        // 实际的跨模态注意力对齐实现
+        let mut aligned_features = HashMap::new();
+        let ref_modality = &self.reference_modality;
+        
+        // 获取参考模态特征
+        let ref_feature = match features.get(ref_modality) {
+            Some(feature) => feature,
+            None => return Err(Error::invalid_input(format!("参考模态 {} 不存在", ref_modality))),
+        };
+        
+        // 对每个模态执行跨模态注意力计算
+        for (modality, feature) in &features {
+            if modality == ref_modality {
+                // 参考模态不需要对齐
+                aligned_features.insert(modality.clone(), feature.clone());
+                continue;
+            }
+            
+            // 计算查询(Q)、键(K)、值(V)
+            let q = ref_feature;
+            let k = feature;
+            let v = feature;
+            
+            // 计算注意力分数: Q*K^T
+            let mut attention_scores = vec![0.0; q.shape[0] * k.shape[0]];
+            let q_dim = q.shape[1];
+            let k_dim = k.shape[1];
+            
+            for i in 0..q.shape[0] {
+                for j in 0..k.shape[0] {
+                    let mut score = 0.0;
+                    for d in 0..std::cmp::min(q_dim, k_dim) {
+                        score += q.data[i * q_dim + d] * k.data[j * k_dim + d];
+                    }
+                    attention_scores[i * k.shape[0] + j] = score;
+                }
+            }
+            
+            // 应用缩放因子
+            let scaling_factor = (q_dim as f32).sqrt();
+            for score in &mut attention_scores {
+                *score /= scaling_factor;
+            }
+            
+            // 应用softmax得到注意力权重
+            let mut max_val = attention_scores[0];
+            for &score in &attention_scores {
+                if score > max_val {
+                    max_val = score;
+                }
+            }
+            
+            let mut attention_weights = vec![0.0; attention_scores.len()];
+            let mut sum = 0.0;
+            
+            for (i, &score) in attention_scores.iter().enumerate() {
+                attention_weights[i] = (score - max_val).exp();
+                sum += attention_weights[i];
+            }
+            
+            for weight in &mut attention_weights {
+                *weight /= sum;
+            }
+            
+            // 应用注意力权重得到对齐特征
+            let v_dim = v.shape[1];
+            let mut aligned_feature_data = vec![0.0; q.shape[0] * v_dim];
+            
+            for i in 0..q.shape[0] {
+                for j in 0..k.shape[0] {
+                    let weight = attention_weights[i * k.shape[0] + j];
+                    for d in 0..v_dim {
+                        aligned_feature_data[i * v_dim + d] += weight * v.data[j * v_dim + d];
+                    }
+                }
+            }
+            
+            // 创建对齐后的特征张量
+            let aligned_feature = TensorData {
+                shape: vec![q.shape[0], v_dim],
+                data: aligned_feature_data,
+                dtype: crate::model::DataType::Float32,
+            };
+            
+            aligned_features.insert(modality.clone(), aligned_feature);
+        }
+        
+        Ok(aligned_features)
+    }
+}
+
+pub struct EmbeddingAlignmentModule {
+    reference_modality: String,
+}
+
+impl EmbeddingAlignmentModule {
+    pub fn new(reference_modality: String) -> Result<Self> {
+        Ok(Self { reference_modality })
+    }
+}
+
+impl ModalityAlignment for EmbeddingAlignmentModule {
+    fn align_features(&self, features: HashMap<String, TensorData>) -> Result<HashMap<String, TensorData>> {
+        // 实际的嵌入空间对齐实现
+        let mut aligned_features = HashMap::new();
+        
+        // 确定嵌入维度
+        let embedding_dim = 128;
+        
+        // 对每个模态计算统一的嵌入表示
+        for (modality, feature) in features {
+            let feature_dim = feature.shape[1];
+            
+            if feature_dim == embedding_dim {
+                // 如果维度已经匹配，只进行归一化
+                let mut normalized_data = vec![0.0; feature.data.len()];
+                let mut batch_size = feature.shape[0];
+                
+                for b in 0..batch_size {
+                    // 计算L2范数
+                    let mut norm = 0.0;
+                    for i in 0..feature_dim {
+                        let val = feature.data[b * feature_dim + i];
+                        norm += val * val;
+                    }
+                    norm = norm.sqrt();
+                    
+                    // 归一化
+                    if norm > 1e-8 {
+                        for i in 0..feature_dim {
+                            normalized_data[b * feature_dim + i] = feature.data[b * feature_dim + i] / norm;
+                        }
+                    } else {
+                        // 防止除零
+                        for i in 0..feature_dim {
+                            normalized_data[b * feature_dim + i] = feature.data[b * feature_dim + i];
+                        }
+                    }
+                }
+                
+                let normalized_feature = TensorData {
+                    shape: feature.shape.clone(),
+                    data: normalized_data,
+                    dtype: crate::model::DataType::Float32,
+                };
+                
+                aligned_features.insert(modality, normalized_feature);
+            } else {
+                // 需要投影到嵌入空间
+                let projection = self.get_projection_matrix(feature_dim, embedding_dim)?;
+                
+                // 执行矩阵乘法进行投影
+                let batch_size = feature.shape[0];
+                let mut projected_data = vec![0.0; batch_size * embedding_dim];
+                
+                for b in 0..batch_size {
+                    for i in 0..embedding_dim {
+                        let mut sum = 0.0;
+                        for j in 0..feature_dim {
+                            sum += feature.data[b * feature_dim + j] * projection.data[j * embedding_dim + i];
+                        }
+                        projected_data[b * embedding_dim + i] = sum;
+                    }
+                }
+                
+                // 归一化投影后的向量
+                for b in 0..batch_size {
+                    // 计算L2范数
+                    let mut norm = 0.0;
+                    for i in 0..embedding_dim {
+                        let val = projected_data[b * embedding_dim + i];
+                        norm += val * val;
+                    }
+                    norm = norm.sqrt();
+                    
+                    // 归一化
+                    if norm > 1e-8 {
+                        for i in 0..embedding_dim {
+                            projected_data[b * embedding_dim + i] /= norm;
+                        }
+                    }
+                }
+                
+                let projected_feature = TensorData {
+                    shape: vec![batch_size, embedding_dim],
+                    data: projected_data,
+                    dtype: crate::model::DataType::Float32,
+                };
+                
+                aligned_features.insert(modality, projected_feature);
+            }
+        }
+        
+        Ok(aligned_features)
+    }
+    
+    /// 获取投影矩阵（从输入维度投影到嵌入维度）
+    fn get_projection_matrix(&self, input_dim: usize, embedding_dim: usize) -> Result<TensorData> {
+        // 使用缓存中的投影矩阵（如果有）
+        let cache_key = format!("{}_{}", input_dim, embedding_dim);
+        if let Some(matrix) = self.cache.get(&cache_key) {
+            return Ok(matrix.clone());
+        }
+        
+        // 创建正交投影矩阵（使用SVD的简化版本）
+        let mut rng = rand::thread_rng();
+        let normal = rand_distr::Normal::new(0.0, 1.0 / (input_dim as f64).sqrt())?;
+        
+        let mut data = Vec::with_capacity(input_dim * embedding_dim);
+        for _ in 0..input_dim * embedding_dim {
+            data.push(normal.sample(&mut rng) as f32);
+        }
+        
+        // 对列进行正交化（简化的Gram-Schmidt过程）
+        let mut projection = TensorData::new(vec![input_dim, embedding_dim], data)?;
+        
+        for i in 0..embedding_dim {
+            // 对前i列正交化当前列
+            for j in 0..i {
+                // 计算投影
+                let mut dot_product = 0.0;
+                for k in 0..input_dim {
+                    dot_product += projection.data[k * embedding_dim + i] * projection.data[k * embedding_dim + j];
+                }
+                
+                // 减去投影
+                for k in 0..input_dim {
+                    projection.data[k * embedding_dim + i] -= dot_product * projection.data[k * embedding_dim + j];
+                }
+            }
+            
+            // 归一化
+            let mut norm = 0.0;
+            for k in 0..input_dim {
+                norm += projection.data[k * embedding_dim + i] * projection.data[k * embedding_dim + i];
+            }
+            norm = norm.sqrt();
+            
+            if norm > 1e-8 {
+                for k in 0..input_dim {
+                    projection.data[k * embedding_dim + i] /= norm;
+                }
+            }
+        }
+        
+        // 缓存结果
+        let mut cache = self.cache.clone();
+        cache.insert(cache_key, projection.clone());
+        
+        Ok(projection)
+    }
+}
+
+pub struct CustomAlignmentModule {
+    reference_modality: String,
+}
+
+impl CustomAlignmentModule {
+    pub fn new(reference_modality: String) -> Result<Self> {
+        Ok(Self { reference_modality })
+    }
+}
+
+impl ModalityAlignment for CustomAlignmentModule {
+    fn align_features(&self, features: HashMap<String, TensorData>) -> Result<HashMap<String, TensorData>> {
+        // 自定义对齐实现
+        // 简化实现，直接返回原始特征
+        Ok(features)
+    }
+}
+
+// 实现各种融合模块
+pub struct ConcatenationFusion {}
+
+impl ConcatenationFusion {
+    pub fn new() -> Result<Self> {
+        Ok(Self {})
+    }
+}
+
+impl ModalityFusion for ConcatenationFusion {
+    fn fuse_features(&self, features: Vec<TensorData>) -> Result<TensorData> {
+        // 简单连接融合
+        let mut all_features = Vec::new();
+        let mut total_dim = 0;
+        
+        // 收集所有特征
+        for tensor in features {
+            if tensor.shape.len() != 2 || tensor.shape[0] != 1 {
+                return Err(Error::InvalidArgument("Invalid tensor shape for concatenation".to_string()));
+            }
+            total_dim += tensor.shape[1];
+        }
+        
+        // 预分配空间
+        all_features.reserve(total_dim);
+        
+        // 按照模态名称字母顺序排序，确保结果的一致性
+        let mut sorted_modalities: Vec<_> = features.iter().collect();
+        sorted_modalities.sort_by(|a, b| a.0.cmp(b.0));
+        
+        // 连接特征
+        for (_, tensor) in sorted_modalities {
+                all_features.extend_from_slice(&tensor.data);
+        }
+        
+        let fused_tensor = TensorData {
+            shape: vec![1, total_dim],
+            data: all_features,
+            dtype: crate::model::DataType::Float32,
+        };
+        
+        Ok(fused_tensor)
+    }
+}
+
+pub struct AttentionFusion {}
+
+impl AttentionFusion {
+    pub fn new() -> Result<Self> {
+        Ok(Self {})
+    }
+}
+
+impl ModalityFusion for AttentionFusion {
+    fn fuse_features(&self, features: Vec<TensorData>) -> Result<TensorData> {
+        // 注意力融合
+        // 简化实现，假设所有特征维度相同，使用加权平均
+        if features.is_empty() {
+            return Err(Error::InvalidArgument("No features to fuse".to_string()));
+        }
+        
+        // 获取第一个特征的维度，假设所有特征维度相同
+        let first_tensor = features.first().unwrap();
+        let feature_dim = first_tensor.shape[1];
+        
+        // 为每个模态分配注意力权重（简化为均匀权重）
+        let weight = 1.0 / features.len() as f32;
+        
+        // 初始化结果向量
+        let mut result = vec![0.0; feature_dim];
+        
+        // 加权求和
+        for tensor in features {
+            if tensor.shape[1] != feature_dim {
+                return Err(Error::InvalidArgument("Inconsistent feature dimensions".to_string()));
+            }
+            
+            for i in 0..feature_dim {
+                result[i] += tensor.data[i] * weight;
+            }
+        }
+        
+        let fused_tensor = TensorData {
+            shape: vec![1, feature_dim],
+            data: result,
+            dtype: crate::model::DataType::Float32,
+        };
+        
+        Ok(fused_tensor)
+    }
+}
+
+pub struct WeightedFusion {}
+
+impl WeightedFusion {
+    pub fn new() -> Result<Self> {
+        Ok(Self {})
+    }
+}
+
+impl ModalityFusion for WeightedFusion {
+    fn fuse_features(&self, features: Vec<TensorData>) -> Result<TensorData> {
+        // 加权融合
+        // 简化实现，使用预定义权重
+        let weights: HashMap<String, f32> = [
+            ("text".to_string(), 0.4),
+            ("image".to_string(), 0.3),
+            ("audio".to_string(), 0.2),
+            ("tabular".to_string(), 0.1),
+        ].iter().cloned().collect();
+        
+        // 连接融合
+        let mut all_features = Vec::new();
+        let mut total_dim = 0;
+        
+        // 按照模态名称字母顺序排序
+        let mut sorted_modalities: Vec<_> = features.iter().collect();
+        sorted_modalities.sort_by(|a, b| a.0.cmp(b.0));
+        
+        // 计算总维度
+        for (modality, tensor) in sorted_modalities {
+            if let Some(tensor) = tensor {
+                total_dim += tensor.shape[1];
+            }
+        }
+        
+        // 预分配空间
+        all_features.reserve(total_dim);
+        
+        // 加权连接特征
+        for modality in sorted_modalities {
+            if let Some(tensor) = features.get(modality) {
+                let weight = weights.get(modality).unwrap_or(&0.25);
+                for &value in &tensor.data {
+                    all_features.push(value * weight);
+                }
+            }
+        }
+        
+        let fused_tensor = TensorData {
+            shape: vec![1, total_dim],
+            data: all_features,
+            dtype: crate::model::DataType::Float32,
+        };
+        
+        Ok(fused_tensor)
+    }
+}
+
+pub struct GatedFusion {}
+
+impl GatedFusion {
+    pub fn new() -> Result<Self> {
+        Ok(Self {})
+    }
+}
+
+impl ModalityFusion for GatedFusion {
+    fn fuse_features(&self, features: HashMap<String, TensorData>) -> Result<TensorData> {
+        // 门控融合
+        // 简化实现，假设所有特征维度相同
+        if features.is_empty() {
+            return Err(Error::InvalidArgument("No features to fuse".to_string()));
+        }
+        
+        // 获取第一个特征的维度
+        let first_tensor = features.values().next().unwrap();
+        let feature_dim = first_tensor.shape[1];
+        
+        // 初始化结果向量
+        let mut result = vec![0.0; feature_dim];
+        let mut total_weight = 0.0;
+        
+        // 为每个模态计算"门控"权重（简化实现）
+        for tensor in features.values() {
+            if tensor.shape[1] != feature_dim {
+                return Err(Error::InvalidArgument("Inconsistent feature dimensions".to_string()));
+            }
+            
+            // 计算该模态的重要性（简化为平均值）
+            let importance: f32 = tensor.data.iter().sum::<f32>() / tensor.data.len() as f32;
+            let weight = importance.abs();
+            
+            for i in 0..feature_dim {
+                result[i] += tensor.data[i] * weight;
+            }
+            
+            total_weight += weight;
+        }
+        
+        // 归一化
+        if total_weight > 0.0 {
+            for i in 0..feature_dim {
+                result[i] /= total_weight;
+            }
+        }
+        
+        let fused_tensor = TensorData {
+            shape: vec![1, feature_dim],
+            data: result,
+            dtype: crate::model::DataType::Float32,
+        };
+        
+        Ok(fused_tensor)
+    }
+}
+
+pub struct TensorFusionModule {}
+
+impl TensorFusionModule {
+    pub fn new() -> Result<Self> {
+        Ok(Self {})
+    }
+}
+
+impl ModalityFusion for TensorFusionModule {
+    fn fuse_features(&self, features: HashMap<String, TensorData>) -> Result<TensorData> {
+        // 完整的张量融合网络实现
+        if features.len() < 2 {
+            return Err(Error::invalid_input("张量融合需要至少两个特征"));
+        }
+        
+        // 1. 收集特征张量
+        let mut tensors = Vec::with_capacity(features.len());
+        for (_, tensor) in features {
+            tensors.push(tensor);
+        }
+        
+        // 2. 计算张量外积
+        let outer_product = self.compute_outer_product(&tensors)?;
+        
+        // 3. 执行降维操作
+        let reduced_tensor = self.reduce_dimensions(outer_product)?;
+        
+        // 4. 应用非线性变换
+        let mut result_data = Vec::with_capacity(reduced_tensor.data.len());
+        for &val in &reduced_tensor.data {
+            // 应用ReLU激活函数
+            result_data.push(val.max(0.0));
+        }
+        
+        let result_tensor = TensorData {
+            shape: reduced_tensor.shape.clone(),
+            data: result_data,
+            dtype: crate::model::DataType::Float32,
+        };
+        
+        Ok(result_tensor)
+    }
+}
+
+impl TensorFusionModule {
+    // ... existing code ...
+    
+    /// 计算张量外积
+    fn compute_outer_product(&self, tensors: &[TensorData]) -> Result<TensorData> {
+        if tensors.is_empty() {
+            return Err(Error::invalid_input("没有张量可用于计算外积"));
+        }
+        
+        if tensors.len() == 1 {
+            return Ok(tensors[0].clone());
+        }
+        
+        // 获取每个张量的维度
+        let batch_size = tensors[0].shape[0];
+        let dims: Vec<usize> = tensors.iter().map(|t| t.shape[1]).collect();
+        
+        // 计算结果张量的总维度
+        let total_dim: usize = dims.iter().product();
+        
+        // 创建结果张量
+        let mut result_data = vec![0.0; batch_size * total_dim];
+        
+        // 特殊情况：两个张量的外积
+        if tensors.len() == 2 {
+            let a = &tensors[0];
+            let b = &tensors[1];
+            let a_dim = a.shape[1];
+            let b_dim = b.shape[1];
+            
+            for batch in 0..batch_size {
+                for i in 0..a_dim {
+                    for j in 0..b_dim {
+                        let a_val = a.data[batch * a_dim + i];
+                        let b_val = b.data[batch * b_dim + j];
+                        result_data[batch * total_dim + i * b_dim + j] = a_val * b_val;
+                    }
+                }
+            }
+            
+            return Ok(TensorData {
+                shape: vec![batch_size, total_dim],
+                data: result_data,
+                dtype: crate::model::DataType::Float32,
+            });
+        }
+        
+        // 一般情况：递归计算多个张量的外积
+        // 将第一个张量与其余张量的外积的外积
+        let first = &tensors[0];
+        let mut remaining = Vec::new();
+        for i in 1..tensors.len() {
+            remaining.push(tensors[i].clone());
+        }
+        
+        // 递归计算剩余张量的外积
+        let remaining_product = self.compute_outer_product(&remaining)?;
+        
+        // 计算第一个张量与剩余张量外积的外积
+        let first_dim = first.shape[1];
+        let remaining_dim = remaining_product.shape[1];
+        
+        for batch in 0..batch_size {
+            for i in 0..first_dim {
+                let first_val = first.data[batch * first_dim + i];
+                for j in 0..remaining_dim {
+                    let remaining_val = remaining_product.data[batch * remaining_dim + j];
+                    result_data[batch * total_dim + i * remaining_dim + j] = first_val * remaining_val;
+                }
+            }
+        }
+        
+        Ok(TensorData {
+            shape: vec![batch_size, total_dim],
+            data: result_data,
+            dtype: crate::model::DataType::Float32,
+        })
+    }
+    
+    /// 降维操作，使用线性投影
+    fn reduce_dimensions(&self, tensor: TensorData) -> Result<TensorData> {
+        let input_dim = tensor.shape[1];
+        let output_dim = 256; // 可配置的输出维度
+        
+        // 创建投影矩阵
+        let mut rng = rand::thread_rng();
+        let mut projection_data = Vec::with_capacity(input_dim * output_dim);
+        
+        for _ in 0..input_dim * output_dim {
+            projection_data.push(rng.gen_range(-0.1..0.1) / (input_dim as f32).sqrt());
+        }
+        
+        // 应用投影
+        let batch_size = tensor.shape[0];
+        let mut result_data = vec![0.0; batch_size * output_dim];
+        
+        for batch in 0..batch_size {
+            for i in 0..output_dim {
+                let mut sum = 0.0;
+                for j in 0..input_dim {
+                    sum += tensor.data[batch * input_dim + j] * projection_data[j * output_dim + i];
+                }
+                result_data[batch * output_dim + i] = sum;
+            }
+        }
+        
+        Ok(TensorData {
+            shape: vec![batch_size, output_dim],
+            data: result_data,
+            dtype: crate::model::DataType::Float32,
+        })
+    }
+}
+
+pub struct CustomFusionModule {}
+
+impl CustomFusionModule {
+    pub fn new() -> Result<Self> {
+        Ok(Self {})
+    }
+}
+
+impl ModalityFusion for CustomFusionModule {
+    fn fuse_features(&self, features: HashMap<String, TensorData>) -> Result<TensorData> {
+        // 自定义融合实现
+        // 简化实现，直接使用连接融合
+        let concat_fusion = ConcatenationFusion::new()?;
+        concat_fusion.fuse_features(features)
+    }
+}
+
+// 修复文本特征提取器字段定义
+pub struct MultimodalFeatureConfig {
+    text_config: TextFeatureConfig,
+    image_config: Option<ImageFeatureConfig>,
+    numeric_config: Option<NumericFeatureConfig>,
+    audio_config: Option<AudioFeatureConfig>,
+}
+
+pub struct MultimodalFeatureExtractor {
+    // 将TextFeatureExtractor添加dyn关键字
+    extractor: Box<dyn TextFeatureExtractor>,
+    image_extractor: Option<Box<dyn ImageFeatureExtractor>>,
+    numeric_extractor: Option<Box<dyn NumericFeatureExtractor>>,
+    audio_extractor: Option<Box<dyn AudioFeatureExtractor>>,
+    // ... 其他字段 ...
+}
+
+/// 模态对齐器特性
+pub trait ModalityAligner: Send + Sync {
+    /// 对齐不同模态的特征
+    fn align(&self, features: &HashMap<String, TensorData>) -> Result<HashMap<String, TensorData>>;
+}
+
+/// 优化的模态对齐模块
+pub struct ModalityAlignmentModule {
+    config: AlignmentConfig,
+    aligner: Box<dyn ModalityAligner + Send + Sync>,
+}
+
+impl ModalityAlignmentModule {
+    /// 创建新的模态对齐模块
+    pub fn new(config: AlignmentConfig) -> Result<Self> {
+        let aligner: Box<dyn ModalityAligner + Send + Sync> = match config.method {
+            AlignmentMethod::TemporalAlignment => Box::new(TemporalAligner::new(config.reference_modality.clone())?),
+            AlignmentMethod::CrossModalAttention => Box::new(CrossModalAttentionAligner::new(config.reference_modality.clone())?),
+            AlignmentMethod::EmbeddingAlignment => Box::new(EmbeddingAligner::new(config.reference_modality.clone())?),
+            AlignmentMethod::Custom(ref name) => {
+                match name.as_str() {
+                    "hybrid" => Box::new(HybridAligner::new(config.reference_modality.clone())?),
+                    "adaptive" => Box::new(AdaptiveAligner::new(config.reference_modality.clone())?),
+                    _ => Box::new(CustomAlignmentModule::new(config.reference_modality.clone())?)
+                }
+            }
+        };
+        
+        Ok(Self {
+            config,
+            aligner,
+        })
+    }
+    
+    /// 对齐不同模态的特征
+    pub fn align_features(&self, features: &HashMap<String, TensorData>) -> Result<HashMap<String, TensorData>> {
+        self.aligner.align(features)
+    }
+}
+
+impl ModalityAlignment for ModalityAlignmentModule {
+    fn align_features(&self, features: HashMap<String, TensorData>) -> Result<HashMap<String, TensorData>> {
+        self.aligner.align(&features)
+    }
+}
+
+/// 高效时间对齐器
+pub struct TemporalAligner {
+    reference_modality: String,
+    cache: HashMap<String, HashMap<String, TensorData>>,
+}
+
+impl TemporalAligner {
+    /// 创建新的时间对齐器
+    pub fn new(reference_modality: String) -> Result<Self> {
+        Ok(Self {
+            reference_modality,
+            cache: HashMap::new(),
+        })
+    }
+    
+    /// 计算缓存键
+    fn get_cache_key(&self, features: &HashMap<String, TensorData>) -> String {
+        let mut key_parts = Vec::new();
+        for (modality, tensor) in features {
+            key_parts.push(format!("{}:{:?}", modality, tensor.get_shape()));
+        }
+        key_parts.sort();
+        key_parts.join("|")
+    }
+    
+    /// 线性插值调整张量长度
+    fn interpolate_tensor(&self, tensor: &TensorData, target_length: usize) -> Result<TensorData> {
+        if tensor.get_shape()[0] == target_length {
+            return Ok(tensor.clone());
+        }
+        
+        let source_length = tensor.get_shape()[0];
+        let feature_dim = tensor.get_shape()[1];
+        
+        // 创建结果张量
+        let mut result_data = vec![0.0; target_length * feature_dim];
+        
+        // 线性插值
+        for i in 0..target_length {
+            let source_idx_f = i as f64 * (source_length as f64 - 1.0) / (target_length as f64 - 1.0);
+            let source_idx_low = source_idx_f.floor() as usize;
+            let source_idx_high = source_idx_f.ceil() as usize;
+            
+            let weight_high = source_idx_f - source_idx_low as f64;
+            let weight_low = 1.0 - weight_high;
+            
+            for j in 0..feature_dim {
+                let low_val = tensor.get_data()[source_idx_low * feature_dim + j];
+                let high_val = if source_idx_low == source_idx_high {
+                    low_val
+                } else {
+                    tensor.get_data()[source_idx_high * feature_dim + j]
+                };
+                
+                result_data[i * feature_dim + j] = low_val * weight_low as f32 + high_val * weight_high as f32;
+            }
+        }
+        
+        Ok(TensorData::new(vec![target_length, feature_dim], result_data)?)
+    }
+}
+
+impl ModalityAligner for TemporalAligner {
+    fn align(&self, features: &HashMap<String, TensorData>) -> Result<HashMap<String, TensorData>> {
+        if features.len() <= 1 {
+            return Ok(features.clone());
+        }
+        
+        // 检查缓存
+        let cache_key = self.get_cache_key(features);
+        if let Some(cached) = self.cache.get(&cache_key) {
+            return Ok(cached.clone());
+        }
+        
+        let mut aligned_features = HashMap::new();
+        
+        // 找出参考模态
+        let reference_tensor = if features.contains_key(&self.reference_modality) {
+            features.get(&self.reference_modality).unwrap()
+        } else {
+            // 如果指定的参考模态不存在，使用第一个模态
+            features.values().next().unwrap()
+        };
+        
+        let target_length = reference_tensor.get_shape()[0];
+        
+        // 将参考模态添加到结果
+        aligned_features.insert(self.reference_modality.clone(), reference_tensor.clone());
+        
+        // 将其他模态对齐到参考模态
+        for (modality, tensor) in features {
+            if modality != &self.reference_modality {
+                let aligned_tensor = self.interpolate_tensor(tensor, target_length)?;
+                aligned_features.insert(modality.clone(), aligned_tensor);
+            }
+        }
+        
+        // 更新缓存
+        let mut cache = self.cache.clone();
+        cache.insert(cache_key, aligned_features.clone());
+        
+        Ok(aligned_features)
+    }
+}
+
+/// 高效交叉模态注意力对齐器
+pub struct CrossModalAttentionAligner {
+    reference_modality: String,
+    attention_heads: usize,
+    cache: HashMap<String, HashMap<String, TensorData>>,
+}
+
+impl CrossModalAttentionAligner {
+    /// 创建新的交叉模态注意力对齐器
+    pub fn new(reference_modality: String) -> Result<Self> {
+        Ok(Self {
+            reference_modality,
+            attention_heads: 4,
+            cache: HashMap::new(),
+        })
+    }
+    
+    /// 计算缓存键
+    fn get_cache_key(&self, features: &HashMap<String, TensorData>) -> String {
+        let mut key_parts = Vec::new();
+        for (modality, tensor) in features {
+            key_parts.push(format!("{}:{:?}", modality, tensor.get_shape()));
+        }
+        key_parts.sort();
+        key_parts.join("|")
+    }
+    
+    /// 计算注意力权重
+    fn compute_attention(&self, query: &TensorData, key: &TensorData) -> Result<TensorData> {
+        // 计算点积注意力
+        let attention_scores = query.matmul(key.transpose()?)?;
+        
+        // 缩放
+        let scale = (key.get_shape()[1] as f32).sqrt();
+        let scaled_scores = attention_scores.scale(1.0 / scale)?;
+        
+        // Softmax
+        let attention_weights = scaled_scores.softmax()?;
+        
+        Ok(attention_weights)
+    }
+    
+    /// 应用注意力
+    fn apply_attention(&self, attention_weights: &TensorData, value: &TensorData) -> Result<TensorData> {
+        attention_weights.matmul(value)
+    }
+}
+
+impl ModalityAligner for CrossModalAttentionAligner {
+    fn align(&self, features: &HashMap<String, TensorData>) -> Result<HashMap<String, TensorData>> {
+        if features.len() <= 1 {
+            return Ok(features.clone());
+        }
+        
+        // 检查缓存
+        let cache_key = self.get_cache_key(features);
+        if let Some(cached) = self.cache.get(&cache_key) {
+            return Ok(cached.clone());
+        }
+        
+        let mut aligned_features = HashMap::new();
+        
+        // 获取参考模态
+        if let Some(reference_tensor) = features.get(&self.reference_modality) {
+            aligned_features.insert(self.reference_modality.clone(), reference_tensor.clone());
+            
+            // 将其他模态与参考模态对齐
+            for (modality, tensor) in features {
+                if modality != &self.reference_modality {
+                    // 计算注意力权重
+                    let attention_weights = self.compute_attention(reference_tensor, tensor)?;
+                    
+                    // 应用注意力
+                    let aligned_tensor = self.apply_attention(&attention_weights, tensor)?;
+                    aligned_features.insert(modality.clone(), aligned_tensor);
+                }
+            }
+        } else {
+            // 如果参考模态不存在，保持原样
+            return Ok(features.clone());
+        }
+        
+        // 更新缓存
+        let mut cache = self.cache.clone();
+        cache.insert(cache_key, aligned_features.clone());
+        
+        Ok(aligned_features)
+    }
+}
+
+/// 高效嵌入对齐器
+pub struct EmbeddingAligner {
+    reference_modality: String,
+    embedding_dim: usize,
+    cache: HashMap<String, HashMap<String, TensorData>>,
+}
+
+impl EmbeddingAligner {
+    /// 创建新的嵌入对齐器
+    pub fn new(reference_modality: String) -> Result<Self> {
+        Ok(Self {
+            reference_modality,
+            embedding_dim: 128,
+            cache: HashMap::new(),
+        })
+    }
+    
+    /// 计算缓存键
+    fn get_cache_key(&self, features: &HashMap<String, TensorData>) -> String {
+        let mut key_parts = Vec::new();
+        for (modality, tensor) in features {
+            key_parts.push(format!("{}:{:?}", modality, tensor.get_shape()));
+        }
+        key_parts.sort();
+        key_parts.join("|")
+    }
+    
+    /// 计算嵌入
+    fn compute_embedding(&self, tensor: &TensorData) -> Result<TensorData> {
+        let feature_dim = tensor.get_shape()[1];
+        
+        // 简化的嵌入计算，实际使用可能需要更复杂的嵌入模型
+        if feature_dim == self.embedding_dim {
+            // 如果维度已经匹配，只进行归一化
+            let norm = tensor.norm()?;
+            tensor.div(&norm)
+        } else {
+            // 否则，使用线性投影
+            let proj = self.get_projection_matrix(feature_dim)?;
+            let embedded = tensor.matmul(&proj)?;
+            
+            // 归一化
+            let norm = embedded.norm()?;
+            embedded.div(&norm)
+        }
+    }
+    
+    /// 获取投影矩阵
+    fn get_projection_matrix(&self, input_dim: usize) -> Result<TensorData> {
+        // 创建随机投影矩阵（实际应用中应该使用固定矩阵或学习的矩阵）
+        let mut rng = rand::thread_rng();
+        let normal = rand_distr::Normal::new(0.0, 1.0 / (input_dim as f64).sqrt())?;
+        
+        let mut data = Vec::with_capacity(input_dim * self.embedding_dim);
+        for _ in 0..input_dim * self.embedding_dim {
+            data.push(normal.sample(&mut rng) as f32);
+        }
+        
+        Ok(TensorData::new(vec![input_dim, self.embedding_dim], data)?)
+    }
+    
+    /// 计算相似度矩阵
+    fn compute_similarity(&self, embedding1: &TensorData, embedding2: &TensorData) -> Result<TensorData> {
+        embedding1.matmul(&embedding2.transpose()?)
+    }
+    
+    /// 应用相似度对齐
+    fn apply_alignment(&self, tensor: &TensorData, similarity: &TensorData) -> Result<TensorData> {
+        similarity.matmul(tensor)
+    }
+}
+
+impl ModalityAligner for EmbeddingAligner {
+    fn align(&self, features: &HashMap<String, TensorData>) -> Result<HashMap<String, TensorData>> {
+        if features.len() <= 1 {
+            return Ok(features.clone());
+        }
+        
+        // 检查缓存
+        let cache_key = self.get_cache_key(features);
+        if let Some(cached) = self.cache.get(&cache_key) {
+            return Ok(cached.clone());
+        }
+        
+        let mut aligned_features = HashMap::new();
+        
+        // 获取参考模态
+        if let Some(reference_tensor) = features.get(&self.reference_modality) {
+            aligned_features.insert(self.reference_modality.clone(), reference_tensor.clone());
+            
+            // 计算参考模态的嵌入
+            let reference_embedding = self.compute_embedding(reference_tensor)?;
+            
+            // 将其他模态与参考模态对齐
+            for (modality, tensor) in features {
+                if modality != &self.reference_modality {
+                    // 计算当前模态的嵌入
+                    let modal_embedding = self.compute_embedding(tensor)?;
+                    
+                    // 计算相似度矩阵
+                    let similarity = self.compute_similarity(&reference_embedding, &modal_embedding)?;
+                    
+                    // 应用相似度对齐
+                    let aligned_tensor = self.apply_alignment(tensor, &similarity)?;
+                    aligned_features.insert(modality.clone(), aligned_tensor);
+                }
+            }
+        } else {
+            // 如果参考模态不存在，保持原样
+            return Ok(features.clone());
+        }
+        
+        // 更新缓存
+        let mut cache = self.cache.clone();
+        cache.insert(cache_key, aligned_features.clone());
+        
+        Ok(aligned_features)
+    }
+}
+
+/// 混合对齐器（结合时间和语义对齐）
+pub struct HybridAligner {
+    reference_modality: String,
+    temporal_aligner: TemporalAligner,
+    embedding_aligner: EmbeddingAligner,
+}
+
+impl HybridAligner {
+    /// 创建新的混合对齐器
+    pub fn new(reference_modality: String) -> Result<Self> {
+        Ok(Self {
+            reference_modality: reference_modality.clone(),
+            temporal_aligner: TemporalAligner::new(reference_modality.clone())?,
+            embedding_aligner: EmbeddingAligner::new(reference_modality)?,
+        })
+    }
+}
+
+impl ModalityAligner for HybridAligner {
+    fn align(&self, features: &HashMap<String, TensorData>) -> Result<HashMap<String, TensorData>> {
+        // 先进行时间对齐
+        let temporal_aligned = self.temporal_aligner.align(features)?;
+        
+        // 再进行嵌入对齐
+        self.embedding_aligner.align(&temporal_aligned)
+    }
+}
+
+/// 自适应对齐器
+pub struct AdaptiveAligner {
+    reference_modality: String,
+    aligners: Vec<Box<dyn ModalityAligner + Send + Sync>>,
+    weights: Vec<f32>,
+}
+
+impl AdaptiveAligner {
+    /// 创建新的自适应对齐器
+    pub fn new(reference_modality: String) -> Result<Self> {
+        let mut aligners: Vec<Box<dyn ModalityAligner + Send + Sync>> = Vec::new();
+        
+        // 添加三种基本对齐器
+        aligners.push(Box::new(TemporalAligner::new(reference_modality.clone())?));
+        aligners.push(Box::new(CrossModalAttentionAligner::new(reference_modality.clone())?));
+        aligners.push(Box::new(EmbeddingAligner::new(reference_modality.clone())?));
+        
+        // 初始权重均等
+        let weights = vec![1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0];
+        
+        Ok(Self {
+            reference_modality,
+            aligners,
+            weights,
+        })
+    }
+    
+    /// 评估对齐质量
+    fn evaluate_alignment(&self, original: &HashMap<String, TensorData>, aligned: &HashMap<String, TensorData>) -> f32 {
+        // 简单指标：计算模态间特征的协方差总和变化
+        let mut score = 0.0;
+        
+        // 原始协方差总和
+        let original_cov = self.compute_covariance_sum(original);
+        
+        // 对齐后协方差总和
+        let aligned_cov = self.compute_covariance_sum(aligned);
+        
+        // 增加的协方差表示更好的对齐
+        if aligned_cov > original_cov {
+            score = (aligned_cov - original_cov) / original_cov;
+        }
+        
+        score
+    }
+    
+    /// 计算模态间特征的协方差总和
+    fn compute_covariance_sum(&self, features: &HashMap<String, TensorData>) -> f32 {
+        let mut cov_sum = 0.0;
+        
+        // 获取模态列表
+        let modalities: Vec<&String> = features.keys().collect();
+        
+        // 计算每对模态间的协方差
+        for i in 0..modalities.len() {
+            for j in i+1..modalities.len() {
+                let modal_i = features.get(modalities[i]).unwrap();
+                let modal_j = features.get(modalities[j]).unwrap();
+                
+                // 计算平均特征向量
+                let avg_i = self.compute_average_feature(modal_i);
+                let avg_j = self.compute_average_feature(modal_j);
+                
+                // 计算协方差
+                let mut cov = 0.0;
+                for k in 0..avg_i.len() {
+                    cov += avg_i[k] * avg_j[k];
+                }
+                
+                cov_sum += cov;
+            }
+        }
+        
+        cov_sum
+    }
+    
+    /// 计算平均特征向量
+    fn compute_average_feature(&self, tensor: &TensorData) -> Vec<f32> {
+        let shape = tensor.get_shape();
+        let feature_dim = shape[1];
+        
+        let mut avg_feature = vec![0.0; feature_dim];
+        let sequence_len = shape[0];
+        
+        for i in 0..feature_dim {
+            let mut sum = 0.0;
+            for j in 0..sequence_len {
+                sum += tensor.get_data()[j * feature_dim + i];
+            }
+            avg_feature[i] = sum / sequence_len as f32;
+        }
+        
+        avg_feature
+    }
+    
+    /// 更新对齐器权重
+    fn update_weights(&mut self, scores: &[f32]) {
+        let sum: f32 = scores.iter().sum();
+        if sum > 0.0 {
+            for i in 0..self.weights.len() {
+                self.weights[i] = scores[i] / sum;
+            }
+        }
+    }
+}
+
+impl ModalityAligner for AdaptiveAligner {
+    fn align(&self, features: &HashMap<String, TensorData>) -> Result<HashMap<String, TensorData>> {
+        if features.len() <= 1 {
+            return Ok(features.clone());
+        }
+        
+        // 使用每个对齐器对特征进行对齐
+        let mut aligned_results = Vec::new();
+        for aligner in &self.aligners {
+            aligned_results.push(aligner.align(features)?);
+        }
+        
+        // 评估每个对齐结果的质量
+        let mut scores = Vec::new();
+        for aligned in &aligned_results {
+            scores.push(self.evaluate_alignment(features, aligned));
+        }
+        
+        // 更新权重（对于不可变self，使用克隆）
+        let mut self_clone = Self {
+            reference_modality: self.reference_modality.clone(),
+            aligners: self.aligners.iter().map(|a| a.clone()).collect(),
+            weights: self.weights.clone(),
+        };
+        self_clone.update_weights(&scores);
+        
+        // 融合对齐结果
+        let mut final_result = HashMap::new();
+        
+        // 获取结果中所有的模态
+        let mut all_modalities = HashSet::new();
+        for aligned in &aligned_results {
+            for modality in aligned.keys() {
+                all_modalities.insert(modality.clone());
+            }
+        }
+        
+        // 融合每个模态的对齐结果
+        for modality in all_modalities {
+            let mut weighted_tensor = None;
+            
+            for i in 0..aligned_results.len() {
+                if let Some(tensor) = aligned_results[i].get(&modality) {
+                    let weight = self_clone.weights[i];
+                    
+                    if let Some(wt) = &weighted_tensor {
+                        // 加权累加
+                        let scaled = tensor.scale(weight)?;
+                        weighted_tensor = Some(wt.add(&scaled)?);
+                    } else {
+                        // 初始化
+                        weighted_tensor = Some(tensor.scale(weight)?);
+                    }
+                }
+            }
+            
+            if let Some(tensor) = weighted_tensor {
+                final_result.insert(modality, tensor);
+            }
+        }
+        
+        Ok(final_result)
+    }
+}
+
+// 模态融合模块
+pub struct ModalityFusionModule {
+    strategy: FusionStrategy,
+    fuser: Box<dyn ModalityFuser + Send + Sync>,
+}
+
+impl ModalityFusionModule {
+    /// 创建新的模态融合模块
+    pub fn new(strategy: FusionStrategy) -> Result<Self> {
+        let fuser: Box<dyn ModalityFuser + Send + Sync> = match strategy {
+            FusionStrategy::Concatenation => Box::new(ConcatenationFuser::new()?),
+            FusionStrategy::Attention => Box::new(AttentionFuser::new()?),
+            FusionStrategy::Weighted => Box::new(WeightedFuser::new()?),
+            FusionStrategy::Gated => Box::new(GatedFuser::new()?),
+            FusionStrategy::TensorFusion => Box::new(TensorFusionFuser::new()?),
+            FusionStrategy::Custom(ref name) => {
+                match name.as_str() {
+                    "adaptive" => Box::new(AdaptiveFuser::new()?),
+                    "hierarchical" => Box::new(HierarchicalFuser::new()?),
+                    _ => Box::new(CustomFusionModule::new()?)
+                }
+            }
+        };
+        
+        Ok(Self {
+            strategy,
+            fuser,
+        })
+    }
+    
+    /// 对齐不同模态的特征
+    pub fn fuse_features(&self, features: &HashMap<String, TensorData>) -> Result<TensorData> {
+        self.fuser.fuse(features)
+    }
+}
+
+impl ModalityFusion for ModalityFusionModule {
+    fn fuse_features(&self, features: HashMap<String, TensorData>) -> Result<TensorData> {
+        self.fuser.fuse(&features)
+    }
+}
+
+/// 高效拼接融合器 
+pub struct ConcatenationFuser {
+    axis: i64,
+}
+
+impl ConcatenationFuser {
+    /// 创建新的拼接融合器
+    pub fn new() -> Result<Self> {
+        Ok(Self { axis: 1 })
+    }
+    
+    /// 使用指定轴创建拼接融合器
+    pub fn with_axis(axis: i64) -> Result<Self> {
+        Ok(Self { axis })
+    }
+}
+
+impl ModalityFuser for ConcatenationFuser {
+    fn fuse(&self, features: &HashMap<String, TensorData>) -> Result<TensorData> {
+        if features.is_empty() {
+            return Err(Error::InvalidInput("没有特征可融合".to_string()));
+        }
+        
+        if features.len() == 1 {
+            return Ok(features.values().next().unwrap().clone());
+        }
+        
+        // 确保所有特征形状兼容（除了拼接轴外所有维度必须相同）
+        let mut tensors = Vec::new();
+        let mut common_shape = None;
+        
+        for (_, tensor) in features {
+            let shape = tensor.get_shape();
+            
+            if common_shape.is_none() {
+                // 第一个张量，记录形状
+                common_shape = Some(shape.clone());
+                tensors.push(tensor.clone());
+            } else {
+                let expected_shape = common_shape.as_ref().unwrap();
+                
+                // 验证除拼接轴外的其他维度是否相同
+                let mut compatible = true;
+                for (i, &dim) in shape.iter().enumerate() {
+                    // 跳过拼接轴
+                    if i as i64 == self.axis || (self.axis < 0 && i as i64 == self.axis + shape.len() as i64) {
+                        continue;
+                    }
+                    
+                    if i >= expected_shape.len() || dim != expected_shape[i] {
+                        compatible = false;
+                        break;
+                    }
+                }
+                
+                if compatible {
+                    tensors.push(tensor.clone());
+                } else {
+                    return Err(Error::InvalidInput(format!(
+                        "特征形状不兼容: {:?} vs {:?}", expected_shape, shape
+                    )));
+                }
+            }
+        }
+        
+        // 计算结果形状
+        let mut result_shape = common_shape.unwrap();
+        let axis_index = if self.axis < 0 {
+            (result_shape.len() as i64 + self.axis) as usize
+        } else {
+            self.axis as usize
+        };
+        
+        // 计算拼接轴的总大小
+        let mut concat_size = 0;
+        for tensor in &tensors {
+            concat_size += tensor.get_shape()[axis_index];
+        }
+        
+        result_shape[axis_index] = concat_size;
+        
+        // 分配结果数据
+        let total_size: usize = result_shape.iter().product();
+        let mut result_data = vec![0.0; total_size];
+        
+        // 计算每个元素在拼接轴前后的步长
+        let mut pre_axis_stride = 1;
+        for i in (0..axis_index).rev() {
+            pre_axis_stride *= result_shape[i];
+        }
+        
+        let mut post_axis_stride = 1;
+        for i in (axis_index + 1..result_shape.len()).rev() {
+            post_axis_stride *= result_shape[i];
+        }
+        
+        // 填充结果数据
+        let mut axis_offset = 0;
+        for tensor in &tensors {
+            let tensor_axis_size = tensor.get_shape()[axis_index];
+            
+            // 复制数据
+            for pre in 0..pre_axis_stride {
+                for axis in 0..tensor_axis_size {
+                    for post in 0..post_axis_stride {
+                        let result_idx = pre * concat_size * post_axis_stride 
+                                      + (axis_offset + axis) * post_axis_stride 
+                                      + post;
+                        let tensor_idx = pre * tensor_axis_size * post_axis_stride 
+                                      + axis * post_axis_stride 
+                                      + post;
+                        
+                        result_data[result_idx] = tensor.get_data()[tensor_idx];
+                    }
+                }
+            }
+            
+            axis_offset += tensor_axis_size;
+        }
+        
+        Ok(TensorData::new(result_shape, result_data)?)
+    }
+}
+
+/// 高效注意力融合器
+pub struct AttentionFuser {
+    num_heads: usize,
+    dropout_prob: f32,
+}
+
+impl AttentionFuser {
+    /// 创建新的注意力融合器
+    pub fn new() -> Result<Self> {
+        Ok(Self {
+            num_heads: 4,
+            dropout_prob: 0.1,
+        })
+    }
+    
+    /// 使用指定参数创建注意力融合器
+    pub fn with_params(num_heads: usize, dropout_prob: f32) -> Result<Self> {
+        Ok(Self {
+            num_heads,
+            dropout_prob,
+        })
+    }
+    
+    /// 多头注意力计算
+    fn multi_head_attention(&self, query: &TensorData, key: &TensorData, value: &TensorData) -> Result<TensorData> {
+        // 获取维度
+        let batch_size = query.get_shape()[0];
+        let seq_len_q = query.get_shape()[1];
+        let seq_len_k = key.get_shape()[1];
+        let d_model = query.get_shape()[2];
+        
+        // 确保d_model可以被num_heads整除
+        if d_model % self.num_heads != 0 {
+            return Err(Error::InvalidInput(format!(
+                "特征维度 {} 不能被注意力头数 {} 整除", d_model, self.num_heads
+            )));
+        }
+        
+        let d_head = d_model / self.num_heads;
+        
+        // 创建线性投影（简化实现）
+        let w_q = TensorData::random_normal(vec![d_model, d_model], 0.0, 0.02)?;
+        let w_k = TensorData::random_normal(vec![d_model, d_model], 0.0, 0.02)?;
+        let w_v = TensorData::random_normal(vec![d_model, d_model], 0.0, 0.02)?;
+        let w_o = TensorData::random_normal(vec![d_model, d_model], 0.0, 0.02)?;
+        
+        // 线性投影
+        let q = query.matmul(&w_q)?;
+        let k = key.matmul(&w_k)?;
+        let v = value.matmul(&w_v)?;
+        
+        // 重塑张量形状以便进行多头注意力计算
+        let q_reshaped = q.reshape(vec![batch_size, seq_len_q, self.num_heads, d_head])?
+                          .transpose(vec![0, 2, 1, 3])?;  // [batch, heads, seq_q, d_head]
+        
+        let k_reshaped = k.reshape(vec![batch_size, seq_len_k, self.num_heads, d_head])?
+                          .transpose(vec![0, 2, 1, 3])?;  // [batch, heads, seq_k, d_head]
+        
+        let v_reshaped = v.reshape(vec![batch_size, seq_len_k, self.num_heads, d_head])?
+                          .transpose(vec![0, 2, 1, 3])?;  // [batch, heads, seq_k, d_head]
+        
+        // 计算注意力分数
+        let scores = q_reshaped.matmul(&k_reshaped.transpose(vec![0, 1, 3, 2])?)?;  // [batch, heads, seq_q, seq_k]
+        
+        // 缩放
+        let scaled_scores = scores.scale(1.0 / (d_head as f32).sqrt())?;
+        
+        // Softmax
+        let attention_weights = scaled_scores.softmax()?;
+        
+        // 应用dropout（简化实现）
+        let attention_weights_dropout = if self.dropout_prob > 0.0 {
+            let mask = TensorData::random_uniform(attention_weights.get_shape(), 0.0, 1.0)?
+                         .gt(self.dropout_prob)?
+                         .to_float()?
+                         .scale(1.0 / (1.0 - self.dropout_prob))?;
+            
+            attention_weights.mul(&mask)?
+        } else {
+            attention_weights
+        };
+        
+        // 应用注意力
+        let context = attention_weights_dropout.matmul(&v_reshaped)?;  // [batch, heads, seq_q, d_head]
+        
+        // 重塑回原始形状
+        let context_transposed = context.transpose(vec![0, 2, 1, 3])?;  // [batch, seq_q, heads, d_head]
+        let context_reshaped = context_transposed.reshape(vec![batch_size, seq_q, d_model])?;
+        
+        // 最后的线性层
+        let output = context_reshaped.matmul(&w_o)?;
+        
+        Ok(output)
+    }
+}
+
+impl ModalityFuser for AttentionFuser {
+    fn fuse(&self, features: &HashMap<String, TensorData>) -> Result<TensorData> {
+        if features.is_empty() {
+            return Err(Error::InvalidInput("没有特征可融合".to_string()));
+        }
+        
+        if features.len() == 1 {
+            return Ok(features.values().next().unwrap().clone());
+        }
+        
+        // 使用文本模态作为查询（如果存在）
+        let (query_key, query) = if features.contains_key("text") {
+            ("text", features.get("text").unwrap())
+        } else {
+            // 否则使用第一个模态
+            let first_key = features.keys().next().unwrap();
+            (first_key, features.get(first_key).unwrap())
+        };
+        
+        // 收集其他模态作为键和值
+        let mut keys = Vec::new();
+        let mut values = Vec::new();
+        let mut modality_types = Vec::new();
+        
+        for (modality, tensor) in features {
+            if modality != query_key {
+                keys.push(tensor.clone());
+                values.push(tensor.clone());  // 简化：使用相同的张量作为键和值
+                modality_types.push(modality.clone());
+            }
+        }
+        
+        if keys.is_empty() {
+            // 只有查询模态，直接返回
+            return Ok(query.clone());
+        }
+        
+        // 将键和值拼接
+        let key_concat = TensorData::concat(&keys, 1)?;
+        let value_concat = TensorData::concat(&values, 1)?;
+        
+        // 应用多头注意力
+        let attention_output = self.multi_head_attention(query, &key_concat, &value_concat)?;
+        
+        // 与原始查询特征拼接或融合
+        let concat_fuser = ConcatenationFuser::new()?;
+        let mut combined = HashMap::new();
+        combined.insert("query".to_string(), query.clone());
+        combined.insert("attention".to_string(), attention_output);
+        
+        concat_fuser.fuse(&combined)
+    }
+}
+
+/// 高效加权融合器
+pub struct WeightedFuser {
+    weights: HashMap<String, f32>,
+}
+
+impl WeightedFuser {
+    /// 创建新的加权融合器
+    pub fn new() -> Result<Self> {
+        Ok(Self {
+            weights: HashMap::new(),
+        })
+    }
+    
+    /// 使用指定权重创建加权融合器
+    pub fn with_weights(weights: HashMap<String, f32>) -> Result<Self> {
+        Ok(Self { weights })
+    }
+}
+
+impl ModalityFuser for WeightedFuser {
+    fn fuse(&self, features: &HashMap<String, TensorData>) -> Result<TensorData> {
+        if features.is_empty() {
+            return Err(Error::InvalidInput("没有特征可融合".to_string()));
+        }
+        
+        if features.len() == 1 {
+            return Ok(features.values().next().unwrap().clone());
+        }
+        
+        // 确保所有特征形状相同
+        let mut common_shape = None;
+        for (_, tensor) in features {
+            let shape = tensor.get_shape();
+            
+            if common_shape.is_none() {
+                common_shape = Some(shape.clone());
+            } else if common_shape.as_ref().unwrap() != shape {
+                return Err(Error::InvalidInput(format!(
+                    "特征形状不一致，无法进行加权求和: {:?} vs {:?}", 
+                    common_shape.as_ref().unwrap(), shape
+                )));
+            }
+        }
+        
+        let shape = common_shape.unwrap();
+        let size: usize = shape.iter().product();
+        let mut result_data = vec![0.0; size];
+        
+        // 计算总权重
+        let mut total_weight = 0.0;
+        let mut effective_weights = HashMap::new();
+        
+        for (modality, _) in features {
+            let weight = if let Some(w) = self.weights.get(modality) {
+                *w
+            } else {
+                1.0  // 默认权重
+            };
+            
+            total_weight += weight;
+            effective_weights.insert(modality, weight);
+        }
+        
+        if total_weight == 0.0 {
+            return Err(Error::InvalidInput("总权重为零，无法进行加权求和".to_string()));
+        }
+        
+        // 归一化权重
+        for (_, weight) in effective_weights.iter_mut() {
+            *weight /= total_weight;
+        }
+        
+        // 加权求和
+        for (modality, tensor) in features {
+            let weight = *effective_weights.get(modality).unwrap();
+            
+            for i in 0..size {
+                result_data[i] += tensor.get_data()[i] * weight;
+            }
+        }
+        
+        Ok(TensorData::new(shape, result_data)?)
+    }
+}
+
+/// 高效门控融合器
+pub struct GatedFuser {
+    hidden_size: usize,
+}
+
+impl GatedFuser {
+    /// 创建新的门控融合器
+    pub fn new() -> Result<Self> {
+        Ok(Self { hidden_size: 128 })
+    }
+    
+    /// 使用指定参数创建门控融合器
+    pub fn with_hidden_size(hidden_size: usize) -> Result<Self> {
+        Ok(Self { hidden_size })
+    }
+    
+    /// 门控机制实现
+    fn apply_gating(&self, tensors: &[TensorData], gates: &[TensorData]) -> Result<TensorData> {
+        if tensors.len() != gates.len() {
+            return Err(Error::InvalidInput("张量数量与门数量不匹配".to_string()));
+        }
+        
+        if tensors.is_empty() {
+            return Err(Error::InvalidInput("没有张量可融合".to_string()));
+        }
+        
+        let shape = tensors[0].get_shape();
+        let size: usize = shape.iter().product();
+        let mut result_data = vec![0.0; size];
+        
+        // 应用门控
+        for i in 0..tensors.len() {
+            let tensor = &tensors[i];
+            let gate = &gates[i];
+            
+            for j in 0..size {
+                result_data[j] += tensor.get_data()[j] * gate.get_data()[j];
+            }
+        }
+        
+        Ok(TensorData::new(shape.clone(), result_data)?)
+    }
+    
+    /// 计算门控值
+    fn compute_gates(&self, tensors: &[TensorData]) -> Result<Vec<TensorData>> {
+        let mut gates = Vec::with_capacity(tensors.len());
+        
+        if tensors.is_empty() {
+            return Ok(gates);
+        }
+        
+        // 拼接所有特征
+        let concat = TensorData::concat(tensors, 1)?;
+        
+        // 计算门控值（简化实现）
+        let concat_dim = concat.get_shape()[1];
+        let weights = TensorData::random_normal(vec![concat_dim, tensors.len()], 0.0, 0.02)?;
+        let bias = TensorData::zeros(vec![tensors.len()])?;
+        
+        // 线性变换
+        let logits = concat.matmul(&weights)?.add(&bias)?;
+        
+        // Softmax获取归一化的门控值
+        let gates_tensor = logits.softmax()?;
+        
+        // 分割为每个模态的门控值
+        for i in 0..tensors.len() {
+            let gate = gates_tensor.slice(vec![0, i], vec![gates_tensor.get_shape()[0], i + 1])?;
+            gates.push(gate);
+        }
+        
+        Ok(gates)
+    }
+}
+
+impl ModalityFuser for GatedFuser {
+    fn fuse(&self, features: &HashMap<String, TensorData>) -> Result<TensorData> {
+        if features.is_empty() {
+            return Err(Error::InvalidInput("没有特征可融合".to_string()));
+        }
+        
+        if features.len() == 1 {
+            return Ok(features.values().next().unwrap().clone());
+        }
+        
+        // 确保所有特征形状相同
+        let mut common_shape = None;
+        for (_, tensor) in features {
+            let shape = tensor.get_shape();
+            
+            if common_shape.is_none() {
+                common_shape = Some(shape.clone());
+            } else if common_shape.as_ref().unwrap() != shape {
+                return Err(Error::InvalidInput(format!(
+                    "特征形状不一致，无法进行门控融合: {:?} vs {:?}", 
+                    common_shape.as_ref().unwrap(), shape
+                )));
+            }
+        }
+        
+        // 收集所有特征张量
+        let mut tensors = Vec::new();
+        let mut modality_order = Vec::new();
+        
+        for (modality, tensor) in features {
+            tensors.push(tensor.clone());
+            modality_order.push(modality.clone());
+        }
+        
+        // 计算每个模态的门控值
+        let gates = self.compute_gates(&tensors)?;
+        
+        // 应用门控
+        self.apply_gating(&tensors, &gates)
+    }
+}
+
+/// 高效张量积融合器
+pub struct TensorFusionFuser {
+    projection_dim: usize,
+}
+
+impl TensorFusionFuser {
+    /// 创建新的张量积融合器
+    pub fn new() -> Result<Self> {
+        Ok(Self { projection_dim: 128 })
+    }
+    
+    /// 使用指定参数创建张量积融合器
+    pub fn with_projection_dim(projection_dim: usize) -> Result<Self> {
+        Ok(Self { projection_dim })
+    }
+    
+    /// 计算外积
+    fn compute_outer_product(&self, tensors: &[TensorData]) -> Result<TensorData> {
+        if tensors.is_empty() {
+            return Err(Error::InvalidInput("没有张量用于外积计算".to_string()));
+        }
+        
+        if tensors.len() == 1 {
+            return Ok(tensors[0].clone());
+        }
+        
+        // 简化实现：只计算两个张量的外积
+        if tensors.len() == 2 {
+            let a = &tensors[0];
+            let b = &tensors[1];
+            
+            let a_shape = a.get_shape();
+            let b_shape = b.get_shape();
+            
+            // 假设张量形状为[batch_size, feature_dim]
+            let batch_size = a_shape[0];
+            let a_dim = a_shape[1];
+            let b_dim = b_shape[1];
+            
+            // 结果形状：[batch_size, a_dim * b_dim]
+            let result_dim = a_dim * b_dim;
+            let mut result_data = vec![0.0; batch_size * result_dim];
+            
+            for batch in 0..batch_size {
+                for i in 0..a_dim {
+                    for j in 0..b_dim {
+                        let a_val = a.get_data()[batch * a_dim + i];
+                        let b_val = b.get_data()[batch * b_dim + j];
+                        result_data[batch * result_dim + i * b_dim + j] = a_val * b_val;
+                    }
+                }
+            }
+            
+            return Ok(TensorData::new(vec![batch_size, result_dim], result_data)?);
+        }
+        
+        // 对于更多张量，递归计算
+        let first = tensors[0].clone();
+        let mut remaining = Vec::new();
+        for i in 1..tensors.len() {
+            remaining.push(tensors[i].clone());
+        }
+        
+        let remaining_product = self.compute_outer_product(&remaining)?;
+        
+        let result_tensors = vec![first, remaining_product];
+        self.compute_outer_product(&result_tensors)
+    }
+    
+    /// 降维投影
+    fn project(&self, tensor: &TensorData, output_dim: usize) -> Result<TensorData> {
+        let input_dim = tensor.get_shape()[1];
+        
+        // 随机投影矩阵
+        let projection = TensorData::random_normal(vec![input_dim, output_dim], 0.0, 1.0 / (input_dim as f32).sqrt())?;
+        
+        // 应用投影
+        tensor.matmul(&projection)
+    }
+}
+
+impl ModalityFuser for TensorFusionFuser {
+    fn fuse(&self, features: &HashMap<String, TensorData>) -> Result<TensorData> {
+        if features.is_empty() {
+            return Err(Error::InvalidInput("没有特征可融合".to_string()));
+        }
+        
+        if features.len() == 1 {
+            return Ok(features.values().next().unwrap().clone());
+        }
+        
+        // 收集所有特征张量
+        let mut tensors = Vec::new();
+        for (_, tensor) in features {
+            tensors.push(tensor.clone());
+        }
+        
+        // 计算外积
+        let outer_product = self.compute_outer_product(&tensors)?;
+        
+        // 降维投影
+        self.project(&outer_product, self.projection_dim)
+    }
+}
+
+/// 自适应融合器（根据数据特性自动选择融合策略）
+pub struct AdaptiveFuser {
+    fusers: Vec<Box<dyn ModalityFuser + Send + Sync>>,
+    weights: Vec<f32>,
+}
+
+impl AdaptiveFuser {
+    /// 创建新的自适应融合器
+    pub fn new() -> Result<Self> {
+        let mut fusers: Vec<Box<dyn ModalityFuser + Send + Sync>> = Vec::new();
+        
+        // 添加各种基本融合器
+        fusers.push(Box::new(ConcatenationFuser::new()?));
+        fusers.push(Box::new(WeightedFuser::new()?));
+        fusers.push(Box::new(AttentionFuser::new()?));
+        
+        // 初始权重均等
+        let weights = vec![1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0];
+        
+        Ok(Self {
+            fusers,
+            weights,
+        })
+    }
+    
+    /// 评估融合质量
+    fn evaluate_fusion(&self, original: &HashMap<String, TensorData>, fused: &TensorData) -> f32 {
+        // 简单指标：计算信息保留率
+        let mut original_info = 0.0;
+        let mut fused_info = 0.0;
+        
+        // 计算原始特征的信息量（使用方差作为简单估计）
+        for (_, tensor) in original {
+            original_info += self.compute_information(tensor);
+        }
+        
+        // 计算融合特征的信息量
+        fused_info = self.compute_information(fused);
+        
+        // 返回信息保留比率
+        if original_info > 0.0 {
+            fused_info / original_info
+        } else {
+            0.0
+        }
+    }
+    
+    /// 计算张量的信息量（使用方差作为简单估计）
+    fn compute_information(&self, tensor: &TensorData) -> f32 {
+        let data = tensor.get_data();
+        
+        if data.is_empty() {
+            return 0.0;
+        }
+        
+        // 计算均值
+        let mut mean = 0.0;
+        for &value in data {
+            mean += value;
+        }
+        mean /= data.len() as f32;
+        
+        // 计算方差
+        let mut variance = 0.0;
+        for &value in data {
+            let diff = value - mean;
+            variance += diff * diff;
+        }
+        variance /= data.len() as f32;
+        
+        // 使用方差作为信息量的简单估计
+        variance
+    }
+    
+    /// 更新融合器权重
+    fn update_weights(&mut self, scores: &[f32]) {
+        let mut sum = 0.0;
+        for &score in scores {
+            sum += score;
+        }
+        
+        if sum > 0.0 {
+            for i in 0..self.weights.len() {
+                self.weights[i] = scores[i] / sum;
+            }
+        }
+    }
+}
+
+impl ModalityFuser for AdaptiveFuser {
+    fn fuse(&self, features: &HashMap<String, TensorData>) -> Result<TensorData> {
+        if features.is_empty() {
+            return Err(Error::InvalidInput("没有特征可融合".to_string()));
+        }
+        
+        if features.len() == 1 {
+            return Ok(features.values().next().unwrap().clone());
+        }
+        
+        // 使用每个融合器对特征进行融合
+        let mut fused_results = Vec::new();
+        for fuser in &self.fusers {
+            fused_results.push(fuser.fuse(features)?);
+        }
+        
+        // 评估每个融合结果的质量
+        let mut scores = Vec::new();
+        for fused in &fused_results {
+            scores.push(self.evaluate_fusion(features, fused));
+        }
+        
+        // 更新权重（对于不可变self，使用临时变量）
+        let mut weights = self.weights.clone();
+        let mut sum = 0.0;
+        for i in 0..scores.len() {
+            sum += scores[i];
+        }
+        
+        if sum > 0.0 {
+            for i in 0..weights.len() {
+                weights[i] = scores[i] / sum;
+            }
+        }
+        
+        // 融合结果
+        let mut result_shape = fused_results[0].get_shape().clone();
+        let size: usize = result_shape.iter().product();
+        let mut result_data = vec![0.0; size];
+        
+        // 加权融合
+        for i in 0..fused_results.len() {
+            let fused = &fused_results[i];
+            let weight = weights[i];
+            
+            for j in 0..size {
+                result_data[j] += fused.get_data()[j] * weight;
+            }
+        }
+        
+        Ok(TensorData::new(result_shape, result_data)?)
+    }
+}
+
+/// 层次融合器（按模态关系组织层次融合）
+pub struct HierarchicalFuser {
+    hierarchy: HashMap<String, Vec<String>>,
+}
+
+impl HierarchicalFuser {
+    /// 创建新的层次融合器
+    pub fn new() -> Result<Self> {
+        let mut hierarchy = HashMap::new();
+        
+        // 默认层次关系：文本为根，其他模态连接到文本
+        hierarchy.insert("text".to_string(), vec!["image".to_string(), "audio".to_string()]);
+        
+        Ok(Self { hierarchy })
+    }
+    
+    /// 使用指定层次关系创建融合器
+    pub fn with_hierarchy(hierarchy: HashMap<String, Vec<String>>) -> Result<Self> {
+        Ok(Self { hierarchy })
+    }
+    
+    /// 按层次融合
+    fn fuse_hierarchically(&self, features: &HashMap<String, TensorData>, root: &str) -> Result<TensorData> {
+        if !features.contains_key(root) {
+            return Err(Error::InvalidInput(format!("根模态 {} 不存在", root)));
+        }
+        
+        let root_tensor = features.get(root).unwrap();
+        
+        // 检查是否有子模态
+        if let Some(children) = self.hierarchy.get(root) {
+            let mut child_tensors = HashMap::new();
+            
+            for child in children {
+                if features.contains_key(child) {
+                    // 递归融合子层次
+                    let child_tensor = if self.hierarchy.contains_key(child) {
+                        self.fuse_hierarchically(features, child)?
+                    } else {
+                        features.get(child).unwrap().clone()
+                    };
+                    
+                    child_tensors.insert(child.clone(), child_tensor);
+                }
+            }
+            
+            if child_tensors.is_empty() {
+                // 没有子模态，直接返回根模态
+                return Ok(root_tensor.clone());
+            }
+            
+            // 融合根与子模态
+            let attention_fuser = AttentionFuser::new()?;
+            
+            // 构建特征映射
+            let mut to_fuse = HashMap::new();
+            to_fuse.insert(root.to_string(), root_tensor.clone());
+            
+            for (child, tensor) in child_tensors {
+                to_fuse.insert(child, tensor);
+            }
+            
+            attention_fuser.fuse(&to_fuse)
+        } else {
+            // 没有子模态，直接返回根模态
+            Ok(root_tensor.clone())
+        }
+    }
+}
+
+impl ModalityFuser for HierarchicalFuser {
+    fn fuse(&self, features: &HashMap<String, TensorData>) -> Result<TensorData> {
+        if features.is_empty() {
+            return Err(Error::InvalidInput("没有特征可融合".to_string()));
+        }
+        
+        if features.len() == 1 {
+            return Ok(features.values().next().unwrap().clone());
+        }
+        
+        // 查找根模态
+        let root = if features.contains_key("text") {
+            "text"
+        } else {
+            features.keys().next().unwrap()
+        };
+        
+        // 层次融合
+        self.fuse_hierarchically(features, root)
+    }
+}
+
+// 多模态数据质量评分
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MultiModalQualityScore {
+    /// 总体质量评分 (0-1)
+    pub overall_score: f64,
+    /// 各模态质量评分
+    pub modality_scores: HashMap<String, f64>,
+    /// 模态对齐评分
+    pub alignment_score: f64,
+    /// 模态完整性评分
+    pub completeness_score: f64,
+    /// 详细评估指标
+    pub metrics: HashMap<String, f64>,
+    /// 模态权重
+    pub modality_weights: HashMap<String, f64>,
+}
+
+impl Default for MultiModalQualityScore {
+    fn default() -> Self {
+        Self {
+            overall_score: 0.0,
+            modality_scores: HashMap::new(),
+            alignment_score: 0.0,
+            completeness_score: 0.0,
+            metrics: HashMap::new(),
+            modality_weights: HashMap::new(),
+        }
+    }
+}
+
+/// 多模态质量评估器
+pub struct MultiModalQualityEvaluator {
+    /// 配置参数
+    config: MultiModalQualityConfig,
+    /// 模态评估器
+    modality_evaluators: HashMap<String, Box<dyn ModalityQualityEvaluator>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MultiModalQualityConfig {
+    /// 最小可接受质量分数 (0-1)
+    pub min_acceptable_score: f64,
+    /// 模态权重配置
+    pub modality_weights: HashMap<String, f64>,
+    /// 评估指标权重
+    pub metric_weights: HashMap<String, f64>,
+    /// 是否启用自动质量增强
+    pub enable_auto_enhancement: bool,
+}
+
+impl Default for MultiModalQualityConfig {
+    fn default() -> Self {
+        let mut modality_weights = HashMap::new();
+        modality_weights.insert("text".to_string(), 0.4);
+        modality_weights.insert("image".to_string(), 0.3);
+        modality_weights.insert("audio".to_string(), 0.2);
+        modality_weights.insert("video".to_string(), 0.1);
+        
+        let mut metric_weights = HashMap::new();
+        metric_weights.insert("completeness".to_string(), 0.25);
+        metric_weights.insert("alignment".to_string(), 0.25);
+        metric_weights.insert("quality".to_string(), 0.25);
+        metric_weights.insert("relevance".to_string(), 0.25);
+        
+        Self {
+            min_acceptable_score: 0.6,
+            modality_weights,
+            metric_weights,
+            enable_auto_enhancement: false,
+        }
+    }
+}
+
+impl MultiModalQualityEvaluator {
+    /// 创建新的多模态质量评估器
+    pub fn new(config: MultiModalQualityConfig) -> Self {
+        let mut modality_evaluators = HashMap::new();
+        
+        // 添加默认的模态评估器
+        modality_evaluators.insert(
+            "text".to_string(), 
+            Box::new(TextModalityEvaluator::default()) as Box<dyn ModalityQualityEvaluator>
+        );
+        modality_evaluators.insert(
+            "image".to_string(), 
+            Box::new(ImageModalityEvaluator::default()) as Box<dyn ModalityQualityEvaluator>
+        );
+        modality_evaluators.insert(
+            "audio".to_string(), 
+            Box::new(AudioModalityEvaluator::default()) as Box<dyn ModalityQualityEvaluator>
+        );
+        
+        Self {
+            config,
+            modality_evaluators,
+        }
+    }
+    
+    /// 添加自定义模态评估器
+    pub fn add_modality_evaluator(&mut self, modality: &str, evaluator: Box<dyn ModalityQualityEvaluator>) {
+        self.modality_evaluators.insert(modality.to_string(), evaluator);
+    }
+    
+    /// 评估多模态数据质量
+    pub fn evaluate(&self, data: &MultiModalData) -> Result<MultiModalQualityScore> {
+        let mut quality_score = MultiModalQualityScore::default();
+        let mut weighted_scores = 0.0;
+        let mut total_weight = 0.0;
+        
+        // 评估各模态质量
+        for (modality_name, modality_data) in &data.modalities {
+            if let Some(evaluator) = self.modality_evaluators.get(modality_name) {
+                let modality_score = evaluator.evaluate_quality(modality_data)?;
+                quality_score.modality_scores.insert(modality_name.clone(), modality_score);
+                
+                // 计算加权分数
+                if let Some(weight) = self.config.modality_weights.get(modality_name) {
+                    weighted_scores += modality_score * weight;
+                    total_weight += weight;
+                    quality_score.modality_weights.insert(modality_name.clone(), *weight);
+                }
+            }
+        }
+        
+        // 评估模态对齐度
+        quality_score.alignment_score = self.evaluate_alignment(data)?;
+        
+        // 评估完整性
+        quality_score.completeness_score = self.evaluate_completeness(data)?;
+        
+        // 添加到详细指标
+        quality_score.metrics.insert("alignment".to_string(), quality_score.alignment_score);
+        quality_score.metrics.insert("completeness".to_string(), quality_score.completeness_score);
+        
+        // 计算总体评分
+        if total_weight > 0.0 {
+            let base_score = weighted_scores / total_weight;
+            let alignment_weight = self.config.metric_weights.get("alignment").unwrap_or(&0.25);
+            let completeness_weight = self.config.metric_weights.get("completeness").unwrap_or(&0.25);
+            
+            // 结合模态质量、对齐度和完整性计算最终分数
+            quality_score.overall_score = base_score * (1.0 - alignment_weight - completeness_weight) +
+                                          quality_score.alignment_score * alignment_weight +
+                                          quality_score.completeness_score * completeness_weight;
+        }
+        
+        Ok(quality_score)
+    }
+    
+    /// 评估模态间对齐度 (0-1)
+    fn evaluate_alignment(&self, data: &MultiModalData) -> Result<f64> {
+        let mut alignment_score = 0.0;
+        
+        // 检查是否有足够的模态进行对齐评估
+        if data.modalities.len() < 2 {
+            return Ok(1.0); // 单一模态无需对齐
+        }
+        
+        // 检查各模态的时间戳对齐情况
+        if let Some(timestamps) = &data.timestamps {
+            let mut timestamp_variance = 0.0;
+            let mut count = 0;
+            
+            // 计算所有模态时间戳的方差
+            for (modality_name, modality_timestamps) in timestamps {
+                if data.modalities.contains_key(modality_name) && !modality_timestamps.is_empty() {
+                    let avg_timestamp: f64 = modality_timestamps.iter().sum::<f64>() / modality_timestamps.len() as f64;
+                    let variance: f64 = modality_timestamps.iter()
+                        .map(|t| (t - avg_timestamp).powi(2))
+                        .sum::<f64>() / modality_timestamps.len() as f64;
+                    
+                    timestamp_variance += variance;
+                    count += 1;
+                }
+            }
+            
+            if count > 0 {
+                let avg_variance = timestamp_variance / count as f64;
+                let max_acceptable_variance = 2.0; // 可配置的阈值
+                alignment_score = 1.0 - (avg_variance / max_acceptable_variance).min(1.0);
+            }
+        } else {
+            // 无时间戳情况下，检查内容相关性
+            alignment_score = self.evaluate_content_alignment(data)?;
+        }
+        
+        Ok(alignment_score)
+    }
+    
+    /// 评估模态内容对齐度 (0-1)
+    fn evaluate_content_alignment(&self, data: &MultiModalData) -> Result<f64> {
+        // 此处可以实现基于内容的对齐评估，例如：
+        // 1. 文本与图像的语义一致性
+        // 2. 音频与文本的转录匹配度
+        // 3. 视频与描述的相关性
+        
+        // 简化实现，返回一个默认值
+        Ok(0.8)
+    }
+    
+    /// 评估模态完整性 (0-1)
+    fn evaluate_completeness(&self, data: &MultiModalData) -> Result<f64> {
+        let required_modalities = vec!["text", "image"]; // 可配置的必需模态
+        let mut present_count = 0;
+        
+        for modality in &required_modalities {
+            if data.modalities.contains_key(*modality) {
+                present_count += 1;
+            }
+        }
+        
+        let completeness_score = if required_modalities.is_empty() {
+            1.0
+        } else {
+            present_count as f64 / required_modalities.len() as f64
+        };
+        
+        Ok(completeness_score)
+    }
+    
+    /// 基于质量评分自动增强数据质量
+    pub fn enhance_quality(&self, data: &mut MultiModalData) -> Result<MultiModalQualityScore> {
+        if !self.config.enable_auto_enhancement {
+            return self.evaluate(data);
+        }
+        
+        // 先进行质量评估
+        let initial_score = self.evaluate(data)?;
+        
+        // 如果质量评分低于可接受阈值，尝试增强
+        if initial_score.overall_score < self.config.min_acceptable_score {
+            // 对各模态进行增强
+            for (modality_name, modality_data) in &mut data.modalities {
+                if let Some(evaluator) = self.modality_evaluators.get(modality_name) {
+                    let modality_score = initial_score.modality_scores.get(modality_name).unwrap_or(&0.0);
+                    
+                    if *modality_score < self.config.min_acceptable_score {
+                        // 对低质量模态进行增强
+                        evaluator.enhance_quality(modality_data)?;
+                    }
+                }
+            }
+            
+            // 重新评估增强后的质量
+            return self.evaluate(data);
+        }
+        
+        Ok(initial_score)
+    }
+}
+
+/// 模态质量评估器特性
+pub trait ModalityQualityEvaluator: Send + Sync {
+    /// 评估单一模态数据质量，返回0-1的分数
+    fn evaluate_quality(&self, data: &Value) -> Result<f64>;
+    
+    /// 增强单一模态数据质量
+    fn enhance_quality(&self, data: &mut Value) -> Result<()>;
+}
+
+/// 文本模态质量评估器
+#[derive(Default)]
+pub struct TextModalityEvaluator {
+    min_length: usize,
+    max_length: usize,
+    language_code: Option<String>,
+}
+
+impl ModalityQualityEvaluator for TextModalityEvaluator {
+    fn evaluate_quality(&self, data: &Value) -> Result<f64> {
+        let text = match data.as_str() {
+            Some(s) => s,
+            None => return Ok(0.0),
+        };
+        
+        // 基础质量检查
+        let length = text.len();
+        let min_length = self.min_length.max(1);
+        let max_length = self.max_length.max(min_length);
+        
+        // 长度评分
+        let length_score = if length < min_length {
+            length as f64 / min_length as f64
+        } else if length > max_length {
+            max_length as f64 / length as f64
+        } else {
+            1.0
+        };
+        
+        // 内容多样性评分
+        let diversity_score = calculate_text_diversity(text);
+        
+        // 语言正确性评分 (简化版)
+        let language_score = 0.9; // 实际实现中可以用语言检测库
+        
+        // 组合各项评分
+        let quality_score = (length_score * 0.3 + diversity_score * 0.3 + language_score * 0.4)
+            .max(0.0)
+            .min(1.0);
+            
+        Ok(quality_score)
+    }
+    
+    fn enhance_quality(&self, data: &mut Value) -> Result<()> {
+        // 文本质量增强的简单实现
+        if let Some(text) = data.as_str() {
+            // 例如：去除多余空格、修正标点符号等
+            let enhanced_text = text.trim().to_string();
+            *data = Value::String(enhanced_text);
+        }
+        
+        Ok(())
+    }
+}
+
+/// 图像模态质量评估器
+#[derive(Default)]
+pub struct ImageModalityEvaluator {
+    min_resolution: (u32, u32),
+    max_file_size: usize,
+}
+
+impl ModalityQualityEvaluator for ImageModalityEvaluator {
+    fn evaluate_quality(&self, data: &Value) -> Result<f64> {
+        // 实际实现中应该解析图像元数据或二进制数据
+        // 这里是简化实现
+        
+        // 示例：如果数据是base64编码的图像
+        if let Some(base64_str) = data.as_str() {
+            // 评估图像大小、分辨率、清晰度等
+            let file_size = base64_str.len() * 3 / 4; // 粗略估算
+            
+            // 基于文件大小的简单评分
+            let size_score = if file_size == 0 {
+                0.0
+            } else if file_size > self.max_file_size && self.max_file_size > 0 {
+                self.max_file_size as f64 / file_size as f64
+            } else {
+                1.0
+            };
+            
+            // 这里需要解码图像并评估分辨率、清晰度等
+            // 简化实现返回一个固定分数
+            return Ok(size_score * 0.5 + 0.5);
+        }
+        
+        // 如果不是预期的图像格式
+        Ok(0.0)
+    }
+    
+    fn enhance_quality(&self, data: &mut Value) -> Result<()> {
+        // 图像质量增强的简单实现
+        // 实际实现中可能涉及图像处理
+        Ok(())
+    }
+}
+
+/// 音频模态质量评估器
+#[derive(Default)]
+pub struct AudioModalityEvaluator {
+    min_duration_seconds: f64,
+    max_duration_seconds: f64,
+    preferred_sample_rate: u32,
+}
+
+impl ModalityQualityEvaluator for AudioModalityEvaluator {
+    fn evaluate_quality(&self, data: &Value) -> Result<f64> {
+        // 简化实现返回一个固定分数
+        Ok(0.8)
+    }
+    
+    fn enhance_quality(&self, data: &mut Value) -> Result<()> {
+        // 音频质量增强的简单实现
+        Ok(())
+    }
+}
+
+/// 计算文本多样性评分 (0-1)
+fn calculate_text_diversity(text: &str) -> f64 {
+    if text.is_empty() {
+        return 0.0;
+    }
+    
+    // 统计词频
+    let words: Vec<&str> = text.split_whitespace().collect();
+    if words.is_empty() {
+        return 0.0;
+    }
+    
+    let mut word_count = HashMap::new();
+    for word in &words {
+        *word_count.entry(word.to_lowercase()).or_insert(0) += 1;
+    }
+    
+    // 计算熵
+    let total_words = words.len() as f64;
+    let mut entropy = 0.0;
+    
+    for &count in word_count.values() {
+        let probability = count as f64 / total_words;
+        entropy -= probability * probability.log2();
+    }
+    
+    // 归一化熵
+    let max_entropy = (word_count.len() as f64).log2();
+    if max_entropy > 0.0 {
+        entropy / max_entropy
+    } else {
+        0.0
+    }
+}
+
+/// 多模态数据结构
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MultiModalData {
+    /// 数据ID
+    pub id: String,
+    /// 各模态数据
+    pub modalities: HashMap<String, Value>,
+    /// 各模态时间戳
+    pub timestamps: Option<HashMap<String, Vec<f64>>>,
+    /// 元数据
+    pub metadata: HashMap<String, Value>,
+}
+
+impl MultiModalData {
+    /// 创建新的多模态数据
+    pub fn new(id: &str) -> Self {
+        Self {
+            id: id.to_string(),
+            modalities: HashMap::new(),
+            timestamps: None,
+            metadata: HashMap::new(),
+        }
+    }
+    
+    /// 添加模态数据
+    pub fn add_modality(&mut self, modality_name: &str, data: Value) -> &mut Self {
+        self.modalities.insert(modality_name.to_string(), data);
+        self
+    }
+    
+    /// 添加模态时间戳
+    pub fn add_timestamps(&mut self, modality_name: &str, timestamps: Vec<f64>) -> &mut Self {
+        if self.timestamps.is_none() {
+            self.timestamps = Some(HashMap::new());
+        }
+        
+        if let Some(ts_map) = &mut self.timestamps {
+            ts_map.insert(modality_name.to_string(), timestamps);
+        }
+        
+        self
+    }
+    
+    /// 添加元数据
+    pub fn add_metadata(&mut self, key: &str, value: Value) -> &mut Self {
+        self.metadata.insert(key.to_string(), value);
+        self
+    }
+    
+    /// 获取模态数据
+    pub fn get_modality(&self, modality_name: &str) -> Option<&Value> {
+        self.modalities.get(modality_name)
+    }
+    
+    /// 获取模态时间戳
+    pub fn get_timestamps(&self, modality_name: &str) -> Option<&Vec<f64>> {
+        self.timestamps.as_ref().and_then(|ts_map| ts_map.get(modality_name))
+    }
+    
+    /// 获取元数据
+    pub fn get_metadata(&self, key: &str) -> Option<&Value> {
+        self.metadata.get(key)
+    }
+    
+    /// 验证数据完整性
+    pub fn validate(&self) -> Result<()> {
+        // 检查必需的模态
+        let required_modalities = vec!["text"]; // 可以根据需要调整
+        
+        for modality in &required_modalities {
+            if !self.modalities.contains_key(*modality) {
+                return Err(Error::InvalidInput(format!("缺少必需的模态: {}", modality)));
+            }
+        }
+        
+        // 检查各模态数据格式
+        for (modality_name, data) in &self.modalities {
+            match modality_name.as_str() {
+                "text" => {
+                    if !data.is_string() {
+                        return Err(Error::InvalidInput(format!("文本模态数据必须是字符串")));
+                    }
+                },
+                "image" => {
+                    // 对于图像数据的验证
+                },
+                "audio" => {
+                    // 对于音频数据的验证
+                },
+                _ => {}
+            }
+        }
+        
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_multimodal_quality_evaluator() {
+        // 创建配置
+        let config = MultiModalQualityConfig::default();
+        
+        // 创建评估器
+        let evaluator = MultiModalQualityEvaluator::new(config);
+        
+        // 创建测试数据
+        let mut data = MultiModalData::new("test_data");
+        data.add_modality("text", Value::String("这是一段测试文本，用于评估多模态数据质量。".to_string()));
+        data.add_modality("image", Value::String("base64_encoded_image_data".to_string()));
+        
+        // 评估质量
+        let quality_score = evaluator.evaluate(&data).unwrap();
+        
+        // 验证结果
+        assert!(quality_score.overall_score >= 0.0 && quality_score.overall_score <= 1.0);
+        assert!(quality_score.modality_scores.contains_key("text"));
+        assert!(quality_score.modality_scores.contains_key("image"));
+    }
+    
+    #[test]
+    fn test_text_modality_evaluator() {
+        let evaluator = TextModalityEvaluator::default();
+        
+        // 测试不同质量的文本
+        let high_quality = Value::String("这是一段高质量的文本，包含多样的词汇和完整的句子结构。".to_string());
+        let low_quality = Value::String("a".to_string());
+        
+        let high_score = evaluator.evaluate_quality(&high_quality).unwrap();
+        let low_score = evaluator.evaluate_quality(&low_quality).unwrap();
+        
+        assert!(high_score > low_score);
+    }
+    
+    #[test]
+    fn test_multimodal_data() {
+        let mut data = MultiModalData::new("test_data");
+        
+        // 添加各种模态数据
+        data.add_modality("text", Value::String("测试文本".to_string()))
+            .add_modality("image", Value::String("image_data".to_string()))
+            .add_timestamps("text", vec![0.0, 1.0, 2.0])
+            .add_metadata("source", Value::String("test".to_string()));
+            
+        // 验证数据
+        assert_eq!(data.id, "test_data");
+        assert_eq!(data.modalities.len(), 2);
+        assert!(data.get_modality("text").is_some());
+        assert!(data.get_timestamps("text").is_some());
+        assert_eq!(data.get_timestamps("text").unwrap().len(), 3);
+        assert_eq!(data.get_metadata("source").unwrap().as_str().unwrap(), "test");
+    }
+    
+    #[test]
+    fn test_text_diversity() {
+        // 测试文本多样性计算
+        let diverse_text = "这是一段包含多种不同词汇的文本，每个词都很独特";
+        let repetitive_text = "重复 重复 重复 重复 重复 重复 重复 重复";
+        
+        let diverse_score = calculate_text_diversity(diverse_text);
+        let repetitive_score = calculate_text_diversity(repetitive_text);
+        
+        assert!(diverse_score > repetitive_score);
+    }
+}
+
+/// 图像特征模型特性
+pub trait ImageFeatureModel: Send + Sync {
+    /// 提取图像特征
+    fn extract_features(&self, image_data: &[u8]) -> Result<TensorData>;
+    /// 获取配置
+    fn get_config(&self) -> &ImageFeatureConfig;
+}
+
+/// ResNet特征模型
+pub struct ResNetFeatureModel {
+    config: ImageFeatureConfig,
+    mean: Vec<f32>,
+    std: Vec<f32>,
+    initialized: bool,
+}
+
+impl ResNetFeatureModel {
+    /// 创建新的ResNet特征模型
+    pub fn new(config: ImageFeatureConfig) -> Result<Self> {
+        Ok(Self {
+            config,
+            mean: vec![0.485, 0.456, 0.406], // ImageNet标准化参数
+            std: vec![0.229, 0.224, 0.225],
+            initialized: false,
+        })
+    }
+    
+    /// 初始化模型
+    fn initialize(&mut self) -> Result<()> {
+        // 实际实现中会加载预训练模型
+        self.initialized = true;
+        Ok(())
+    }
+    
+    /// 图像预处理
+    fn preprocess_image(&self, image_data: &[u8]) -> Result<TensorData> {
+        // 解码图像
+        let img = image::load_from_memory(image_data)
+            .map_err(|e| Error::InvalidInput(format!("无法解码图像: {}", e)))?;
+        
+        // 调整大小
+        let (width, height) = self.config.input_size;
+        let resized = img.resize_exact(width as u32, height as u32, image::imageops::FilterType::Triangle);
+        
+        // 转换为RGB
+        let rgb = resized.to_rgb8();
+        
+        // 转换为张量并标准化
+        let mut tensor_data = Vec::with_capacity(width * height * 3);
+        
+        for pixel in rgb.pixels() {
+            for (i, &value) in pixel.0.iter().enumerate() {
+                let normalized = if self.config.normalize {
+                    ((value as f32) / 255.0 - self.mean[i]) / self.std[i]
+                } else {
+                    (value as f32) / 255.0
+                };
+                tensor_data.push(normalized);
+            }
+        }
+        
+        // 创建TensorData（CHW格式）
+        let mut chw_data = vec![0.0; width * height * 3];
+        for h in 0..height {
+            for w in 0..width {
+                for c in 0..3 {
+                    let hwc_idx = (h * width + w) * 3 + c;
+                    let chw_idx = c * height * width + h * width + w;
+                    chw_data[chw_idx] = tensor_data[hwc_idx];
+                }
+            }
+        }
+        
+        Ok(TensorData::new(vec![1, 3, height, width], chw_data)?)
+    }
+}
+
+impl ImageFeatureModel for ResNetFeatureModel {
+    fn extract_features(&self, image_data: &[u8]) -> Result<TensorData> {
+        // 确保模型已初始化
+        if !self.initialized {
+            let mut mutable_self = Self {
+                config: self.config.clone(),
+                mean: self.mean.clone(),
+                std: self.std.clone(),
+                initialized: false,
+            };
+            mutable_self.initialize()?;
+            return mutable_self.extract_features(image_data);
+        }
+        
+        // 预处理图像
+        let input_tensor = self.preprocess_image(image_data)?;
+        
+        // 执行ResNet特征提取
+        let batch_size = input_tensor.shape[0];
+        let feature_dim = 2048; // ResNet特征维度
+        
+        // 模拟ResNet处理管道
+        // 实际应用中应调用实际的深度学习框架
+        
+        // 1. 初始卷积和池化
+        let mut x = self.apply_initial_layers(&input_tensor)?;
+        
+        // 2. ResNet主体（残差块）
+        x = self.apply_resnet_body(&x)?;
+        
+        // 3. 全局池化
+        let global_pool = self.apply_global_pooling(&x)?;
+        
+        // 返回最终特征
+        Ok(global_pool)
+    }
+    
+    fn get_config(&self) -> &ImageFeatureConfig {
+        &self.config
+    }
+}
+
+impl ResNetFeatureModel {
+    // ... existing code ...
+    
+    /// 应用初始层
+    fn apply_initial_layers(&self, input: &TensorData) -> Result<TensorData> {
+        // 实现初始卷积和池化层
+        // 在实际应用中，这应该调用实际的深度学习框架
+        
+        let batch_size = input.shape[0];
+        let channels = 64; // ResNet初始卷积输出通道数
+        let height = input.shape[2] / 2; // 因为步长为2
+        let width = input.shape[3] / 2;
+        
+        // 创建特征图
+        let feature_size = batch_size * channels * height * width;
+        let mut features = Vec::with_capacity(feature_size);
+        
+        // 模拟特征提取结果
+        // 注意：这里使用半随机半确定性的方法，而不是完全随机
+        // 这样相同的输入会产生相似的特征，更符合实际模型行为
+        let mut hasher = DefaultHasher::new();
+        
+        // 使用输入数据的哈希值作为随机数种子，确保相同输入有相似输出
+        for val in &input.data {
+            val.to_bits().hash(&mut hasher);
+        }
+        let seed = hasher.finish();
+        let mut rng = StdRng::seed_from_u64(seed);
+        
+        for i in 0..feature_size {
+            // 基于输入数据生成特征，确保相同的输入会产生相似特征
+            let base_val = if i < input.data.len() {
+                input.data[i % input.data.len()] * 0.1
+            } else {
+                0.0
+            };
+            
+            // 添加小随机波动
+            let random_val = rng.gen_range(-0.05..0.05);
+            features.push((base_val + random_val).max(0.0)); // 应用ReLU
+        }
+        
+        Ok(TensorData {
+            shape: vec![batch_size, channels, height, width],
+            data: features,
+            dtype: crate::model::DataType::Float32,
+        })
+    }
+    
+    /// 应用ResNet主体
+    fn apply_resnet_body(&self, input: &TensorData) -> Result<TensorData> {
+        // 这里应该实现ResNet的残差块结构
+        // 在实际应用中，这应该调用实际的深度学习框架
+        
+        let batch_size = input.shape[0];
+        let channels = 2048; // ResNet-50最后一层的通道数
+        let height = input.shape[2] / 4; // 经过几个下采样
+        let width = input.shape[3] / 4;
+        
+        // 创建特征图
+        let feature_size = batch_size * channels * height * width;
+        let mut features = Vec::with_capacity(feature_size);
+        
+        // 模拟ResNet主体特征提取
+        let mut hasher = DefaultHasher::new();
+        
+        // 使用输入数据的哈希值和通道数作为随机数种子
+        for val in &input.data {
+            val.to_bits().hash(&mut hasher);
+        }
+        channels.hash(&mut hasher);
+        
+        let seed = hasher.finish();
+        let mut rng = StdRng::seed_from_u64(seed);
+        
+        for i in 0..feature_size {
+            // 基于输入数据生成特征
+            let base_val = if i < input.data.len() {
+                input.data[i % input.data.len()] * 0.2
+            } else {
+                0.0
+            };
+            
+            // 添加残差模式（模拟残差块的特性）
+            let structured_val = if i % channels < channels / 2 {
+                rng.gen_range(-0.1..0.1)
+            } else {
+                rng.gen_range(0.0..0.2)
+            };
+            
+            features.push((base_val + structured_val).max(0.0)); // 应用ReLU
+        }
+        
+        Ok(TensorData {
+            shape: vec![batch_size, channels, height, width],
+            data: features,
+            dtype: crate::model::DataType::Float32,
+        })
+    }
+    
+    /// 应用全局池化层
+    fn apply_global_pooling(&self, input: &TensorData) -> Result<TensorData> {
+        // 这里应该实现全局平均池化
+        // 在实际应用中，这应该调用实际的深度学习框架
+        
+        let batch_size = input.shape[0];
+        let channels = input.shape[1];
+        let height = input.shape[2];
+        let width = input.shape[3];
+        
+        // 全局池化后的形状：[batch_size, channels]
+        let feature_dim = channels;
+        let mut features = vec![0.0; batch_size * feature_dim];
+        
+        // 实现简化的全局平均池化
+        for b in 0..batch_size {
+            for c in 0..channels {
+                let mut sum = 0.0;
+                let mut count = 0;
+                
+                // 对每个通道的特征图进行平均池化
+                for h in 0..height {
+                    for w in 0..width {
+                        let index = ((b * channels + c) * height + h) * width + w;
+                        if index < input.data.len() {
+                            sum += input.data[index];
+                            count += 1;
+                        }
+                    }
+                }
+                
+                // 计算平均值
+                let avg = if count > 0 { sum / count as f32 } else { 0.0 };
+                features[b * feature_dim + c] = avg;
+            }
+        }
+        
+        // 应用特征归一化，使模拟特征更接近实际
+        let mut normalized_features = Vec::with_capacity(features.len());
+        for b in 0..batch_size {
+            // 计算L2范数
+            let mut norm = 0.0;
+            for c in 0..feature_dim {
+                let val = features[b * feature_dim + c];
+                norm += val * val;
+            }
+            norm = norm.sqrt();
+            
+            // 归一化
+            if norm > 1e-8 {
+                for c in 0..feature_dim {
+                    normalized_features.push(features[b * feature_dim + c] / norm);
+                }
+            } else {
+                for c in 0..feature_dim {
+                    normalized_features.push(features[b * feature_dim + c]);
+                }
+            }
+        }
+        
+        Ok(TensorData {
+            shape: vec![batch_size, feature_dim],
+            data: normalized_features,
+            dtype: crate::model::DataType::Float32,
+        })
+    }
+}
+
+/// MobileNet特征模型
+pub struct MobileNetFeatureModel {
+    config: ImageFeatureConfig,
+    mean: Vec<f32>,
+    std: Vec<f32>,
+    initialized: bool,
+}
+
+impl MobileNetFeatureModel {
+    /// 创建新的MobileNet特征模型
+    pub fn new(config: ImageFeatureConfig) -> Result<Self> {
+        Ok(Self {
+            config,
+            mean: vec![0.485, 0.456, 0.406], // ImageNet标准化参数
+            std: vec![0.229, 0.224, 0.225],
+            initialized: false,
+        })
+    }
+    
+    /// 初始化模型
+    fn initialize(&mut self) -> Result<()> {
+        // 实际实现中会加载预训练模型
+        self.initialized = true;
+        Ok(())
+    }
+    
+    /// 图像预处理
+    fn preprocess_image(&self, image_data: &[u8]) -> Result<TensorData> {
+        // 解码图像
+        let img = image::load_from_memory(image_data)
+            .map_err(|e| Error::InvalidInput(format!("无法解码图像: {}", e)))?;
+        
+        // 调整大小
+        let (width, height) = self.config.input_size;
+        let resized = img.resize_exact(width as u32, height as u32, image::imageops::FilterType::Triangle);
+        
+        // 转换为RGB
+        let rgb = resized.to_rgb8();
+        
+        // 转换为张量并标准化
+        let mut tensor_data = Vec::with_capacity(width * height * 3);
+        
+        for pixel in rgb.pixels() {
+            for (i, &value) in pixel.0.iter().enumerate() {
+                let normalized = if self.config.normalize {
+                    ((value as f32) / 255.0 - self.mean[i]) / self.std[i]
+                } else {
+                    (value as f32) / 255.0
+                };
+                tensor_data.push(normalized);
+            }
+        }
+        
+        // 创建TensorData（CHW格式）
+        let mut chw_data = vec![0.0; width * height * 3];
+        for h in 0..height {
+            for w in 0..width {
+                for c in 0..3 {
+                    let hwc_idx = (h * width + w) * 3 + c;
+                    let chw_idx = c * height * width + h * width + w;
+                    chw_data[chw_idx] = tensor_data[hwc_idx];
+                }
+            }
+        }
+        
+        Ok(TensorData::new(vec![1, 3, height, width], chw_data)?)
+    }
+}
+
+impl ImageFeatureModel for MobileNetFeatureModel {
+    fn extract_features(&self, image_data: &[u8]) -> Result<TensorData> {
+        // 确保模型已初始化
+        if !self.initialized {
+            let mut mutable_self = Self {
+                config: self.config.clone(),
+                mean: self.mean.clone(),
+                std: self.std.clone(),
+                initialized: false,
+            };
+            mutable_self.initialize()?;
+            return mutable_self.extract_features(image_data);
+        }
+        
+        // 预处理图像
+        let input_tensor = self.preprocess_image(image_data)?;
+        
+        // 实际模型推理（简化实现）
+        // 在实际应用中，这里会调用深度学习框架来执行模型推理
+        let batch_size = input_tensor.get_shape()[0];
+        let feature_dim = 1280; // MobileNet特征维度
+        
+        // 生成伪特征（随机值）
+        let mut features = Vec::with_capacity(batch_size * feature_dim);
+        let mut rng = rand::thread_rng();
+        for _ in 0..batch_size * feature_dim {
+            features.push(rng.gen_range(-0.1..0.1));
+        }
+        
+        Ok(TensorData::new(vec![batch_size, feature_dim], features)?)
+    }
+    
+    fn get_config(&self) -> &ImageFeatureConfig {
+        &self.config
+    }
+}
+
+/// Vision Transformer (ViT) 特征模型
+pub struct ViTFeatureModel {
+    config: ImageFeatureConfig,
+    mean: Vec<f32>,
+    std: Vec<f32>,
+    patch_size: usize,
+    hidden_size: usize,
+    initialized: bool,
+}
+
+impl ViTFeatureModel {
+    /// 创建新的ViT特征模型
+    pub fn new(config: ImageFeatureConfig) -> Result<Self> {
+        Ok(Self {
+            config,
+            mean: vec![0.5, 0.5, 0.5], // ViT标准化参数
+            std: vec![0.5, 0.5, 0.5],
+            patch_size: 16,
+            hidden_size: 768,
+            initialized: false,
+        })
+    }
+    
+    /// 初始化模型
+    fn initialize(&mut self) -> Result<()> {
+        // 实际实现中会加载预训练模型
+        self.initialized = true;
+        Ok(())
+    }
+}
+
+impl ImageFeatureModel for ViTFeatureModel {
+    fn extract_features(&self, image_data: &[u8]) -> Result<TensorData> {
+        // 实际实现中会加载预训练模型
+        self.initialized = true;
+        Ok(TensorData::new(vec![1, 768], vec![0.0; 768])?)
+    }
+    
+    fn get_config(&self) -> &ImageFeatureConfig {
+        &self.config
+    }
+}
+
+/// Simple Feature Model
+pub struct SimpleFeatureModel {
+    config: ImageFeatureConfig,
+    initialized: bool,
+}
+
+impl SimpleFeatureModel {
+    /// 创建新的Simple Feature Model
+    pub fn new(config: ImageFeatureConfig) -> Result<Self> {
+        Ok(Self {
+            config,
+            initialized: false,
+        })
+    }
+    
+    /// 初始化模型
+    fn initialize(&mut self) -> Result<()> {
+        // 实际实现中会加载预训练模型
+        self.initialized = true;
+        Ok(())
+    }
+    
+    /// 图像预处理
+    fn preprocess_image(&self, image_data: &[u8]) -> Result<TensorData> {
+        // 解码图像
+        let img = image::load_from_memory(image_data)
+            .map_err(|e| Error::InvalidInput(format!("无法解码图像: {}", e)))?;
+        
+        // 调整大小
+        let (width, height) = self.config.input_size;
+        let resized = img.resize_exact(width as u32, height as u32, image::imageops::FilterType::Triangle);
+        
+        // 转换为RGB
+        let rgb = resized.to_rgb8();
+        
+        // 转换为张量并标准化
+        let mut tensor_data = Vec::with_capacity(width * height * 3);
+        
+        for pixel in rgb.pixels() {
+            for (i, &value) in pixel.0.iter().enumerate() {
+                let normalized = if self.config.normalize {
+                    ((value as f32) / 255.0 - 0.5) / 0.5
+                } else {
+                    (value as f32) / 255.0
+                };
+                tensor_data.push(normalized);
+            }
+        }
+        
+        // 创建TensorData（CHW格式）
+        let mut chw_data = vec![0.0; width * height * 3];
+        for h in 0..height {
+            for w in 0..width {
+                for c in 0..3 {
+                    let hwc_idx = (h * width + w) * 3 + c;
+                    let chw_idx = c * height * width + h * width + w;
+                    chw_data[chw_idx] = tensor_data[hwc_idx];
+                }
+            }
+        }
+        
+        Ok(TensorData::new(vec![1, 3, height, width], chw_data)?)
+    }
+}
+
+impl ImageFeatureModel for SimpleFeatureModel {
+    fn extract_features(&self, image_data: &[u8]) -> Result<TensorData> {
+        // 确保模型已初始化
+        if !self.initialized {
+            let mut mutable_self = Self {
+                config: self.config.clone(),
+                initialized: false,
+            };
+            mutable_self.initialize()?;
+            return mutable_self.extract_features(image_data);
+        }
+        
+        // 预处理图像
+        self.preprocess_image(image_data)
+    }
+    
+    fn get_config(&self) -> &ImageFeatureConfig {
+        &self.config
+    }
+}
+
+/// 文本特征缓存
+pub struct TextFeatureCache {
+    cache: LruCache<String, TensorData>,
+    max_size: usize,
+}
+
+impl TextFeatureCache {
+    /// 创建新的特征缓存
+    pub fn new(max_size: usize) -> Self {
+        Self {
+            cache: LruCache::new(max_size),
+            max_size,
+        }
+    }
+    
+    /// 获取缓存的特征
+    pub fn get(&mut self, key: &str) -> Option<TensorData> {
+        self.cache.get(key).cloned()
+    }
+    
+    /// 存储特征到缓存
+    pub fn put(&mut self, key: String, features: TensorData) {
+        self.cache.put(key, features);
+    }
+    
+    /// 清除缓存
+    pub fn clear(&mut self) {
+        self.cache.clear();
+    }
+    
+    /// 获取缓存大小
+    pub fn len(&self) -> usize {
+        self.cache.len()
+    }
+    
+    /// 检查缓存是否为空
+    pub fn is_empty(&self) -> bool {
+        self.cache.is_empty()
+    }
+}
+
+/// 优化的文本模态提取器
+pub struct OptimizedTextModalityExtractor {
+    config: TextFeatureConfig,
+    extractor: Box<dyn TextFeatureExtractor>,
+    cache: Option<TextFeatureCache>,
+    batch_size: usize,
+}
+
+impl OptimizedTextModalityExtractor {
+    /// 创建新的优化文本模态提取器
+    pub fn new(config: TextFeatureConfig, use_cache: bool, batch_size: usize) -> Result<Self> {
+        let extractor = Box::new(TextFeatureExtractor::new(config.clone())?);
+        
+        let cache = if use_cache {
+            Some(TextFeatureCache::new(1000)) // 默认缓存1000个条目
+        } else {
+            None
+        };
+        
+        Ok(Self {
+            config,
+            extractor,
+            cache,
+            batch_size: batch_size.max(1), // 确保批处理大小至少为1
+        })
+    }
+    
+    /// 从文本提取特征
+    fn extract_from_text(&self, text: &str) -> Result<TensorData> {
+        // 如果启用了缓存，先检查缓存
+        if let Some(cache) = &self.cache {
+            // 计算文本的哈希作为缓存键
+            let mut hasher = DefaultHasher::new();
+            text.hash(&mut hasher);
+            let hash_key = format!("{:x}", hasher.finish());
+            
+            // 尝试从缓存获取
+            if let Some(cached_features) = cache.get(&hash_key) {
+                return Ok(cached_features);
+            }
+            
+            // 缓存未命中，提取特征
+            let features = self.extractor.extract_features(text)?;
+            
+            // 创建TensorData
+            let tensor = TensorData::new(
+                vec![1, features.len()],
+                features,
+            )?;
+            
+            // 存入缓存
+            cache.put(hash_key, tensor.clone());
+            
+            Ok(tensor)
+        } else {
+            // 未启用缓存，直接提取特征
+            let features = self.extractor.extract_features(text)?;
+            
+            // 创建TensorData
+            let tensor = TensorData::new(
+                vec![1, features.len()],
+                features,
+            )?;
+            
+            Ok(tensor)
+        }
+    }
+    
+    /// 批量提取特征
+    fn batch_extract(&self, texts: Vec<String>) -> Result<Vec<TensorData>> {
+        let mut results = Vec::with_capacity(texts.len());
+        
+        // 处理每个批次
+        for chunk in texts.chunks(self.batch_size) {
+            let mut batch_results = Vec::with_capacity(chunk.len());
+            
+            // 并行处理批次内的文本
+            let parallel_results: Vec<Result<TensorData>> = chunk.par_iter()
+                .map(|text| self.extract_from_text(text))
+                .collect();
+            
+            // 收集结果
+            for result in parallel_results {
+                batch_results.push(result?);
+            }
+            
+            results.extend(batch_results);
+        }
+        
+        Ok(results)
+    }
+}
+
+impl ModalityExtractor for OptimizedTextModalityExtractor {
+    fn extract_features(&self, data: &MultiModalData) -> Result<Vec<TensorData>> {
+        // 获取文本数据
+        let text_data = match data.get_modality_data(&ModalityType::Text) {
+            Some(data) => data,
+            None => return Err(Error::InvalidInput("未找到文本数据".to_string())),
+        };
+        
+        match text_data {
+            ModalityData::Json(json_value) => {
+                // 检查是否为数组
+                if let Some(array) = json_value.as_array() {
+                    // 批量处理多个文本
+                    let mut text_batch = Vec::with_capacity(array.len());
+                    
+                    for item in array {
+                        if let Some(text) = item.as_str() {
+                            text_batch.push(text.to_string());
+                        }
+                    }
+                    
+                    if !text_batch.is_empty() {
+                        // 批量提取特征
+                        self.batch_extract(text_batch)
+                    } else {
+                        Err(Error::InvalidInput("JSON数组中未找到有效的文本数据".to_string()))
+                    }
+                } else if let Some(text) = json_value.as_str() {
+                    // 单个文本处理
+                    let features = self.extract_from_text(text)?;
+                    Ok(vec![features])
+                } else {
+                    Err(Error::InvalidInput("JSON中未找到有效的文本数据".to_string()))
+                }
+            },
+            ModalityData::Text(text) => {
+                // 直接处理文本数据
+                let features = self.extract_from_text(text)?;
+                Ok(vec![features])
+            },
+            ModalityData::Binary(_) => {
+                Err(Error::InvalidInput("无法从二进制数据中提取文本特征".to_string()))
+            },
+            ModalityData::Tensor(tensor_data) => {
+                // 假设张量已经是提取的特征
+                Ok(vec![tensor_data.clone()])
+            },
+        }
+    }
+    
+    fn modality_type(&self) -> ModalityType {
+        ModalityType::Text
+    }
+    
+    fn get_feature_dim(&self) -> usize {
+        self.extractor.dimension()
+    }
+    
+    fn supports_batch_processing(&self) -> bool {
+        true
+    }
+}
+
+/// 音频特征缓存
+pub struct AudioFeatureCache {
+    cache: LruCache<String, TensorData>,
+    max_size: usize,
+}
+
+impl AudioFeatureCache {
+    /// 创建新的特征缓存
+    pub fn new(max_size: usize) -> Self {
+        Self {
+            cache: LruCache::new(max_size),
+            max_size,
+        }
+    }
+    
+    /// 获取缓存的特征
+    pub fn get(&mut self, key: &str) -> Option<TensorData> {
+        self.cache.get(key).cloned()
+    }
+    
+    /// 存储特征到缓存
+    pub fn put(&mut self, key: String, features: TensorData) {
+        self.cache.put(key, features);
+    }
+    
+    /// 清除缓存
+    pub fn clear(&mut self) {
+        self.cache.clear();
+    }
+    
+    /// 获取缓存大小
+    pub fn len(&self) -> usize {
+        self.cache.len()
+    }
+    
+    /// 检查缓存是否为空
+    pub fn is_empty(&self) -> bool {
+        self.cache.is_empty()
+    }
+}
+
+/// 优化的音频模态提取器
+pub struct OptimizedAudioModalityExtractor {
+    config: AudioFeatureConfig,
+    cache: Option<AudioFeatureCache>,
+    batch_size: usize,
+}
+
+impl OptimizedAudioModalityExtractor {
+    /// 创建新的优化音频模态提取器
+    pub fn new(config: AudioFeatureConfig, use_cache: bool, batch_size: usize) -> Result<Self> {
+        let cache = if use_cache {
+            Some(AudioFeatureCache::new(500)) // 默认缓存500个条目，音频数据通常较大
+        } else {
+            None
+        };
+        
+        Ok(Self {
+            config,
+            cache,
+            batch_size: batch_size.max(1), // 确保批处理大小至少为1
+        })
+    }
+    
+    /// 从音频数据中提取特征
+    fn extract_from_audio_data(&self, audio_data: &[u8]) -> Result<TensorData> {
+        // 如果启用了缓存，先检查缓存
+        if let Some(cache) = &self.cache {
+            // 计算音频数据的哈希作为缓存键
+            let mut hasher = DefaultHasher::new();
+            audio_data.hash(&mut hasher);
+            let hash_key = format!("{:x}", hasher.finish());
+            
+            // 尝试从缓存获取
+            if let Some(cached_features) = cache.get(&hash_key) {
+                return Ok(cached_features);
+            }
+            
+            // 缓存未命中，提取特征
+            let features = self.process_audio_data(audio_data)?;
+            
+            // 存入缓存
+            cache.put(hash_key, features.clone());
+            
+            Ok(features)
+        } else {
+            // 未启用缓存，直接提取特征
+            self.process_audio_data(audio_data)
+        }
+    }
+    
+    /// 处理音频数据提取特征
+    fn process_audio_data(&self, audio_data: &[u8]) -> Result<TensorData> {
+        // 这里是一个简化实现，实际应用中需要使用音频处理库
+        // 例如处理采样率、提取MFCC特征等
+        
+        // 模拟特征提取过程
+        let feature_dim = 128; // 假设音频特征维度
+        let mut features = Vec::with_capacity(feature_dim);
+        
+        // 为了演示，这里使用随机特征
+        let mut rng = rand::thread_rng();
+        for _ in 0..feature_dim {
+            features.push(rng.gen_range(-0.5..0.5));
+        }
+        
+        // 创建特征张量
+        let tensor = TensorData::new(
+            vec![1, feature_dim],
+            features,
+        )?;
+        
+        Ok(tensor)
+    }
+    
+    /// 批量提取特征
+    fn batch_extract(&self, audio_data_batch: Vec<Vec<u8>>) -> Result<Vec<TensorData>> {
+        let mut results = Vec::with_capacity(audio_data_batch.len());
+        
+        // 处理每个批次
+        for chunk in audio_data_batch.chunks(self.batch_size) {
+            let mut batch_results = Vec::with_capacity(chunk.len());
+            
+            // 并行处理批次内的音频
+            let parallel_results: Vec<Result<TensorData>> = chunk.par_iter()
+                .map(|audio_data| self.extract_from_audio_data(audio_data))
+                .collect();
+            
+            // 收集结果
+            for result in parallel_results {
+                batch_results.push(result?);
+            }
+            
+            results.extend(batch_results);
+        }
+        
+        Ok(results)
+    }
+}
+
+impl ModalityExtractor for OptimizedAudioModalityExtractor {
+    fn extract_features(&self, data: &MultiModalData) -> Result<Vec<TensorData>> {
+        // 获取音频数据
+        let audio_data = match data.get_modality_data(&ModalityType::Audio) {
+            Some(data) => data,
+            None => return Err(Error::InvalidInput("未找到音频数据".to_string())),
+        };
+        
+        match audio_data {
+            ModalityData::Json(json_value) => {
+                // 检查是否为数组
+                if let Some(array) = json_value.as_array() {
+                    // 批量处理多个音频
+                    let mut audio_data_batch = Vec::with_capacity(array.len());
+                    
+                    for item in array {
+                        if let Some(base64_str) = item.as_str() {
+                            // 解码base64
+                            let audio_bytes = base64::decode(base64_str)
+                                .map_err(|e| Error::InvalidInput(format!("Base64解码失败: {}", e)))?;
+                            
+                            audio_data_batch.push(audio_bytes);
+                        }
+                    }
+                    
+                    if !audio_data_batch.is_empty() {
+                        // 批量提取特征
+                        self.batch_extract(audio_data_batch)
+                    } else {
+                        Err(Error::InvalidInput("JSON数组中未找到有效的音频数据".to_string()))
+                    }
+                } else if let Some(base64_str) = json_value.as_str() {
+                    // 单个音频处理
+                    // 解码base64
+                    let audio_bytes = base64::decode(base64_str)
+                        .map_err(|e| Error::InvalidInput(format!("Base64解码失败: {}", e)))?;
+                    
+                    // 提取特征
+                    let features = self.extract_from_audio_data(&audio_bytes)?;
+                    
+                    Ok(vec![features])
+                } else {
+                    Err(Error::InvalidInput("JSON中未找到有效的音频数据".to_string()))
+                }
+            },
+            ModalityData::Binary(binary_data) => {
+                // 直接处理二进制音频数据
+                let features = self.extract_from_audio_data(binary_data)?;
+                Ok(vec![features])
+            },
+            ModalityData::Text(_) => {
+                Err(Error::InvalidInput("无法从文本数据中提取音频特征".to_string()))
+            },
+            ModalityData::Tensor(tensor_data) => {
+                // 假设张量已经是提取的特征
+                Ok(vec![tensor_data.clone()])
+            },
+        }
+    }
+    
+    fn modality_type(&self) -> ModalityType {
+        ModalityType::Audio
+    }
+    
+    fn get_feature_dim(&self) -> usize {
+        128 // 假设音频特征维度为128
+    }
+    
+    fn supports_batch_processing(&self) -> bool {
+        true
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VideoFeatureConfig {
+    pub frame_rate: usize,
+    pub resolution: (usize, usize),
+    pub max_frames: usize,
+    pub feature_type: String,
+    pub use_keyframes: bool,
+    pub extract_audio: bool,
+}
+
+// 视频模态提取器
+pub struct VideoModalityExtractor {
+    config: VideoFeatureConfig,
+}
+
+impl VideoModalityExtractor {
+    pub fn new(config: VideoFeatureConfig) -> Result<Self> {
+        Ok(Self { config })
+    }
+}
+
+impl ModalityExtractor for VideoModalityExtractor {
+    fn extract_features(&self, data: &serde_json::Value) -> Result<TensorData> {
+        // 视频特征提取实现
+        // 这里是一个简化实现，实际应用中需要调用专门的视频处理库
+        let video_data = match data {
+            serde_json::Value::String(s) => {
+                // 假设这是Base64编码的视频数据
+                BASE64_STANDARD.decode(s)
+                    .map_err(|e| Error::InvalidArgument(format!("Invalid base64 video data: {}", e)))?
+            },
+            serde_json::Value::Object(obj) => {
+                if let Some(serde_json::Value::String(s)) = obj.get("video_data") {
+                    BASE64_STANDARD.decode(s)
+                    .map_err(|e| Error::InvalidArgument(format!("Invalid base64 video data: {}", e)))?
+                } else {
+                    return Err(Error::InvalidArgument("Video data not found in JSON object".to_string()));
+                }
+            },
+            _ => return Err(Error::InvalidArgument("Invalid video data format".to_string())),
+        };
+        
+        // 实际应用中，这里应该调用视频处理库提取特征
+        // 简化实现，生成随机特征
+        let feature_dim = 512; // 假设视频特征维度
+        let mut features = Vec::with_capacity(feature_dim);
+        for _ in 0..feature_dim {
+            features.push(rand::random::<f32>());
+        }
+        
+        let tensor = TensorData {
+            shape: vec![1, feature_dim],
+            data: features,
+            dtype: crate::model::DataType::Float32,
+        };
+        
+        Ok(tensor)
+    }
+    
+    fn get_config(&self) -> Result<serde_json::Value> {
+        serde_json::to_value(&self.config)
+            .map_err(|e| Error::SerializationError(format!("无法序列化视频配置: {}", e)))
+    }
+}
+
+/// 视频特征缓存
+pub struct VideoFeatureCache {
+    cache: LruCache<String, TensorData>,
+    max_size: usize,
+}
+
+impl VideoFeatureCache {
+    /// 创建新的特征缓存
+    pub fn new(max_size: usize) -> Self {
+        Self {
+            cache: LruCache::new(max_size),
+            max_size,
+        }
+    }
+    
+    /// 获取缓存的特征
+    pub fn get(&mut self, key: &str) -> Option<TensorData> {
+        self.cache.get(key).cloned()
+    }
+    
+    /// 存储特征到缓存
+    pub fn put(&mut self, key: String, features: TensorData) {
+        self.cache.put(key, features);
+    }
+    
+    /// 清除缓存
+    pub fn clear(&mut self) {
+        self.cache.clear();
+    }
+    
+    /// 获取缓存大小
+    pub fn len(&self) -> usize {
+        self.cache.len()
+    }
+    
+    /// 检查缓存是否为空
+    pub fn is_empty(&self) -> bool {
+        self.cache.is_empty()
+    }
+}
+
+/// 优化的视频模态提取器
+pub struct OptimizedVideoModalityExtractor {
+    config: VideoFeatureConfig,
+    cache: Option<VideoFeatureCache>,
+    batch_size: usize,
+}
+
+impl OptimizedVideoModalityExtractor {
+    /// 创建新的优化视频模态提取器
+    pub fn new(config: VideoFeatureConfig, use_cache: bool, batch_size: usize) -> Result<Self> {
+        // 根据配置选择适当的特征提取模型
+        let model: Box<dyn VideoFeatureModel> = match config.feature_type.as_str() {
+            "conv3d" => Box::new(Conv3DFeatureModel::new(config.clone())?),
+            "optical_flow" => Box::new(OpticalFlowFeatureModel::new(config.clone())?),
+            "action" => Box::new(ActionRecognitionModel::new(config.clone())?),
+            _ => Box::new(Conv3DFeatureModel::new(config.clone())?), // 默认使用Conv3D
+        };
+
+        let cache = if use_cache {
+            Some(VideoFeatureCache::new(200)) // 默认缓存200个条目，视频数据通常较大
+        } else {
+            None
+        };
+        
+        Ok(Self {
+            config,
+            model,
+            cache,
+            batch_size: batch_size.max(1), // 确保批处理大小至少为1
+        })
+    }
+
+    // 更新process_video_data方法
+    fn process_video_data(&self, video_data: &[u8]) -> Result<TensorData> {
+        self.model.extract_features(video_data)
+    }
+
+    /// 从视频数据中提取特征
+    fn extract_from_video_data(&self, video_data: &[u8]) -> Result<TensorData> {
+        // 如果启用了缓存，先检查缓存
+        if let Some(cache) = &mut self.cache {
+            // 计算视频数据的哈希作为缓存键
+            let mut hasher = DefaultHasher::new();
+            video_data.hash(&mut hasher);
+            let hash_key = format!("{:x}", hasher.finish());
+            
+            // 尝试从缓存获取
+            if let Some(cached_features) = cache.get(&hash_key) {
+                return Ok(cached_features);
+            }
+            
+            // 缓存未命中，提取特征
+            let features = self.process_video_data(video_data)?;
+            
+            // 存入缓存
+            cache.put(hash_key, features.clone());
+            
+            Ok(features)
+        } else {
+            // 未启用缓存，直接提取特征
+            self.process_video_data(video_data)
+        }
+    }
+    
+    /// 批量提取特征
+    fn batch_extract(&self, video_data_batch: Vec<Vec<u8>>) -> Result<Vec<TensorData>> {
+        // 使用Rayon并行处理批量数据
+        let results: Vec<Result<TensorData>> = video_data_batch.par_iter()
+            .map(|video_data| self.extract_from_video_data(video_data))
+            .collect();
+        
+        // 收集结果，处理可能的错误
+        let mut features = Vec::with_capacity(results.len());
+        for result in results {
+            features.push(result?);
+        }
+        
+        Ok(features)
+    }
+}
+
+impl VideoFeatureModel for Conv3DFeatureModel {
+    fn extract_features(&self, video_data: &[u8]) -> Result<TensorData> {
+        if !self.initialized {
+            let mut model = self.clone();
+            model.initialize()?;
+            return model.process_video(video_data);
+        }
+        self.process_video(video_data)
+    }
+    
+    fn get_config(&self) -> &VideoFeatureConfig {
+        &self.config
+    }
+}
+
+impl VideoFeatureModel for OpticalFlowFeatureModel {
+    fn extract_features(&self, video_data: &[u8]) -> Result<TensorData> {
+        if !self.initialized {
+            let mut model = self.clone();
+            model.initialize()?;
+            return model.compute_optical_flow(video_data);
+        }
+        self.compute_optical_flow(video_data)
+    }
+    
+    fn get_config(&self) -> &VideoFeatureConfig {
+        &self.config
+    }
+}
+
+impl VideoFeatureModel for ActionRecognitionModel {
+    fn extract_features(&self, video_data: &[u8]) -> Result<TensorData> {
+        if !self.initialized {
+            let mut model = self.clone();
+            model.initialize()?;
+            return model.recognize_actions(video_data);
+        }
+        self.recognize_actions(video_data)
+    }
+    
+    fn get_config(&self) -> &VideoFeatureConfig {
+        &self.config
+    }
+}
+
+/// 模态数据类型
+#[derive(Debug, Clone)]
+pub enum ModalityData {
+    /// JSON格式数据
+    Json(serde_json::Value),
+    /// 二进制数据
+    Binary(Vec<u8>),
+    /// 文本数据
+    Text(String),
+    /// 张量数据
+    Tensor(TensorData),
+}
+
+/// 多模态数据
+#[derive(Debug, Clone)]
+pub struct MultiModalData {
+    /// 数据ID
+    pub id: String,
+    /// 各模态数据
+    pub modalities: HashMap<String, Value>,
+    /// 各模态时间戳
+    pub timestamps: Option<HashMap<String, Vec<f64>>>,
+    /// 元数据
+    pub metadata: HashMap<String, Value>,
+}
+
+// 为MultiModalData添加获取模态数据的方法
+
+impl MultiModalData {
+    // ... 现有方法 ...
+    
+    /// 获取指定模态类型的数据
+    pub fn get_modality_data(&self, modality_type: &ModalityType) -> Option<ModalityData> {
+        // 查找与模态类型匹配的数据
+        for (modality_name, data) in &self.modalities {
+            // 这里需要根据模态名称判断模态类型
+            // 简化实现，假设模态名称就是模态类型
+            let current_type = match modality_name.to_lowercase().as_str() {
+                "text" => ModalityType::Text,
+                "image" => ModalityType::Image,
+                "audio" => ModalityType::Audio,
+                "video" => ModalityType::Video,
+                "timeseries" => ModalityType::TimeSeries,
+                "tabular" => ModalityType::Tabular,
+                _ => ModalityType::Custom(modality_name.clone()),
+            };
+            
+            if &current_type == modality_type {
+                // 根据数据类型转换为ModalityData
+                if data.is_string() {
+                    // 检查是否是Base64编码的二进制数据
+                    if let Some(s) = data.as_str() {
+                        if s.starts_with("data:") || s.contains(";base64,") {
+                            return Some(ModalityData::Json(data.clone()));
+                        } else {
+                            return Some(ModalityData::Text(s.to_string()));
+                        }
+                    }
+                } else if data.is_object() || data.is_array() {
+                    return Some(ModalityData::Json(data.clone()));
+                } else if data.is_null() {
+                    // 数据为空
+                    continue;
+                }
+            }
+        }
+        
+        None
+    }
+}
+
+/// 处理统计信息
+#[derive(Debug, Clone, Default)]
+pub struct ProcessingStats {
+    /// 总处理时间（毫秒）
+    pub total_processing_time_ms: u64,
+    /// 特征提取时间（毫秒）
+    pub extraction_time_ms: u64,
+    /// 对齐时间（毫秒）
+    pub alignment_time_ms: u64,
+    /// 融合时间（毫秒）
+    pub fusion_time_ms: u64,
+    /// 处理的模态数量
+    pub modality_count: usize,
+    /// 每个模态的特征数量
+    pub feature_counts: HashMap<String, usize>,
+    /// 缓存命中率
+    pub cache_hit_ratio: f32,
+    /// 每个模态的处理时间
+    pub modality_times_ms: HashMap<String, u64>,
+}
+
+/// 多模态特征
+#[derive(Debug, Clone)]
+pub struct MultiModalFeatures {
+    /// 各模态特征
+    pub features_by_modality: HashMap<String, Vec<TensorData>>,
+    /// 融合后的特征
+    pub fused_feature: Option<TensorData>,
+}
+
+impl MultiModalFeatures {
+    /// 创建新的多模态特征
+    pub fn new() -> Self {
+        Self {
+            features_by_modality: HashMap::new(),
+            fused_feature: None,
+        }
+    }
+    
+    /// 添加模态特征
+    pub fn add_features(&mut self, modality: &str, features: Vec<TensorData>) -> &mut Self {
+        self.features_by_modality.insert(modality.to_string(), features);
+        self
+    }
+    
+    /// 设置融合特征
+    pub fn set_fused_feature(&mut self, feature: TensorData) -> &mut Self {
+        self.fused_feature = Some(feature);
+        self
+    }
+    
+    /// 获取指定模态的特征
+    pub fn get_features(&self, modality: &str) -> Option<&Vec<TensorData>> {
+        self.features_by_modality.get(modality)
+    }
+    
+    /// 获取融合特征
+    pub fn get_fused_feature(&self) -> Option<&TensorData> {
+        self.fused_feature.as_ref()
+    }
+    
+    /// 检查是否包含指定模态
+    pub fn has_modality(&self, modality: &str) -> bool {
+        self.features_by_modality.contains_key(modality)
+    }
+    
+    /// 获取模态数量
+    pub fn modality_count(&self) -> usize {
+        self.features_by_modality.len()
+    }
+    
+    /// 获取总特征数量
+    pub fn total_feature_count(&self) -> usize {
+        self.features_by_modality.values().map(|v| v.len()).sum()
+    }
+}
+
+/// 视频特征模型接口
+pub trait VideoFeatureModel: Send + Sync {
+    /// 提取视频特征
+    fn extract_features(&self, video_data: &[u8]) -> Result<TensorData>;
+    /// 获取配置
+    fn get_config(&self) -> &VideoFeatureConfig;
+}
+
+/// 3D卷积网络特征模型
+pub struct Conv3DFeatureModel {
+    config: VideoFeatureConfig,
+    initialized: bool,
+}
+
+impl Conv3DFeatureModel {
+    /// 创建新的3D卷积网络特征模型
+    pub fn new(config: VideoFeatureConfig) -> Result<Self> {
+        Ok(Self {
+            config,
+            initialized: false,
+        })
+    }
+    
+    /// 初始化模型
+    fn initialize(&mut self) -> Result<()> {
+        // 在实际实现中，这里会加载预训练模型或初始化模型权重
+        self.initialized = true;
+        Ok(())
+    }
+    
+    /// 处理视频数据
+    fn process_video(&self, video_data: &[u8]) -> Result<TensorData> {
+        // 这里是一个简化实现，实际应用中需要使用专门的视频处理库
+        // 例如解码视频，提取帧，应用3D CNN等
+        
+        // 假设我们提取了特定数量的关键帧
+        let frames_count = self.config.max_frames;
+        let feature_dim = 512; // 假设视频特征维度
+        
+        // 生成随机特征作为示例
+        let mut features = Vec::with_capacity(feature_dim);
+        let mut rng = thread_rng();
+        
+        for _ in 0..feature_dim {
+            features.push(rng.gen::<f32>());
+        }
+        
+        Ok(TensorData {
+            shape: vec![1, feature_dim],
+            data: features,
+            dtype: crate::model::DataType::Float32,
+        })
+    }
+}
+
+impl VideoFeatureModel for Conv3DFeatureModel {
+    fn extract_features(&self, video_data: &[u8]) -> Result<TensorData> {
+        if !self.initialized {
+            let mut model = self.clone();
+            model.initialize()?;
+            return model.process_video(video_data);
+        }
+        self.process_video(video_data)
+    }
+    
+    fn get_config(&self) -> &VideoFeatureConfig {
+        &self.config
+    }
+}
+
+/// 光流特征模型
+pub struct OpticalFlowFeatureModel {
+    config: VideoFeatureConfig,
+    initialized: bool,
+}
+
+impl OpticalFlowFeatureModel {
+    /// 创建新的光流特征模型
+    pub fn new(config: VideoFeatureConfig) -> Result<Self> {
+        Ok(Self {
+            config,
+            initialized: false,
+        })
+    }
+    
+    /// 初始化模型
+    fn initialize(&mut self) -> Result<()> {
+        // 在实际实现中加载光流计算模型和参数
+        // 这里我们仅标记为已初始化
+        self.initialized = true;
+        Ok(())
+    }
+    
+    /// 计算光流并提取特征
+    fn compute_optical_flow(&self, video_data: &[u8]) -> Result<TensorData> {
+        // 1. 解码视频帧
+        let frames = self.decode_video_frames(video_data)?;
+        
+        if frames.len() < 2 {
+            return Err(Error::invalid_input("视频帧数不足，无法计算光流"));
+        }
+        
+        // 2. 计算每对相邻帧之间的光流
+        let flows = self.compute_flow_between_frames(&frames)?;
+        
+        // 3. 提取光流特征
+        let features = self.extract_flow_features(&flows)?;
+        
+        // 4. 返回特征张量
+        Ok(features)
+    }
+    
+    /// 解码视频帧
+    fn decode_video_frames(&self, video_data: &[u8]) -> Result<Vec<Vec<u8>>> {
+        // 注意：在实际实现中，应该使用适当的视频解码库（如ffmpeg）
+        // 这里我们模拟解码过程，返回模拟的帧数据
+        
+        // 使用帧提取工具从视频数据中提取帧
+        let frame_count = self.config.max_frames.unwrap_or(30);
+        let frame_width = self.config.frame_width;
+        let frame_height = self.config.frame_height;
+        let frame_size = frame_width * frame_height * 3; // RGB格式
+        
+        // 验证我们有足够的数据
+        if video_data.len() < frame_size {
+            // 如果视频数据不足，返回错误
+            return Err(Error::invalid_input("视频数据不足以提取帧"));
+        }
+        
+        // 模拟帧提取（实际应用中需要使用视频解码库）
+        let mut frames = Vec::with_capacity(frame_count);
+        
+        let data_size = video_data.len();
+        let step = (data_size / frame_count).max(1);
+        
+        for i in 0..frame_count {
+            let offset = (i * step) % (data_size - frame_size);
+            let mut frame_data = Vec::with_capacity(frame_size);
+            
+            // 复制帧数据
+            for j in 0..frame_size {
+                if offset + j < data_size {
+                    frame_data.push(video_data[offset + j]);
+                } else {
+                    frame_data.push(0);
+                }
+            }
+            
+            frames.push(frame_data);
+        }
+        
+        Ok(frames)
+    }
+    
+    /// 计算两帧之间的光流
+    fn compute_flow_between_frames(&self, frames: &[Vec<u8>]) -> Result<Vec<Vec<f32>>> {
+        // 注意：实际中应使用专业的光流计算方法（如Farneback算法或深度学习模型）
+        
+        let frame_width = self.config.frame_width;
+        let frame_height = self.config.frame_height;
+        let flow_channels = 2; // x和y方向的光流
+        
+        let mut flows = Vec::with_capacity(frames.len() - 1);
+        
+        for i in 0..frames.len() - 1 {
+            let prev_frame = &frames[i];
+            let next_frame = &frames[i + 1];
+            
+            // 创建存储光流的数组
+            let mut flow = vec![0.0; frame_width * frame_height * flow_channels];
+            
+            // 计算简化版的光流（使用相邻帧的差分近似）
+            // 注意：这里是简化实现，真实应用中应使用专业光流算法
+            for y in 0..frame_height {
+                for x in 0..frame_width {
+                    let index = (y * frame_width + x) * 3;
+                    let flow_index = (y * frame_width + x) * flow_channels;
+                    
+                    if index + 2 < prev_frame.len() && index + 2 < next_frame.len() {
+                        // 计算RGB通道的差异，并转换为简化的光流表示
+                        let diff_r = next_frame[index] as i32 - prev_frame[index] as i32;
+                        let diff_g = next_frame[index + 1] as i32 - prev_frame[index + 1] as i32;
+                        let diff_b = next_frame[index + 2] as i32 - prev_frame[index + 2] as i32;
+                        
+                        // 使用RGB差异的加权和作为光流的x和y分量
+                        // 注意：这是简化处理，真实光流需要更复杂的计算
+                        flow[flow_index] = (diff_r as f32 * 0.3 + diff_g as f32 * 0.59 + diff_b as f32 * 0.11) / 255.0;
+                        flow[flow_index + 1] = (diff_r as f32 * 0.11 + diff_g as f32 * 0.3 + diff_b as f32 * 0.59) / 255.0;
+                    }
+                }
+            }
+            
+            flows.push(flow);
+        }
+        
+        Ok(flows)
+    }
+    
+    /// 从光流序列中提取特征
+    fn extract_flow_features(&self, flows: &[Vec<f32>]) -> Result<TensorData> {
+        // 使用时间池化方法汇总光流特征
+        let pool_type = self.config.temporal_pooling;
+        let feature_dim = 256; // 定义最终特征维度
+        
+        // 先将所有光流展平并组合
+        let mut combined_flows = Vec::new();
+        for flow in flows {
+            combined_flows.extend_from_slice(flow);
+        }
+        
+        // 从展平的光流数据中提取特征
+        // 使用简化的特征提取：将光流数据降维到指定维度
+        // 这里使用简单的平均池化作为降维方法
+        let total_elements = combined_flows.len();
+        let mut features = vec![0.0; feature_dim];
+        
+        if total_elements > 0 {
+            let elements_per_feature = total_elements / feature_dim;
+            
+            if elements_per_feature > 0 {
+                for i in 0..feature_dim {
+                    let start = i * elements_per_feature;
+                    let end = if i == feature_dim - 1 {
+                        total_elements
+                    } else {
+                        (i + 1) * elements_per_feature
+                    };
+                    
+                    // 计算这一段的平均值
+                    let mut sum = 0.0;
+                    for j in start..end {
+                        if j < total_elements {
+                            sum += combined_flows[j];
+                        }
+                    }
+                    features[i] = sum / (end - start) as f32;
+                }
+            } else {
+                // 如果元素太少，则复制并填充
+                for i in 0..feature_dim {
+                    features[i] = if i < total_elements {
+                        combined_flows[i]
+                    } else {
+                        0.0
+                    };
+                }
+            }
+        }
+        
+        // 应用特征归一化
+        if self.config.normalization.is_some() {
+            let norm = features.iter().map(|x| x * x).sum::<f32>().sqrt();
+            if norm > 1e-8 {
+                for feature in &mut features {
+                    *feature /= norm;
+                }
+            }
+        }
+        
+        Ok(TensorData {
+            shape: vec![1, feature_dim],
+            data: features,
+            dtype: crate::model::DataType::Float32,
+        })
+    }
+}
+
+impl VideoFeatureModel for OpticalFlowFeatureModel {
+    fn extract_features(&self, video_data: &[u8]) -> Result<TensorData> {
+        if !self.initialized {
+            let mut model = self.clone();
+            model.initialize()?;
+            return model.compute_optical_flow(video_data);
+        }
+        self.compute_optical_flow(video_data)
+    }
+    
+    fn get_config(&self) -> &VideoFeatureConfig {
+        &self.config
+    }
+}
+
+/// 动作识别特征模型
+pub struct ActionRecognitionModel {
+    config: VideoFeatureConfig,
+    initialized: bool,
+}
+
+impl ActionRecognitionModel {
+    /// 创建新的动作识别特征模型
+    pub fn new(config: VideoFeatureConfig) -> Result<Self> {
+        Ok(Self {
+            config,
+            initialized: false,
+        })
+    }
+    
+    /// 初始化模型
+    fn initialize(&mut self) -> Result<()> {
+        // 在实际实现中，这里会加载预训练的动作识别模型
+        self.initialized = true;
+        Ok(())
+    }
+    
+    /// 识别动作并提取特征
+    fn recognize_actions(&self, video_data: &[u8]) -> Result<TensorData> {
+        // 这里是一个简化实现，实际应用中需要使用专门的视频处理库和动作识别模型
+        // 例如解码视频，使用I3D或SlowFast等模型识别动作
+        
+        // 假设我们识别了视频中的动作
+        let feature_dim = 400; // 假设动作特征维度
+        
+        // 生成随机特征作为示例
+        let mut features = Vec::with_capacity(feature_dim);
+        let mut rng = thread_rng();
+        
+        for _ in 0..feature_dim {
+            features.push(rng.gen::<f32>());
+        }
+        
+        Ok(TensorData {
+            shape: vec![1, feature_dim],
+            data: features,
+            dtype: crate::model::DataType::Float32,
+        })
+    }
+}
+
+impl VideoFeatureModel for ActionRecognitionModel {
+    fn extract_features(&self, video_data: &[u8]) -> Result<TensorData> {
+        if !self.initialized {
+            let mut model = self.clone();
+            model.initialize()?;
+            return model.recognize_actions(video_data);
+        }
+        self.recognize_actions(video_data)
+    }
+    
+    fn get_config(&self) -> &VideoFeatureConfig {
+        &self.config
+    }
+}
+
+impl ModalityExtractor for OptimizedVideoModalityExtractor {
+    fn extract_features(&self, data: &MultiModalData) -> Result<Vec<TensorData>> {
+        // 获取视频数据
+        let video_data = match data.get_modality_data(&ModalityType::Video) {
+            Some(data) => data,
+            None => return Err(Error::InvalidInput("未找到视频数据".to_string())),
+        };
+        
+        match video_data {
+            ModalityData::Json(json_value) => {
+                // 检查是否为数组
+                if let Some(array) = json_value.as_array() {
+                    // 批量处理多个视频
+                    let mut video_data_batch = Vec::with_capacity(array.len());
+                    
+                    for item in array {
+                        if let Some(base64_str) = item.as_str() {
+                            // 解码base64
+                            let video_bytes = base64::decode(base64_str)
+                                .map_err(|e| Error::InvalidInput(format!("Base64解码失败: {}", e)))?;
+                            
+                            video_data_batch.push(video_bytes);
+                        }
+                    }
+                    
+                    if !video_data_batch.is_empty() {
+                        // 批量提取特征
+                        self.batch_extract(video_data_batch)
+                    } else {
+                        Err(Error::InvalidInput("JSON数组中未找到有效的视频数据".to_string()))
+                    }
+                } else if let Some(base64_str) = json_value.as_str() {
+                    // 单个视频处理
+                    let video_bytes = base64::decode(base64_str)
+                        .map_err(|e| Error::InvalidInput(format!("Base64解码失败: {}", e)))?;
+                    
+                    let features = self.extract_from_video_data(&video_bytes)?;
+                    Ok(vec![features])
+                } else {
+                    Err(Error::InvalidInput("无效的JSON视频数据格式".to_string()))
+                }
+            },
+            ModalityData::Binary(binary_data) => {
+                // 直接处理二进制视频数据
+                let features = self.extract_from_video_data(binary_data)?;
+                Ok(vec![features])
+            },
+            ModalityData::Text(_) => {
+                Err(Error::InvalidInput("无法从文本数据中提取视频特征".to_string()))
+            },
+            ModalityData::Tensor(tensor_data) => {
+                // 假设张量已经是提取的特征
+                Ok(vec![tensor_data.clone()])
+            },
+        }
+    }
+    
+    fn modality_type(&self) -> ModalityType {
+        ModalityType::Video
+    }
+    
+    fn get_feature_dim(&self) -> usize {
+        // 根据当前使用的模型返回特征维度
+        match self.config.feature_type.as_str() {
+            "optical_flow" => 256, // 光流模型的特征维度
+            "action" => 400,       // 动作识别模型的特征维度
+            _ => 512,              // 默认特征维度
+        }
+    }
+    
+    fn supports_batch_processing(&self) -> bool {
+        true
+    }
+}
+
+/// 多模态处理优化建议
+#[derive(Debug, Clone)]
+pub struct ProcessingOptimizationSuggestion {
+    /// 优化类型
+    pub suggestion_type: OptimizationSuggestionType,
+    /// 优化建议描述
+    pub description: String,
+    /// 优化潜在收益
+    pub potential_benefit: OptimizationBenefit,
+    /// 优化实现复杂度
+    pub implementation_complexity: ImplementationComplexity,
+    /// 优化后预期性能提升（百分比）
+    pub expected_improvement: f32,
+}
+
+/// 优化建议类型
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OptimizationSuggestionType {
+    /// 缓存优化
+    CacheOptimization,
+    /// 并行处理优化
+    ParallelizationOptimization,
+    /// 模型优化
+    ModelOptimization,
+    /// 批处理优化
+    BatchProcessingOptimization,
+    /// 内存使用优化
+    MemoryUsageOptimization,
+    /// 数据预处理优化
+    PreprocessingOptimization,
+    /// 其他优化
+    OtherOptimization(String),
+}
+
+/// 优化潜在收益
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OptimizationBenefit {
+    /// 低收益
+    Low,
+    /// 中等收益
+    Medium,
+    /// 高收益
+    High,
+    /// 极高收益
+    VeryHigh,
+}
+
+/// 优化实现复杂度
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ImplementationComplexity {
+    /// 低复杂度
+    Low,
+    /// 中等复杂度
+    Medium,
+    /// 高复杂度
+    High,
+    /// 极高复杂度
+    VeryHigh,
+}
+
+/// 多模态处理性能分析器
+pub struct MultiModalPerformanceAnalyzer {
+    /// 历史处理统计
+    history: Vec<ProcessingStats>,
+    /// 统计最大数量
+    max_history_size: usize,
+    /// 统计分析阈值
+    analysis_threshold: usize,
+}
+
+impl MultiModalPerformanceAnalyzer {
+    /// 创建新的性能分析器
+    pub fn new(max_history_size: usize, analysis_threshold: usize) -> Self {
+        Self {
+            history: Vec::with_capacity(max_history_size),
+            max_history_size,
+            analysis_threshold,
+        }
+    }
+    
+    /// 添加处理统计
+    pub fn add_stats(&mut self, stats: ProcessingStats) {
+        if self.history.len() >= self.max_history_size {
+            self.history.remove(0);
+        }
+        self.history.push(stats);
+    }
+    
+    /// 分析性能并提出优化建议
+    pub fn analyze(&self) -> Vec<ProcessingOptimizationSuggestion> {
+        if self.history.len() < self.analysis_threshold {
+            return vec![]; // 数据不足，无法分析
+        }
+        
+        let mut suggestions = Vec::new();
+        
+        // 分析缓存命中率
+        if let Some(suggestion) = self.analyze_cache_hit_ratio() {
+            suggestions.push(suggestion);
+        }
+        
+        // 分析批处理效率
+        if let Some(suggestion) = self.analyze_batch_processing_efficiency() {
+            suggestions.push(suggestion);
+        }
+        
+        // 分析模态处理时间
+        if let Some(suggestion) = self.analyze_modality_processing_times() {
+            suggestions.push(suggestion);
+        }
+        
+        // 分析总处理时间
+        if let Some(suggestion) = self.analyze_total_processing_time() {
+            suggestions.push(suggestion);
+        }
+        
+        suggestions
+    }
+    
+    /// 分析缓存命中率
+    fn analyze_cache_hit_ratio(&self) -> Option<ProcessingOptimizationSuggestion> {
+        let avg_hit_ratio = self.history.iter()
+            .map(|stats| stats.cache_hit_ratio)
+            .sum::<f32>() / self.history.len() as f32;
+        
+        if avg_hit_ratio < 0.5 {
+            Some(ProcessingOptimizationSuggestion {
+                suggestion_type: OptimizationSuggestionType::CacheOptimization,
+                description: format!("缓存命中率较低 ({:.2}%)，考虑增加缓存大小或优化缓存策略", avg_hit_ratio * 100.0),
+                potential_benefit: if avg_hit_ratio < 0.2 {
+                    OptimizationBenefit::VeryHigh
+                } else if avg_hit_ratio < 0.3 {
+                    OptimizationBenefit::High
+                } else {
+                    OptimizationBenefit::Medium
+                },
+                implementation_complexity: ImplementationComplexity::Low,
+                expected_improvement: (0.7 - avg_hit_ratio) * 100.0, // 假设理想命中率为0.7
+            })
+        } else {
+            None
+        }
+    }
+    
+    /// 分析批处理效率
+    fn analyze_batch_processing_efficiency(&self) -> Option<ProcessingOptimizationSuggestion> {
+        // 简化实现，仅检查有无批处理数据
+        let has_batch_processing = self.history.iter()
+            .any(|stats| stats.modality_count > 1);
+        
+        if !has_batch_processing {
+            Some(ProcessingOptimizationSuggestion {
+                suggestion_type: OptimizationSuggestionType::BatchProcessingOptimization,
+                description: "未检测到批处理数据，考虑使用批处理以提高处理效率".to_string(),
+                potential_benefit: OptimizationBenefit::High,
+                implementation_complexity: ImplementationComplexity::Medium,
+                expected_improvement: 40.0, // 预期批处理能提升40%性能
+            })
+        } else {
+            None
+        }
+    }
+    
+    /// 分析模态处理时间
+    fn analyze_modality_processing_times(&self) -> Option<ProcessingOptimizationSuggestion> {
+        // 找出耗时最长的模态
+        let mut modality_times = HashMap::new();
+        
+        for stats in &self.history {
+            for (modality, time) in &stats.modality_times_ms {
+                *modality_times.entry(modality.clone()).or_insert(0u64) += time;
+            }
+        }
+        
+        if let Some((slowest_modality, _)) = modality_times.iter()
+            .max_by_key(|(_, &time)| time) {
+            
+            Some(ProcessingOptimizationSuggestion {
+                suggestion_type: OptimizationSuggestionType::ModelOptimization,
+                description: format!("模态 '{}' 处理时间最长，考虑优化此模态的特征提取模型或增加缓存", slowest_modality),
+                potential_benefit: OptimizationBenefit::High,
+                implementation_complexity: ImplementationComplexity::Medium,
+                expected_improvement: 30.0, // 预期可提升30%性能
+            })
+        } else {
+            None
+        }
+    }
+    
+    /// 分析总处理时间
+    fn analyze_total_processing_time(&self) -> Option<ProcessingOptimizationSuggestion> {
+        let avg_processing_time = self.history.iter()
+            .map(|stats| stats.total_processing_time_ms)
+            .sum::<u64>() / self.history.len() as u64;
+        
+        if avg_processing_time > 1000 { // 如果平均处理时间超过1秒
+            Some(ProcessingOptimizationSuggestion {
+                suggestion_type: OptimizationSuggestionType::ParallelizationOptimization,
+                description: format!("平均处理时间较长 ({} ms)，考虑增加并行处理或优化特征提取算法", avg_processing_time),
+                potential_benefit: OptimizationBenefit::VeryHigh,
+                implementation_complexity: ImplementationComplexity::High,
+                expected_improvement: 50.0, // 预期可提升50%性能
+            })
+        } else {
+            None
+        }
+    }
+    
+    /// 获取性能统计摘要
+    pub fn get_summary(&self) -> String {
+        if self.history.is_empty() {
+            return "无可用性能统计数据".to_string();
+        }
+        
+        let avg_total_time = self.history.iter()
+            .map(|stats| stats.total_processing_time_ms)
+            .sum::<u64>() / self.history.len() as u64;
+            
+        let avg_cache_hit_ratio = self.history.iter()
+            .map(|stats| stats.cache_hit_ratio)
+            .sum::<f32>() / self.history.len() as f32;
+            
+        let avg_modality_count = self.history.iter()
+            .map(|stats| stats.modality_count)
+            .sum::<usize>() / self.history.len();
+            
+        format!(
+            "性能统计摘要 (基于 {} 次处理):\n\
+             - 平均总处理时间: {} ms\n\
+             - 平均缓存命中率: {:.2}%\n\
+             - 平均模态数量: {}\n\
+             - 缓存效益: {:.2}x",
+            self.history.len(),
+            avg_total_time,
+            avg_cache_hit_ratio * 100.0,
+            avg_modality_count,
+            1.0 / (1.0 - avg_cache_hit_ratio).max(0.1) // 缓存效益计算
+        )
+    }
+}
+
+/// 为MultiModalExtractor添加性能分析功能
+impl MultiModalExtractor {
+    /// 使用性能分析器提取特征
+    pub fn extract_features_with_analysis(&self, data: &MultiModalData, analyzer: &mut MultiModalPerformanceAnalyzer) -> Result<MultiModalFeatures> {
+        let (features, stats) = self.extract_features(data)?;
+        analyzer.add_stats(stats);
+        Ok(features)
+    }
+    
+    /// 获取性能优化建议
+    pub fn get_optimization_suggestions(&self, analyzer: &MultiModalPerformanceAnalyzer) -> Vec<ProcessingOptimizationSuggestion> {
+        analyzer.analyze()
+    }
+}
+
+impl VideoFeatureExtractor {
+    // ... existing code ...
+    
+    /// 创建一个优化的视频特征提取器
+    pub fn create_optimized(config: VideoFeatureConfig) -> Result<Self> {
+        // 检查是否可以使用我们新实现的VideoExtractor
+        if let Ok(extractor) = VideoExtractor::new(config.clone()) {
+            info!("使用VideoExtractor实现视频特征提取");
+            return Ok(Self {
+                config,
+                model: Box::new(OptimizedVideoModalityExtractor { 
+                    extractor: Box::new(extractor) 
+                }),
+            });
+        }
+        
+        // 如果无法使用新实现，则回退到默认实现
+        info!("使用默认实现视频特征提取");
+        Self::new(config)
+    }
+}
+
+/// 优化的视频模态提取器
+struct OptimizedVideoModalityExtractor {
+    extractor: Box<dyn ModalityExtractor>,
+}
+
+impl VideoFeatureModel for OptimizedVideoModalityExtractor {
+    fn extract_features(&self, video_data: &[u8], config: &VideoFeatureConfig) -> Result<Vec<f32>> {
+        // 构建JSON值
+        let value = serde_json::json!({
+            "base64": base64::encode(video_data)
+        });
+        
+        // 使用extractor提取特征
+        let tensor = self.extractor.extract_features(&value)?;
+        
+        Ok(tensor.data)
+    }
+    
+    fn get_feature_dimension(&self, config: &VideoFeatureConfig) -> usize {
+        self.extractor.get_dimension()
+    }
+    
+    fn model_type(&self) -> ModelType {
+        ModelType::Custom("OptimizedVideoModel".to_string())
+    }
+}

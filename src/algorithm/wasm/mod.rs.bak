@@ -1,0 +1,101 @@
+//! Wasm模块，用于执行WebAssembly算法
+
+use anyhow::{anyhow, Context, Result};
+use wasmer::{Instance, Module as WasmerModule, Store, Universal, compiler_cranelift::Cranelift, wat2wasm};
+use std::sync::{Arc, Mutex};
+use crate::algorithm::types::ExecutionResult;
+
+/// WebAssembly模块执行器
+pub struct Module {
+    instance: Arc<Mutex<Instance>>,
+    store: Arc<Mutex<Store>>,
+}
+
+impl Module {
+    /// 从Wasm字节码创建一个新的模块实例
+    ///
+    /// # 参数
+    /// * `wasm_bytes` - Wasm模块的字节码
+    ///
+    /// # 返回
+    /// 成功时返回一个新的`Module`实例，否则返回错误
+    pub fn new(wasm_bytes: &[u8]) -> Result<Self> {
+        let wasm = wat2wasm(wasm_bytes).map_err(|e| anyhow!("Failed to convert wat to wasm: {}", e))?;
+        
+        let compiler_config = Cranelift::new();
+        let engine = Universal::new(compiler_config).engine();
+        let mut store = Store::new(&engine);
+
+        let wasmer_module = WasmerModule::new(&store, &wasm)
+            .context("Failed to compile Wasm bytes into a module")?;
+
+        let import_object = wasmer::imports! {};
+        let instance = Instance::new(&mut store, &wasmer_module, &import_object)
+            .context("Failed to instantiate Wasm module")?;
+
+        Ok(Self {
+            instance: Arc::new(Mutex::new(instance)),
+            store: Arc::new(Mutex::new(store)),
+        })
+    }
+
+    /// 调用Wasm模块中导出的函数
+    ///
+    /// # 参数
+    /// * `func_name` - 要调用的导出函数名
+    /// * `params` - 传递给函数的参数
+    ///
+    /// # 返回
+    /// 成功时返回函数执行结果，否则返回错误
+    pub fn call(&self, func_name: &str, params: &[wasmer::Value]) -> Result<Box<[wasmer::Value]>> {
+        let mut instance_guard = self.instance.lock().map_err(|_| anyhow!("Failed to acquire lock on Wasm instance"))?;
+        let func = instance_guard.exports.get_function(func_name)
+            .map_err(|e| anyhow!("Failed to find exported function '{}': {}", func_name, e))?;
+
+        let results = func.call(&mut *instance_guard, params)
+            .map_err(|e| anyhow!("Failed to call Wasm function '{}': {}", func_name, e))?;
+
+        Ok(results)
+    }
+
+    /// 将数据写入Wasm模块的内存
+    ///
+    /// # 参数
+    /// * `offset` - 内存写入的起始偏移量
+    /// * `data` - 要写入的数据
+    pub fn write_memory(&self, offset: u32, data: &[u8]) -> Result<()> {
+        let instance_guard = self.instance.lock().map_err(|_| anyhow!("Failed to acquire lock on Wasm instance"))?;
+        let memory = instance_guard.exports.get_memory("memory")
+            .map_err(|e| anyhow!("Failed to get memory from Wasm instance: {}", e))?;
+        
+        let view = memory.view(&*instance_guard);
+        view.write(offset as u64, data)
+            .map_err(|e| anyhow!("Failed to write to Wasm memory: {}", e))?;
+
+        Ok(())
+    }
+
+    /// 从Wasm模块的内存读取数据
+    ///
+    /// # 参数
+    /// * `offset` - 内存读取的起始偏移量
+    /// * `len` - 要读取的数据长度
+    ///
+    /// # 返回
+    /// 成功时返回从内存中读取的数据
+    pub fn read_memory(&self, offset: u32, len: usize) -> Result<Vec<u8>> {
+        let instance_guard = self.instance.lock().map_err(|_| anyhow!("Failed to acquire lock on Wasm instance"))?;
+        let memory = instance_guard.exports.get_memory("memory")
+            .map_err(|e| anyhow!("Failed to get memory from Wasm instance: {}", e))?;
+        
+        let view = memory.view(&*instance_guard);
+        let mut buffer = vec![0; len];
+        view.read(offset as u64, &mut buffer)
+            .map_err(|e| anyhow!("Failed to read from Wasm memory: {}", e))?;
+
+        Ok(buffer)
+    }
+}
+
+// 在这里可以添加更多与Wasm模块交互的辅助函数和结构体
+// 例如，用于管理Wasm模块生命周期、资源限制等的结构体 
