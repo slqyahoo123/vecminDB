@@ -1,3 +1,7 @@
+// 注意：neo4rs / Neo4j 连接器依赖的 feature 当前未在 Cargo.toml 中定义。
+// 为避免编译期出现针对未声明特性的 cfg 警告，这里将整个实现包裹在块注释中。
+// 如需启用 Neo4j 连接器，请在 Cargo.toml 中添加相应 feature 和依赖，并去掉下方的注释。
+/*
 #[cfg(feature = "neo4rs")]
 // connector/neo4j_connector.rs - Neo4j图数据库连接器实现
 
@@ -498,4 +502,5 @@ impl DatabaseConnector for Neo4jConnector {
     fn get_config(&self) -> &DatabaseConfig {
         &self.config
     }
-} 
+}
+*/

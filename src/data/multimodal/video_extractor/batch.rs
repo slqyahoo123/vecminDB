@@ -9,7 +9,7 @@ use rayon::prelude::*;
 use super::error::VideoExtractionError;
 use super::types::{VideoFeatureResult, ProcessingProgress, ExtractionStatus};
 // super::video_log and super::util are not directly used here
-use log::{info, warn, error};
+use log::{info, error};
 use crate::data::multimodal::video_extractor::ResourceUsage;
 use crate::data::multimodal::video_extractor::VideoFeatureExtractor;
 // VideoFeatureType not directly used in this module
@@ -746,22 +746,22 @@ pub struct ResourceMonitor {
     disk_io_history: Vec<f32>,
     /// 当前批处理器
     processor: Option<Arc<BatchProcessor>>,
-    /// 系统信息采集器
-    #[cfg(feature = "system_stats")]
-    system: sysinfo::System,
-    /// 上次I/O统计
-    #[cfg(feature = "system_stats")]
-    last_disk_stats: Option<std::time::Instant>,
+    // 系统信息采集器
+    // #[cfg(feature = "system_stats")]
+    // system: sysinfo::System,
+    // 上次I/O统计
+    // #[cfg(feature = "system_stats")]
+    // last_disk_stats: Option<std::time::Instant>,
 }
 
 impl ResourceMonitor {
     /// 创建新的资源监控器
     pub fn new() -> Self {
-        #[cfg(feature = "system_stats")]
-        let mut system = sysinfo::System::new();
+        // #[cfg(feature = "system_stats")]
+        // let mut system = sysinfo::System::new();
         
-        #[cfg(feature = "system_stats")]
-        system.refresh_all();
+        // #[cfg(feature = "system_stats")]
+        // system.refresh_all();
         
         Self {
             start_time: std::time::Instant::now(),
@@ -769,10 +769,10 @@ impl ResourceMonitor {
             memory_usage_history: Vec::new(),
             disk_io_history: Vec::new(),
             processor: None,
-            #[cfg(feature = "system_stats")]
-            system,
-            #[cfg(feature = "system_stats")]
-            last_disk_stats: None,
+            // #[cfg(feature = "system_stats")]
+            // system,
+            // #[cfg(feature = "system_stats")]
+            // last_disk_stats: None,
         }
     }
     
@@ -788,79 +788,24 @@ impl ResourceMonitor {
         self.memory_usage_history.clear();
         self.disk_io_history.clear();
         
-        #[cfg(feature = "system_stats")]
-        {
-            self.system.refresh_all();
-            self.last_disk_stats = Some(std::time::Instant::now());
-        }
+        // #[cfg(feature = "system_stats")]
+        // {
+        //     self.system.refresh_all();
+        //     self.last_disk_stats = Some(std::time::Instant::now());
+        // }
     }
     
     /// 采集系统指标
     pub fn collect_metrics(&mut self) -> ResourceUsage {
-        #[cfg(feature = "system_stats")]
-        {
-            // 刷新系统信息
-            self.system.refresh_all();
-            
-            // 采集CPU使用率
-            let cpu_usage = self.system.global_cpu_info().cpu_usage();
-            self.cpu_usage_history.push(cpu_usage);
-            
-            // 采集内存使用率
-            let total_memory = self.system.total_memory() as f32 / 1024.0 / 1024.0; // 转换为MB
-            let used_memory = self.system.used_memory() as f32 / 1024.0 / 1024.0;   // 转换为MB
-            let memory_usage = 100.0 * used_memory / total_memory;
-            self.memory_usage_history.push(memory_usage);
-            
-            // 采集磁盘I/O
-            let mut disk_io = 0.0;
-            if let Some(last_time) = self.last_disk_stats {
-                let elapsed = last_time.elapsed().as_secs_f32();
-                if elapsed > 0.0 {
-                    let mut total_read_bytes = 0;
-                    let mut total_written_bytes = 0;
-                    
-                    for disk in self.system.disks() {
-                        total_read_bytes += disk.read_bytes();
-                        total_written_bytes += disk.written_bytes();
-                    }
-                    
-                    // MB/s
-                    disk_io = (total_read_bytes + total_written_bytes) as f32 / (1024.0 * 1024.0) / elapsed;
-                    self.disk_io_history.push(disk_io);
-                }
-                
-                self.last_disk_stats = Some(std::time::Instant::now());
-            } else {
-                self.last_disk_stats = Some(std::time::Instant::now());
-            }
-            
-            // 计算线程数
-            let mut thread_count = 0;
-            for process in self.system.processes().values() {
-                thread_count += process.thread_count();
-            }
-            
-            // 如果历史太长，清理旧数据
-            if self.cpu_usage_history.len() > 100 {
-                self.cpu_usage_history.drain(0..50);
-                self.memory_usage_history.drain(0..50);
-                self.disk_io_history.drain(0..50);
-            }
-            
-            // 构建资源使用对象
-            ResourceUsage {
-                cpu_usage_percent: cpu_usage,
-                memory_usage_mb: used_memory,
-                gpu_usage_percent: None, // 需要特殊库支持，如NVML
-                gpu_memory_usage_mb: None,
-                disk_io_mbps: disk_io,
-                thread_count,
-                sample_time: chrono::Utc::now().timestamp() as u64,
-            }
-        }
+        // 注意：system_stats 特性未在 Cargo.toml 中定义，使用模拟数据
+        // #[cfg(feature = "system_stats")]
+        // {
+        //     // 刷新系统信息
+        //     self.system.refresh_all();
+        //     ...
+        // }
         
-        #[cfg(not(feature = "system_stats"))]
+        // 使用模拟数据（因为 system_stats 特性未启用）
         {
             use rand::Rng;
             
@@ -882,7 +827,7 @@ impl ResourceMonitor {
             // 模拟线程数
             let thread_count = 20 + rng.gen_range(0..20);
             
-            warn!("使用模拟数据，启用'system_stats'特性可获取真实系统资源信息");
+            log::warn!("使用模拟数据，启用'system_stats'特性可获取真实系统资源信息");
             
             // 如果历史太长，清理旧数据
             if self.cpu_usage_history.len() > 100 {

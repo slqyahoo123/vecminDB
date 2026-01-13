@@ -195,16 +195,8 @@ impl StreamDataLoader {
                 }
             },
             crate::data::loader::types::DataFormat::Avro { .. } => {
-                #[cfg(feature = "avro")]
-                {
-                    // 处理Avro格式流
-                    self.process_avro_stream(&content, features, metadata)?;
-                }
-                
-                #[cfg(not(feature = "avro"))]
-                {
-                    return Err(Error::not_implemented("Avro流支持需要启用avro特性"));
-                }
+                // 注意：avro 特性未在 Cargo.toml 中定义，直接返回未实现错误
+                return Err(Error::not_implemented("Avro流支持需要启用avro特性"));
             },
             crate::data::loader::types::DataFormat::CustomText(format_name) => {
                 // 处理自定义文本格式
@@ -241,7 +233,11 @@ impl StreamDataLoader {
         metadata.insert("stream_type".to_string(), "http".to_string());
         metadata.insert("url".to_string(), url.clone());
         
-        #[cfg(feature = "http")]
+        // 注意：http 特性未在 Cargo.toml 中定义，直接返回未实现错误
+        return Err(Error::not_implemented("HTTP流支持需要启用http特性"));
+        
+        /* 已注释：http 特性未定义
+        // #[cfg(feature = "http")]
         {
             use reqwest;
             
@@ -289,16 +285,17 @@ impl StreamDataLoader {
                     }
                 },
                 crate::data::loader::types::DataFormat::Avro { .. } => {
-                    #[cfg(feature = "avro")]
-                    {
-                        // 处理Avro格式流
-                        self.process_avro_stream(&content, features, metadata)?;
-                    }
-                    
-                    #[cfg(not(feature = "avro"))]
-                    {
-                        return Err(Error::not_implemented("Avro流支持需要启用avro特性"));
-                    }
+                    // 已注释：avro 特性未定义
+                    // #[cfg(feature = "avro")]
+                    // {
+                    //     // 处理Avro格式流
+                    //     self.process_avro_stream(&content, features, metadata)?;
+                    // }
+                    // 
+                    // #[cfg(not(feature = "avro"))]
+                    // {
+                    return Err(Error::not_implemented("Avro流支持需要启用avro特性"));
+                    // }
                 },
                 crate::data::loader::types::DataFormat::CustomText(format_name) => {
                     // 处理自定义文本格式
@@ -313,16 +310,7 @@ impl StreamDataLoader {
                 }
             }
         }
-        
-        #[cfg(not(feature = "http"))]
-        {
-            return Err(Error::not_implemented("HTTP流支持需要启用http特性"));
-        }
-        
-        #[cfg(feature = "http")]
-        {
-            return Ok(());
-        }
+        */
     }
     
     // 从Kafka流加载数据
@@ -356,7 +344,11 @@ impl StreamDataLoader {
         metadata.insert("topic".to_string(), topic.clone());
         metadata.insert("group_id".to_string(), group_id.clone());
         
-        #[cfg(feature = "kafka")]
+        // 注意：kafka 特性未在 Cargo.toml 中定义，直接返回未实现错误
+        return Err(Error::not_implemented("Kafka流支持需要启用kafka特性"));
+        
+        /* 已注释：kafka 特性未定义
+        // #[cfg(feature = "kafka")]
         {
             use rdkafka::config::ClientConfig;
             use rdkafka::consumer::{Consumer, StreamConsumer};
@@ -412,16 +404,17 @@ impl StreamDataLoader {
                                     }
                                 },
                                 crate::data::loader::types::DataFormat::Avro { .. } => {
-                                    #[cfg(feature = "avro")]
-                                    {
-                                        // 处理Avro格式流
-                                        self.process_avro_stream(payload, features, metadata)?;
-                                    }
-                                    
-                                    #[cfg(not(feature = "avro"))]
-                                    {
-                                        return Err(Error::not_implemented("Avro流支持需要启用avro特性"));
-                                    }
+                                    // 已注释：avro 特性未定义
+                                    // #[cfg(feature = "avro")]
+                                    // {
+                                    //     // 处理Avro格式流
+                                    //     self.process_avro_stream(payload, features, metadata)?;
+                                    // }
+                                    // 
+                                    // #[cfg(not(feature = "avro"))]
+                                    // {
+                                    return Err(Error::not_implemented("Avro流支持需要启用avro特性"));
+                                    // }
                                 },
                                 crate::data::loader::types::DataFormat::CustomText(format_name) => {
                                     // 处理自定义文本格式
@@ -449,16 +442,7 @@ impl StreamDataLoader {
             
             metadata.insert("message_count".to_string(), message_count.to_string());
         }
-        
-        #[cfg(not(feature = "kafka"))]
-        {
-            return Err(Error::not_implemented("Kafka流支持需要启用kafka特性"));
-        }
-        
-        #[cfg(feature = "kafka")]
-        {
-            Ok(())
-        }
+        */
     }
     
     // 处理CSV格式流
@@ -872,20 +856,25 @@ impl StreamDataLoader {
         Ok(())
     }
     
-    #[cfg(feature = "avro")]
-    fn process_avro_stream(&self, content: &[u8], features: &mut Vec<Vec<f32>>, metadata: &mut HashMap<String, String>) -> Result<()> {
-        use apache_avro::{Reader, from_avro_datum};
-        use apache_avro::types::Value as AvroValue;
-        use std::io::Cursor;
+    // 注意：avro 特性未在 Cargo.toml 中定义，已注释
+    // #[cfg(feature = "avro")]
+    fn process_avro_stream(&self, _content: &[u8], _features: &mut Vec<Vec<f32>>, _metadata: &mut HashMap<String, String>) -> Result<()> {
+        // avro 特性未启用，返回未实现错误
+        return Err(Error::not_implemented("Avro流处理需要启用avro特性"));
         
-        // 创建Avro读取器
-        let cursor = Cursor::new(content);
-        let reader = Reader::new(cursor)?;
-        
-        // 提取元数据
-        metadata.insert("format".to_string(), "avro".to_string());
-        
-        if let Some(schema) = reader.writer_schema() {
+        /* 已注释：avro 特性未定义
+        // use apache_avro::{Reader, from_avro_datum};
+        // use apache_avro::types::Value as AvroValue;
+        // use std::io::Cursor;
+        // 
+        // // 创建Avro读取器
+        // let cursor = Cursor::new(content);
+        // let reader = Reader::new(cursor)?;
+        // 
+        // // 提取元数据
+        // metadata.insert("format".to_string(), "avro".to_string());
+        // 
+        // if let Some(schema) = reader.writer_schema() {
             metadata.insert("schema".to_string(), schema.canonical_form());
         }
         
@@ -937,6 +926,7 @@ impl StreamDataLoader {
         }
         
         Ok(())
+        */
     }
 }
 
@@ -1163,7 +1153,7 @@ impl DataLoader for StreamDataLoader {
             crate::data::loader::types::DataFormat::Csv { .. } => true,
             crate::data::loader::types::DataFormat::Json { .. } => true,
             crate::data::loader::types::DataFormat::Parquet { .. } => cfg!(feature = "parquet"),
-            crate::data::loader::types::DataFormat::Avro { .. } => cfg!(feature = "avro"),
+            crate::data::loader::types::DataFormat::Avro { .. } => false, // avro 特性未在 Cargo.toml 中定义
             crate::data::loader::types::DataFormat::CustomText(_) => true,
             crate::data::loader::types::DataFormat::CustomBinary(_) => true,
             _ => false,

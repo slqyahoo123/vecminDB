@@ -142,8 +142,9 @@ impl ConfigManagerService {
             #[cfg(target_os = "windows")]
             {
                 // Windows平台使用sysinfo
-                use sysinfo::{System, SystemExt};
-                let sys = System::new_all();
+                use sysinfo::System;
+                let mut sys = System::new_all();
+                sys.refresh_memory();
                 sys.used_memory() 
             }
             #[cfg(not(target_os = "windows"))]

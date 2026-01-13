@@ -675,7 +675,8 @@ fn collect_resource_usage() -> ResourceUsage {
     }
 
     // 尝试获取GPU使用情况 - NVML为例
-    #[cfg(feature = "nvml")]
+    // 注意：nvml 特性未在 Cargo.toml 中定义，已注释掉相关代码
+    /* #[cfg(feature = "nvml")]
     {
         if let Ok(_) = nvml_sys::nvml::nvml_init() {
             let mut device_count = 0u32;
@@ -706,10 +707,10 @@ fn collect_resource_usage() -> ResourceUsage {
             }
             nvml_sys::nvml::nvml_shutdown();
         }
-    }
+    } */
     
     // 如果没有启用NVML特性，使用简化的实现
-    #[cfg(not(feature = "nvml"))]
+    // #[cfg(not(feature = "nvml"))]
     {
         // 在Linux上尝试使用nvidia-smi命令
         #[cfg(target_os = "linux")]
@@ -918,7 +919,8 @@ fn detect_hardware_capabilities() -> HardwareCapabilities {
     }
     
     // GPU检测 - 如果有NVML
-    #[cfg(feature = "nvml")]
+    // 注意：nvml 特性未在 Cargo.toml 中定义，已注释掉相关代码
+    /* #[cfg(feature = "nvml")]
     {
         if let Ok(_) = nvml_sys::nvml::nvml_init() {
             let mut device_count = 0u32;
@@ -949,10 +951,10 @@ fn detect_hardware_capabilities() -> HardwareCapabilities {
             }
             nvml_sys::nvml::nvml_shutdown();
         }
-    }
+    } */
     
     // 非NVML的GPU检测
-    #[cfg(not(feature = "nvml"))]
+    // #[cfg(not(feature = "nvml"))]
     {
         // Linux上使用nvidia-smi
         #[cfg(target_os = "linux")]

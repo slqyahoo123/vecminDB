@@ -3,7 +3,9 @@
 //! 该模块提供音频信号的时域特征提取功能，包括波形统计特征、
 //! 如均值、方差、峰度、偏度等，以及时域的波形分析特征。
 
+#[cfg(feature = "multimodal")]
 use ndarray::Array2;
+#[cfg(feature = "multimodal")]
 use crate::{Result, Error};
 #[cfg(feature = "multimodal")]
 use crate::data::multimodal::extractors::audio::extractors::frame_signal;

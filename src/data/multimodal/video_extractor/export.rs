@@ -12,7 +12,7 @@ use csv;
 use uuid;
 use byteorder;
 use flate2;
-use log::{info, warn};
+use log::info;
 use serde_json::json;
 
 use super::types::VideoFeatureResult;
@@ -411,8 +411,9 @@ fn export_to_binary<P: AsRef<Path>>(results: Vec<&VideoFeatureResult>, path: P, 
 }
 
 /// 导出特征到NumPy格式
-fn export_to_numpy<P: AsRef<Path>>(results: Vec<&VideoFeatureResult>, path: P, options: &ExportOptions) -> Result<(), VideoExtractionError> {
-    #[cfg(feature = "numpy")]
+fn export_to_numpy<P: AsRef<Path>>(_results: Vec<&VideoFeatureResult>, _path: P, _options: &ExportOptions) -> Result<(), VideoExtractionError> {
+    // 注意：numpy 特性未在 Cargo.toml 中定义，已注释掉相关代码
+    /* #[cfg(feature = "numpy")]
     {
         use std::io::{BufWriter, Write};
         use byteorder::{LittleEndian, WriteBytesExt};
@@ -540,11 +541,11 @@ fn export_to_numpy<P: AsRef<Path>>(results: Vec<&VideoFeatureResult>, path: P, o
         
         info!("成功导出 {} 条记录到NumPy格式", results.len());
         Ok(())
-    }
+    } */
     
-    #[cfg(not(feature = "numpy"))]
+    // #[cfg(not(feature = "numpy"))]
     {
-        warn!("NumPy导出功能未启用，请在编译时启用'numpy'特性");
+        log::warn!("NumPy导出功能未启用，请在编译时启用'numpy'特性");
         Err(VideoExtractionError::ExportError(
             "NumPy导出功能未启用，请在编译时启用'numpy'特性".to_string()
         ))
@@ -687,9 +688,9 @@ class VideoFeatureInference:
         return self.config
     
     def predict(self, input_data: np.ndarray) -> np.ndarray:
-        """执行推理（这里只是返回存储的特征）"""
-        # 在实际应用中，这里会加载TensorFlow模型并执行推理
-        # 这里简化实现，直接返回存储的特征
+        \"\"\"执行推理（当前示例实现直接返回已保存的特征）\"\"\"
+        # 在实际应用中，这里应加载 TensorFlow 模型并执行真实推理逻辑
+        # 本示例脚本主要用于演示特征导出和接口形态
         return self.features
 
 def main():
@@ -730,8 +731,9 @@ if __name__ == "__main__":
 }
 
 /// 导出特征到ONNX格式
-fn export_to_onnx<P: AsRef<Path>>(results: Vec<&VideoFeatureResult>, path: P, options: &ExportOptions) -> Result<(), VideoExtractionError> {
-    #[cfg(feature = "onnx")]
+fn export_to_onnx<P: AsRef<Path>>(_results: Vec<&VideoFeatureResult>, _path: P, _options: &ExportOptions) -> Result<(), VideoExtractionError> {
+    // 注意：onnx 特性未在 Cargo.toml 中定义，已注释掉相关代码
+    /* #[cfg(feature = "onnx")]
     {
         use tract_onnx::prelude::*;
         
@@ -862,11 +864,11 @@ fn export_to_onnx<P: AsRef<Path>>(results: Vec<&VideoFeatureResult>, path: P, op
         info!("成功导出 {} 条记录到ONNX格式", results.len());
         
         Ok(())
-    }
+    } */
     
-    #[cfg(not(feature = "onnx"))]
+    // #[cfg(not(feature = "onnx"))]
     {
-        warn!("ONNX导出功能未启用，请在编译时启用'onnx'特性");
+        log::warn!("ONNX导出功能未启用，请在编译时启用'onnx'特性");
         Err(VideoExtractionError::ExportError(
             "ONNX导出功能未启用，请在编译时启用'onnx'特性".to_string()
         ))
@@ -1135,16 +1137,17 @@ pub fn export_features_batch<P: AsRef<Path>>(
     if let Some(batch_size) = options.batch_size {
         if batch_size > 1 && options.format == ExportFormat::HDF5 {
             // 对于HDF5格式批处理特殊处理
-            #[cfg(feature = "hdf5")]
+            // 注意：hdf5 特性未在 Cargo.toml 中定义，已注释掉相关代码
+            /* #[cfg(feature = "hdf5")]
             {
                 let batch_path = output_dir.as_ref().join(format!("features_batch.{}", ext));
                 let refs: Vec<&VideoFeatureResult> = results.iter().collect();
                 
                 export_to_hdf5(refs, &batch_path, options)?;
                 output_paths.push(batch_path);
-            }
+            } */
             
-            #[cfg(not(feature = "hdf5"))]
+            // #[cfg(not(feature = "hdf5"))]
             {
                 return Err(VideoExtractionError::ExportError(
                     "HDF5批量导出功能未启用，请在编译时启用'hdf5'特性".to_string()
@@ -1170,10 +1173,11 @@ pub fn export_features_batch<P: AsRef<Path>>(
                     ExportFormat::TensorFlow => export_to_tensorflow(refs, &batch_path, options)?,
                     ExportFormat::ONNX => export_to_onnx(refs, &batch_path, options)?,
                     ExportFormat::HDF5 => {
-                        #[cfg(feature = "hdf5")]
-                        export_to_hdf5(refs, &batch_path, options)?;
+                        // 注意：hdf5 特性未在 Cargo.toml 中定义，已注释掉相关代码
+                        /* #[cfg(feature = "hdf5")]
+                        export_to_hdf5(refs, &batch_path, options)?; */
                         
-                        #[cfg(not(feature = "hdf5"))]
+                        // #[cfg(not(feature = "hdf5"))]
                         return Err(VideoExtractionError::ExportError(
                             "HDF5格式导出功能未启用，请在编译时启用'hdf5'特性".to_string()
                         ));
@@ -1211,10 +1215,7 @@ pub fn export_features_batch<P: AsRef<Path>>(
                 ExportFormat::TensorFlow => export_to_tensorflow(vec![result], &output_path, options)?,
                 ExportFormat::ONNX => export_to_onnx(vec![result], &output_path, options)?,
                 ExportFormat::HDF5 => {
-                    #[cfg(feature = "hdf5")]
-                    export_to_hdf5(vec![result], &output_path, options)?;
-                    
-                    #[cfg(not(feature = "hdf5"))]
+                    // 注意：hdf5 特性未在 Cargo.toml 中定义，这里直接返回错误
                     return Err(VideoExtractionError::ExportError(
                         "HDF5格式导出功能未启用，请在编译时启用'hdf5'特性".to_string()
                     ));
@@ -1238,17 +1239,18 @@ pub fn get_available_export_formats() -> Vec<ExportFormat> {
         ExportFormat::Binary,
     ];
     
-    #[cfg(feature = "numpy")]
-    formats.push(ExportFormat::NumPy);
+    // 注意：以下特性未在 Cargo.toml 中定义，已注释掉相关代码
+    // #[cfg(feature = "numpy")]
+    // formats.push(ExportFormat::NumPy);
     
-    #[cfg(feature = "tensorflow")]
-    formats.push(ExportFormat::TensorFlow);
+    // #[cfg(feature = "tensorflow")]
+    // formats.push(ExportFormat::TensorFlow);
     
-    #[cfg(feature = "onnx")]
-    formats.push(ExportFormat::ONNX);
+    // #[cfg(feature = "onnx")]
+    // formats.push(ExportFormat::ONNX);
     
-    #[cfg(feature = "hdf5")]
-    formats.push(ExportFormat::HDF5);
+    // #[cfg(feature = "hdf5")]
+    // formats.push(ExportFormat::HDF5);
     
     formats
 }
@@ -1257,10 +1259,11 @@ pub fn get_available_export_formats() -> Vec<ExportFormat> {
 pub fn is_format_supported(format: ExportFormat) -> bool {
     match format {
         ExportFormat::CSV | ExportFormat::JSON | ExportFormat::Binary => true,
-        ExportFormat::NumPy => cfg!(feature = "numpy"),
-        ExportFormat::TensorFlow => cfg!(feature = "tensorflow"),
-        ExportFormat::ONNX => cfg!(feature = "onnx"),
-        ExportFormat::HDF5 => cfg!(feature = "hdf5"),
+        // 这些特性未在 Cargo.toml 中定义，当前构建下均视为不支持
+        ExportFormat::NumPy => false,
+        ExportFormat::TensorFlow => false,
+        ExportFormat::ONNX => false,
+        ExportFormat::HDF5 => false,
     }
 }
 
@@ -1298,106 +1301,17 @@ pub fn export_to_tensorboard<P: AsRef<Path>>(
     log_dir: P,
     label_map: Option<HashMap<String, String>>
 ) -> Result<PathBuf, VideoExtractionError> {
-    #[cfg(feature = "tensorboard")]
-    {
-        use tensorboard_rs::{SummaryWriter, FileWriter};
-        
-        info!("导出特征到TensorBoard: {}", log_dir.as_ref().display());
-        
-        // 确保目录存在
-        fs::create_dir_all(&log_dir).map_err(|e| 
-            VideoExtractionError::ExportError(format!("创建TensorBoard日志目录失败: {}", e))
-        )?;
-        
-        // 创建SummaryWriter
-        let log_path = log_dir.as_ref().to_path_buf();
-        let writer = FileWriter::create(log_path.clone())
-            .map_err(|e| VideoExtractionError::ExportError(
-                format!("创建TensorBoard日志写入器失败: {}", e)
-            ))?;
-        
-        let mut summary_writer = SummaryWriter::new(writer);
-        
-        // 收集所有特征类型
-        let mut feature_types = std::collections::HashSet::new();
-        for result in results {
-            feature_types.insert(result.feature_type);
-        }
-        
-        // 为每种特征类型创建投影
-        for &feature_type in &feature_types {
-            let metadata_path = log_path.join(format!("metadata_{}.tsv", feature_type.to_string()));
-            let mut metadata_file = File::create(&metadata_path)
-                .map_err(|e| VideoExtractionError::FileError(
-                    format!("创建元数据文件失败: {}", e)
-                ))?;
-            
-            // 写入元数据标题
-            writeln!(metadata_file, "video_id\tlabel")
-                .map_err(|e| VideoExtractionError::ExportError(
-                    format!("写入元数据标题失败: {}", e)
-                ))?;
-            
-            // 收集此特征类型的所有特征
-            let type_results: Vec<_> = results.iter()
-                .filter(|r| r.feature_type == feature_type)
-                .collect();
-            
-            let mut tensor_data = Vec::new();
-            let mut labels = Vec::new();
-            
-            for result in &type_results {
-                tensor_data.push(result.features.clone());
-                
-                // 获取标签(如果有)
-                let video_id = result.metadata.as_ref().map(|m| m.id.clone()).unwrap_or_default();
-                let label = if let Some(label_map) = &label_map {
-                    label_map.get(&video_id)
-                        .cloned()
-                        .unwrap_or_else(|| "unknown".to_string())
-                } else {
-                    video_id.clone()
-                };
-                
-                labels.push(label.clone());
-                
-                // 写入元数据行
-                writeln!(metadata_file, "{}\t{}", video_id, label)
-                    .map_err(|e| VideoExtractionError::ExportError(
-                        format!("写入元数据行失败: {}", e)
-                    ))?;
-            }
-            
-            // 创建嵌入
-            summary_writer.add_embedding(
-                &tensor_data,
-                Some(&labels),
-                Some(&metadata_path.to_string_lossy()),
-                Some(&format!("features_{}", feature_type.to_string())),
-                0
-            ).map_err(|e| VideoExtractionError::ExportError(
-                format!("添加嵌入到TensorBoard失败: {}", e)
-            ))?;
-        }
-        
-        info!("成功导出 {} 条特征到TensorBoard: {}", 
-                   results.len(), log_path.display());
-        
-        Ok(log_path)
-    }
-    
-    #[cfg(not(feature = "tensorboard"))]
-    {
-        warn!("TensorBoard导出功能未启用，请在编译时启用'tensorboard'特性");
-        Err(VideoExtractionError::ExportError(
-            "TensorBoard导出功能未启用，请在编译时启用'tensorboard'特性".to_string()
-        ))
-    }
+    // 注意：tensorboard 特性未在 Cargo.toml 中定义，这里提供降级实现
+    log::warn!("TensorBoard导出功能未启用，请在编译时启用'tensorboard'特性");
+    Err(VideoExtractionError::ExportError(
+        "TensorBoard导出功能未启用，请在编译时启用'tensorboard'特性".to_string()
+    ))
 }
 
 /// 导出特征到HDF5格式
-fn export_to_hdf5<P: AsRef<Path>>(results: Vec<&VideoFeatureResult>, path: P, options: &ExportOptions) -> Result<(), VideoExtractionError> {
-    #[cfg(feature = "hdf5")]
+fn export_to_hdf5<P: AsRef<Path>>(_results: Vec<&VideoFeatureResult>, _path: P, _options: &ExportOptions) -> Result<(), VideoExtractionError> {
+    // 注意：hdf5 特性未在 Cargo.toml 中定义，已注释掉相关代码
+    /* #[cfg(feature = "hdf5")]
     {
         use hdf5::{File, Group};
         use ndarray::{Array, Array2, Axis};
@@ -1627,11 +1541,11 @@ fn export_to_hdf5<P: AsRef<Path>>(results: Vec<&VideoFeatureResult>, path: P, op
         
         info!("成功导出 {} 条记录到HDF5文件", results.len());
         Ok(())
-    }
+    } */
     
-    #[cfg(not(feature = "hdf5"))]
+    // #[cfg(not(feature = "hdf5"))]
     {
-        warn!("HDF5导出功能未启用，请在编译时启用'hdf5'特性");
+        log::warn!("HDF5导出功能未启用，请在编译时启用'hdf5'特性");
         Err(VideoExtractionError::ExportError(
             "HDF5导出功能未启用，请在编译时启用'hdf5'特性".to_string()
         ))
@@ -1639,127 +1553,14 @@ fn export_to_hdf5<P: AsRef<Path>>(results: Vec<&VideoFeatureResult>, path: P, op
 }
 
 /// 导出特征到TensorFlow格式
-fn export_to_tensorflow<P: AsRef<Path>>(results: Vec<&VideoFeatureResult>, path: P, options: &ExportOptions) -> Result<(), VideoExtractionError> {
-    #[cfg(feature = "tensorflow")]
-    {
-        use tensorflow::{Graph, SavedModelBuilder, SessionOptions, Status, Tensor};
-        
-        info!("导出特征到TensorFlow格式: {}", path.as_ref().display());
-        
-        if results.is_empty() {
-            return Err(VideoExtractionError::ExportError("没有特征可导出".to_string()));
-        }
-        
-        // 确保目录存在
-        let model_dir = if path.as_ref().extension().is_some() {
-            // 如果路径有扩展名，则使用父目录
-            path.as_ref().parent()
-                .map(|p| p.to_path_buf())
-                .unwrap_or_else(|| PathBuf::from("."))
-        } else {
-            // 否则使用路径作为目录
-            path.as_ref().to_path_buf()
-        };
-        
-        fs::create_dir_all(&model_dir).map_err(|e| 
-            VideoExtractionError::ExportError(format!("创建TensorFlow模型目录失败: {}", e))
-        )?;
-        
-        // 获取特征维度
-        let feature_dim = results[0].features.len();
-        let num_features = results.len();
-        
-        // 创建TensorFlow图
-        let mut graph = Graph::new();
-        
-        // 创建输入张量
-        let mut feature_data = Vec::with_capacity(num_features * feature_dim);
-        for result in &results {
-            feature_data.extend_from_slice(&result.features);
-        }
-        
-        // 创建特征张量
-        let feature_tensor = Tensor::new(&[num_features as u64, feature_dim as u64])
-            .with_values(&feature_data)
-            .map_err(|e| VideoExtractionError::ExportError(
-                format!("创建TensorFlow特征张量失败: {}", e)
-            ))?;
-        
-        // 创建SavedModel
-        let mut builder = SavedModelBuilder::new();
-        builder
-            .add_tag("serve")
-            .add_tag("features");
-        
-        // 添加特征变量
-        let variable_name = "features";
-        let op = graph.variable(variable_name, feature_tensor.shape(), tensorflow::DataType::Float)
-                     .map_err(|e| VideoExtractionError::ExportError(
-                         format!("创建TensorFlow变量失败: {}", e)
-                     ))?;
-        
-        // 创建会话并保存模型
-        let session_options = SessionOptions::new();
-        let session = tensorflow::Session::new(&session_options, &graph)
-                                 .map_err(|e| VideoExtractionError::ExportError(
-                                     format!("创建TensorFlow会话失败: {}", e)
-                                 ))?;
-        
-        // 初始化变量
-        let init_op = graph.operation_by_name_required("init")
-                          .map_err(|e| VideoExtractionError::ExportError(
-                              format!("获取初始化操作失败: {}", e)
-                          ))?;
-        
-        session.run(&[], &[], &[init_op])
-              .map_err(|e| VideoExtractionError::ExportError(
-                  format!("初始化TensorFlow变量失败: {}", e)
-              ))?;
-        
-        // 保存模型
-        builder.save(&session, &graph, &model_dir)
-              .map_err(|e| VideoExtractionError::ExportError(
-                  format!("保存TensorFlow模型失败: {}", e)
-              ))?;
-        
-        // 如果需要保存元数据
-        if options.include_metadata {
-            let metadata_path = model_dir.join("metadata.json");
-            
-            // 收集元数据
-            let metadata = results.iter().map(|r| {
-                json!({
-                    "file_path": r.metadata.as_ref().map(|m| m.file_path.clone()).unwrap_or_default(),
-                    "duration": r.metadata.as_ref().map(|m| m.duration).unwrap_or(0.0),
-                    "width": r.metadata.as_ref().map(|m| m.width).unwrap_or(0),
-                    "height": r.metadata.as_ref().map(|m| m.height).unwrap_or(0),
-                    "fps": r.metadata.as_ref().map(|m| m.fps).unwrap_or(0.0),
-                    "feature_type": format!("{:?}", r.feature_type),
-                    "processing_time": r.processing_info.as_ref().map(|info| info.extraction_time_ms).unwrap_or(0)
-                })
-            }).collect::<Vec<_>>();
-            
-            // 写入元数据JSON文件
-            let metadata_json = serde_json::to_string_pretty(&metadata).map_err(|e| 
-                VideoExtractionError::ExportError(format!("序列化元数据失败: {}", e))
-            )?;
-            
-            std::fs::write(&metadata_path, metadata_json).map_err(|e| 
-                VideoExtractionError::ExportError(format!("写入元数据文件失败: {}", e))
-            )?;
-            
-            info!("元数据已保存到: {}", metadata_path.display());
-        }
-        
-        info!("成功导出 {} 条记录到TensorFlow格式", results.len());
-        Ok(())
-    }
-    
-    #[cfg(not(feature = "tensorflow"))]
-    {
-        warn!("TensorFlow导出功能未启用，请在编译时启用'tensorflow'特性");
-        Err(VideoExtractionError::ExportError(
-            "TensorFlow导出功能未启用，请在编译时启用'tensorflow'特性".to_string()
-        ))
-    }
+fn export_to_tensorflow<P: AsRef<Path>>(
+    _results: Vec<&VideoFeatureResult>,
+    _path: P,
+    _options: &ExportOptions
+) -> Result<(), VideoExtractionError> {
+    // 注意：tensorflow 特性未在 Cargo.toml 中定义，这里提供统一的降级实现
+    log::warn!("TensorFlow导出功能未启用，请在编译时启用'tensorflow'特性");
+    Err(VideoExtractionError::ExportError(
+        "TensorFlow导出功能未启用，请在编译时启用'tensorflow'特性".to_string()
+    ))
 } 

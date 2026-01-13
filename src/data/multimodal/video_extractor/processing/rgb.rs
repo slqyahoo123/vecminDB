@@ -25,7 +25,7 @@ pub struct RGBFeatureExtractor {
     spatial_pooling: Option<SpatialPoolingType>,
     /// 是否已初始化
     initialized: bool,
-    /// 模型权重（简化实现）
+    /// 已加载的模型权重（可选，用于自定义或预训练模型）
     model_weights: Option<HashMap<String, Vec<f32>>>,
     /// 配置项
     config: VideoFeatureConfig,
@@ -96,7 +96,8 @@ impl RGBFeatureExtractor {
         debug!("从文件加载模型权重: {}", model_path);
         
         // 使用ONNX Runtime或类似库加载模型（伪代码，实际实现需要添加具体依赖）
-        #[cfg(feature = "onnx")]
+        // 注意：onnx 特性未在 Cargo.toml 中定义，已注释掉相关代码
+        /* #[cfg(feature = "onnx")]
         {
             use onnxruntime::{environment::Environment, session::Session, GraphOptimizationLevel};
             
@@ -123,10 +124,10 @@ impl RGBFeatureExtractor {
             
             self.model_weights = Some(weights);
             debug!("ONNX模型加载完成: {}", model_path);
-        }
+        } */
         
         // 如果没有启用ONNX特性，使用简化的权重模拟
-        #[cfg(not(feature = "onnx"))]
+        // #[cfg(not(feature = "onnx"))]
         {
             let mut weights = HashMap::new();
             
@@ -266,7 +267,8 @@ impl RGBFeatureExtractor {
         // 在实际生产环境中，这里应该使用加载的深度学习模型进行特征提取
         // 我们将实现基于配置的多种特征提取方式
         
-        #[cfg(feature = "onnx")]
+        // 注意：onnx 和 opencv 特性未在 Cargo.toml 中定义，已注释掉相关代码
+        /* #[cfg(feature = "onnx")]
         {
             // 使用ONNX Runtime进行推理
             let weights = self.model_weights.as_ref().unwrap();
@@ -280,14 +282,15 @@ impl RGBFeatureExtractor {
         #[cfg(feature = "opencv")]
         {
             return self.extract_features_opencv(processed_frame);
-        }
+        } */
         
         // 最后回退到简化的CPU实现
         self.extract_features_cpu(processed_frame)
     }
     
     /// 使用ONNX Runtime提取特征（高性能实现）
-    #[cfg(feature = "onnx")]
+    // 注意：onnx 特性未在 Cargo.toml 中定义，已注释掉相关代码
+    /* #[cfg(feature = "onnx")]
     fn extract_features_onnx(
         &self, 
         session: &onnxruntime::session::Session, 
@@ -368,10 +371,11 @@ impl RGBFeatureExtractor {
         
         debug!("ONNX RGB特征提取成功，维度: {}", normalized_features.len());
         Ok(normalized_features)
-    }
+    } */
     
     /// 使用OpenCV提取RGB特征（中等性能实现）
-    #[cfg(feature = "opencv")]
+    // 注意：opencv 特性未在 Cargo.toml 中定义，已注释掉相关代码
+    /* #[cfg(feature = "opencv")]
     fn extract_features_opencv(&self, processed_frame: &[f32]) -> Result<Vec<f32>, VideoExtractionError> {
         use opencv::{
             core::{Mat, MatTraitConst, CV_32F, Size, Scalar, Vector, NORM_L2},
@@ -432,7 +436,7 @@ impl RGBFeatureExtractor {
         
         debug!("OpenCV RGB特征提取成功，维度: {}", normalized_features.len());
         Ok(normalized_features)
-    }
+    } */
     
     /// 在CPU上提取RGB特征（基本实现）
     fn extract_features_cpu(&self, processed_frame: &[f32]) -> Result<Vec<f32>, VideoExtractionError> {
@@ -685,7 +689,8 @@ impl RGBFeatureExtractor {
         Ok(result)
     }
     
-    #[cfg(feature = "opencv")]
+    // 注意：opencv 特性未在 Cargo.toml 中定义，已注释掉相关代码
+    /* #[cfg(feature = "opencv")]
     fn extract_color_histograms(&self, frame_mat: &opencv::core::Mat) -> Result<Vec<f32>, VideoExtractionError> {
         use opencv::{
             core::{Mat, MatTraitConst, Vector, _InputArray, _OutputArray, NORM_MINMAX},
@@ -738,9 +743,9 @@ impl RGBFeatureExtractor {
         }
         
         Ok(features)
-    }
+    } */
     
-    #[cfg(feature = "opencv")]
+    /* #[cfg(feature = "opencv")]
     fn extract_texture_features(&self, frame_mat: &opencv::core::Mat) -> Result<Vec<f32>, VideoExtractionError> {
         use opencv::{
             core::{Mat, Point, BORDER_DEFAULT},
@@ -802,9 +807,9 @@ impl RGBFeatureExtractor {
         features.extend_from_slice(&haralick_features);
         
         Ok(features)
-    }
+    } */
     
-    #[cfg(feature = "opencv")]
+    /* #[cfg(feature = "opencv")]
     fn compute_haralick_features(&self, gray_mat: &opencv::core::Mat) -> Result<Vec<f32>, VideoExtractionError> {
         // 简化的Haralick纹理特征计算
         // 在实际应用中，可以使用更完整的实现或第三方库
@@ -913,9 +918,9 @@ impl RGBFeatureExtractor {
         features.push(homogeneity);
         
         Ok(features)
-    }
+    } */
     
-    #[cfg(feature = "opencv")]
+    /* #[cfg(feature = "opencv")]
     fn extract_edge_features(&self, frame_mat: &opencv::core::Mat) -> Result<Vec<f32>, VideoExtractionError> {
         use opencv::{
             core::{Mat, Point, Size, BORDER_DEFAULT},
@@ -1018,7 +1023,7 @@ impl RGBFeatureExtractor {
         features.extend_from_slice(&direction_hist);
         
         Ok(features)
-    }
+    } */
 }
 
 impl FeatureExtractor for RGBFeatureExtractor {
@@ -1127,9 +1132,8 @@ impl FeatureExtractor for RGBFeatureExtractor {
                 // 最大值池化
                 Ok(super::pooling::temporal_max_pooling(features))
             },
-            TemporalPoolingType::Attention => {
-                // 注意力池化（简化实现）
-                // 计算每个特征的L2范数作为权重
+            TemporalPoolingType:: Attention => {
+                // 基于 L2 范数的注意力池化实现：根据特征能量自适应分配权重
                 let weights: Vec<f32> = features.iter()
                     .map(|feature| {
                         let norm_sq: f32 = feature.iter().map(|v| v * v).sum();
@@ -1137,7 +1141,7 @@ impl FeatureExtractor for RGBFeatureExtractor {
                     })
                     .collect();
                 
-                // 权重归一化
+                // 归一化权重，避免数值不稳定
                 let sum_weights: f32 = weights.iter().sum();
                 let norm_weights = if sum_weights > 1e-6 {
                     weights.iter().map(|w| w / sum_weights).collect()

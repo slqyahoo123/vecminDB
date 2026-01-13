@@ -3,9 +3,7 @@
 //! 提供音频特征提取器的核心实现，包含从不同音频源提取特征的功能。
 
 use std::collections::HashMap;
-use std::io::Cursor;
-use std::time::Duration;
-use log::{debug, error, warn};
+use log::{debug, error};
 use ndarray::{Array1, Array2, Axis};
 #[cfg(feature = "multimodal")]
 use reqwest::blocking::Client;
@@ -43,17 +41,18 @@ use crate::data::multimodal::extractors::audio::extractors::{
 };
 use crate::data::multimodal::extractors::audio::extractors::temporal::TemporalFeatureType;
 
-/// 音频特征提取器
-#[derive(Debug)]
-pub struct AudioFeatureExtractor {
-    /// 音频处理配置
-    config: AudioProcessingConfig,
-    /// HTTP客户端用于URL请求
-    #[cfg(feature = "multimodal")]
-    http_client: Option<Client>,
-    #[cfg(not(feature = "multimodal"))]
-    http_client: Option<()>, // Placeholder when multimodal is disabled
-}
+    /// 音频特征提取器
+    #[derive(Debug)]
+    pub struct AudioFeatureExtractor {
+        /// 音频处理配置
+        config: AudioProcessingConfig,
+        /// HTTP客户端用于URL请求（仅在启用 `multimodal` 特性时可用）
+        #[cfg(feature = "multimodal")]
+        http_client: Option<Client>,
+        /// 在未启用 `multimodal` 特性时占位以保持结构一致，相关功能会返回特性未启用的错误
+        #[cfg(not(feature = "multimodal"))]
+        http_client: Option<()>,
+    }
 
 impl AudioFeatureExtractor {
     /// 创建新的音频特征提取器

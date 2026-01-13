@@ -17,13 +17,18 @@
 //! 提供各种频谱分析功能，包括MFCC、色度图、梅尔频谱图、
 //! 频谱质心、频谱滚降点等。
 
-use ndarray::{Array1, Array2, Axis, s};
+#[cfg(feature = "multimodal")]
+use ndarray::{Array1, Array2, Axis};
+#[cfg(feature = "multimodal")]
+use ndarray::s;
 
+#[cfg(feature = "multimodal")]
 use crate::Error;
 #[cfg(feature = "multimodal")]
 use crate::data::multimodal::extractors::audio::conversion::{
     amplitude_to_db, dct, frame_signal, magnitude_spectrum, stft
 };
+#[cfg(feature = "multimodal")]
 use crate::data::multimodal::extractors::audio::filter::{
     mel_filterbank, create_chroma_filterbank, preemphasis,
     hanning_window
@@ -187,6 +192,7 @@ pub fn compute_melspectrogram(
 ///
 /// # 返回值
 /// 返回色度特征矩阵 (n_frames x n_chroma)
+#[cfg(feature = "multimodal")]
 pub fn compute_chroma(
     signal: &[f64],
     sample_rate: usize,

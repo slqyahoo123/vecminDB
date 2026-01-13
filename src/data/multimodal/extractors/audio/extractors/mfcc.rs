@@ -3,7 +3,9 @@
 //! 梅尔频率倒谱系数(MFCC)是一种广泛用于语音和音频处理的特征。
 //! 它通过模拟人类听觉系统来表示音频信号的短期能量谱。
 
+#[cfg(feature = "multimodal")]
 use ndarray::{Array2, Axis};
+#[cfg(feature = "multimodal")]
 use crate::Result;
 #[cfg(feature = "multimodal")]
 use super::{
@@ -100,6 +102,7 @@ impl MFCCExtractor {
     }
     
     /// 应用离散余弦变换(DCT)
+    #[cfg(feature = "multimodal")]
     fn apply_dct(&self, log_mel_spectrogram: &Array2<f32>) -> Array2<f32> {
         let n_frames = log_mel_spectrogram.shape()[0];
         let n_mels = log_mel_spectrogram.shape()[1];

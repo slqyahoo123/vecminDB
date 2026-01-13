@@ -328,76 +328,18 @@ impl SchemaInferrer {
     fn infer_from_sqlite_table(&self, db_path: &str, table_name: &str) -> Result<DataSchema> {
         debug!("从SQLite表推断模式: {}.{}", db_path, table_name);
         
-        #[cfg(feature = "sqlite")]
-        {
-            use rusqlite::{Connection, Result as SqliteResult};
-            
-            // 连接到数据库
-            let conn = Connection::open(db_path)
-                .map_err(|e| Error::database(format!("SQLite连接错误: {}", e)))?;
-                
-            // 查询表结构
-            let query = format!("PRAGMA table_info({})", table_name);
-            
-            let mut stmt = conn.prepare(&query)
-                .map_err(|e| Error::database(format!("SQLite查询准备错误: {}", e)))?;
-                
-            let columns = stmt.query_map([], |row| {
-                let name: String = row.get(1)?;
-                let type_name: String = row.get(2)?;
-                
-                let field_type = match type_name.to_lowercase().as_str() {
-                    "integer" | "int" | "smallint" | "bigint" | "tinyint" | "real" | "double" | "float" | "numeric" => FieldType::Number,
-                    "text" | "varchar" | "char" | "clob" => FieldType::Text,
-                    "boolean" | "bool" => FieldType::Boolean,
-                    "date" | "datetime" | "timestamp" => FieldType::Date,
-                    "blob" | "binary" => FieldType::Binary,
-                    _ => FieldType::Unknown,
-                };
-                
-                Ok((name, field_type))
-            }).map_err(|e| Error::database(format!("SQLite查询执行错误: {}", e)))?;
-            
-            let mut field_names = Vec::new();
-            let mut field_types = Vec::new();
-            let mut feature_fields = Vec::new();
-            let mut metadata_fields = Vec::new();
-            
-            for result in columns {
-                let (name, field_type) = result
-                    .map_err(|e| Error::database(format!("SQLite行读取错误: {}", e)))?;
-                    
-                field_names.push(name.clone());
-                field_types.push(field_type.clone());
-                
-                // 对于数值和布尔类型，作为特征字段
-                if matches!(field_type, FieldType::Number | FieldType::Boolean) {
-                    feature_fields.push(name.clone());
-                } else {
-                    metadata_fields.push(name.clone());
-                }
-            }
-            
-            // 创建结果
-            let mut schema_metadata = HashMap::new();
-            schema_metadata.insert("source".to_string(), "database".to_string());
-            schema_metadata.insert("db_type".to_string(), "sqlite".to_string());
-            schema_metadata.insert("db_path".to_string(), db_path.to_string());
-            schema_metadata.insert("table_name".to_string(), table_name.to_string());
-            
-            Ok(make_schema(field_names, field_types, schema_metadata))
-        }
-        
-        #[cfg(not(feature = "sqlite"))]
-        {
-            Err(Error::not_implemented("SQLite支持需要启用sqlite特性"))
-        }
+        // 注意：sqlite 特性未在 Cargo.toml 中定义，直接返回未实现错误
+        return Err(Error::not_implemented("SQLite支持需要启用sqlite特性"));
     }
     
     // 从PostgreSQL表推断模式
-    fn infer_from_postgres_table(&self, conn_string: &str, table_name: &str) -> Result<DataSchema> {
-        debug!("从PostgreSQL表推断模式: {}.{}", conn_string, table_name);
+    fn infer_from_postgres_table(&self, _conn_string: &str, _table_name: &str) -> Result<DataSchema> {
+        debug!("从PostgreSQL表推断模式");
         
+        // 注意：postgres 特性未在 Cargo.toml 中定义，直接返回未实现错误
+        return Err(Error::not_implemented("PostgreSQL支持需要启用postgres特性"));
+        
+        /*
         #[cfg(feature = "postgres")]
         {
             use tokio_postgres::{Client, NoTls};
@@ -473,17 +415,17 @@ impl SchemaInferrer {
                 Ok(make_schema(field_names, field_types, schema_metadata))
             })
         }
-        
-        #[cfg(not(feature = "postgres"))]
-        {
-            Err(Error::not_implemented("PostgreSQL支持需要启用postgres特性"))
-        }
+        */
     }
     
     // 从MySQL表推断模式
-    fn infer_from_mysql_table(&self, conn_string: &str, table_name: &str) -> Result<DataSchema> {
-        debug!("从MySQL表推断模式: {}.{}", conn_string, table_name);
+    fn infer_from_mysql_table(&self, _conn_string: &str, _table_name: &str) -> Result<DataSchema> {
+        debug!("从MySQL表推断模式");
         
+        // 注意：mysql 特性未在 Cargo.toml 中定义，直接返回未实现错误
+        return Err(Error::not_implemented("MySQL支持需要启用mysql特性"));
+        
+        /*
         #[cfg(feature = "mysql")]
         {
             use mysql_async::{Pool, Opts, OptsBuilder, Row, prelude::Queryable};
@@ -569,17 +511,17 @@ impl SchemaInferrer {
                 Ok(schema)
             })
         }
-        
-        #[cfg(not(feature = "mysql"))]
-        {
-            Err(Error::not_implemented("MySQL支持需要启用mysql特性"))
-        }
+        */
     }
     
     // 从MongoDB集合推断模式
-    fn infer_from_mongodb_collection(&self, conn_string: &str, collection_name: &str) -> Result<DataSchema> {
-        debug!("从MongoDB集合推断模式: {}.{}", conn_string, collection_name);
+    fn infer_from_mongodb_collection(&self, _conn_string: &str, _collection_name: &str) -> Result<DataSchema> {
+        debug!("从MongoDB集合推断模式");
         
+        // 注意：mongodb 特性未在 Cargo.toml 中定义，直接返回未实现错误
+        return Err(Error::not_implemented("MongoDB支持需要启用mongodb特性"));
+        
+        /*
         #[cfg(feature = "mongodb")]
         {
             use mongodb::{Client, options::ClientOptions};
@@ -661,11 +603,7 @@ impl SchemaInferrer {
                 }
             })
         }
-        
-        #[cfg(not(feature = "mongodb"))]
-        {
-            Err(Error::not_implemented("MongoDB支持需要启用mongodb特性"))
-        }
+        */
     }
 }
 

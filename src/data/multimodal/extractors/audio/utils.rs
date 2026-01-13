@@ -21,6 +21,7 @@
 //! - 预处理函数
 //! - 特征提取辅助函数
 
+#[cfg(feature = "multimodal")]
 use crate::data::multimodal::extractors::audio::error::AudioError;
 use ndarray::{Array1, Array2, s};
 #[cfg(feature = "multimodal")]

@@ -8,12 +8,10 @@ use serde::{Serialize, Deserialize};
 use crate::data::connector::{
     MySQLConnector, PostgreSQLConnector,
 };
-#[cfg(feature = "elasticsearch")]
-use crate::data::connector::elasticsearch_connector::ElasticsearchConnector;
-#[cfg(feature = "mongodb")]
-use crate::data::connector::MongoDBConnector;
-#[cfg(feature = "neo4rs")]
-use crate::data::connector::Neo4jConnector;
+// 以下连接器依赖未启用的特性/外部库，类型定义中暂不直接使用具体实现
+// use crate::data::connector::elasticsearch_connector::ElasticsearchConnector;
+// use crate::data::connector::MongoDBConnector;
+// use crate::data::connector::Neo4jConnector;
 
 /// 数据库类型枚举
 #[derive(Debug, Clone)]
@@ -170,27 +168,15 @@ impl DatabaseConnectorFactory {
                 let connector = PostgreSQLConnector::new(config)?;
                 Ok(Box::new(connector))
             },
-            #[cfg(feature = "mongodb")]
+            // 下面这些数据库类型依赖尚未启用的外部驱动，实现占位错误返回，避免 cfg(feature=...) 警告
             DatabaseType::MongoDB => {
-                // 创建MongoDB连接器
-                let connector = MongoDBConnector::new(config);
-                Ok(Box::new(connector))
+                Err(Error::Data("MongoDB connector feature is not enabled".to_string()))
             },
-            #[cfg(feature = "elasticsearch")]
             DatabaseType::Elasticsearch => {
-                // 创建Elasticsearch连接器
-                let connector = ElasticsearchConnector::new(config);
-                Ok(Box::new(connector))
+                Err(Error::Data("Elasticsearch connector feature is not enabled".to_string()))
             },
-            #[cfg(not(feature = "elasticsearch"))]
-            DatabaseType::Elasticsearch => {
-                Err(Error::Data("Elasticsearch feature is not enabled".to_string()))
-            },
-            #[cfg(feature = "neo4rs")]
             DatabaseType::Neo4j => {
-                // 创建Neo4j连接器
-                let connector = Neo4jConnector::new(config);
-                Ok(Box::new(connector))
+                Err(Error::Data("Neo4j connector feature is not enabled".to_string()))
             },
             _ => Err(Error::not_implemented(format!("不支持的数据库类型: {:?}", config.db_type)))
         }

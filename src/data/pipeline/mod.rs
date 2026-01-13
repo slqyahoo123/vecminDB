@@ -10,8 +10,8 @@ pub mod import_pipeline;
 pub mod pipeline_registry;
 pub mod traits;
 pub mod monitor;
-#[cfg(feature = "examples")]
-pub mod examples;
+// #[cfg(feature = "examples")]
+// pub mod examples;
 pub mod validation;
 pub mod file_detection;
 pub mod schema_inference;
@@ -43,13 +43,13 @@ pub use self::parallel_processor::{
 pub use self::performance::PipelinePerformanceMetrics;
 
 // 导出示例函数
-#[cfg(feature = "examples")]
-pub use self::examples::{
-    run_monitoring_example,
-    run_measure_time_example,
-    run_examples,
-    run_all_examples
-};
+// #[cfg(feature = "examples")]
+// pub use self::examples::{
+//     run_monitoring_example,
+//     run_measure_time_example,
+//     run_examples,
+//     run_all_examples
+// };
 
 // 重新导出数据处理阶段
 pub use self::stages::{

@@ -113,7 +113,7 @@ impl DatabaseLoader {
         // 这里使用 -1.0 作为缺失值标记（假设正常数据不会出现负值）
         // 实际应用中应该根据数据分布选择合适的标记值
         let column_id = column_name.unwrap_or(&format!("column_{}", column_index));
-        warn!("列 {} 存在缺失值或无法解析的值，使用标记值", column_id);
+        log::warn!("列 {} 存在缺失值或无法解析的值，使用标记值", column_id);
         f32::NAN // 使用NaN标记缺失值
     }
     
@@ -249,6 +249,10 @@ impl DatabaseLoader {
         metadata.insert("db_type".to_string(), "postgres".to_string());
         metadata.insert("query".to_string(), config.query.clone());
         
+        // 注意：postgres 特性未在 Cargo.toml 中定义，直接返回未实现错误
+        return Err(Error::not_implemented("PostgreSQL支持需要启用postgres特性"));
+        
+        /* PostgreSQL 代码已注释，因为 postgres 特性未定义
         #[cfg(feature = "postgres")]
         {
             use tokio_postgres::{Client, NoTls};
@@ -323,17 +327,10 @@ impl DatabaseLoader {
                     }
                 }
             }
-        }
-        
-        #[cfg(not(feature = "postgres"))]
-        {
-            return Err(Error::not_implemented("PostgreSQL支持需要启用postgres特性"));
-        }
-        
-        #[cfg(feature = "postgres")]
-        {
+            
             return Ok(());
         }
+        */
     }
     
     // 从MySQL数据库加载数据
@@ -349,91 +346,8 @@ impl DatabaseLoader {
         metadata.insert("db_type".to_string(), "mysql".to_string());
         metadata.insert("query".to_string(), config.query.clone());
         
-        #[cfg(feature = "mysql")]
-        {
-            use mysql_async::{Pool, Opts, OptsBuilder, Row, from_row};
-            
-            // 解析连接字符串
-            let opts = Opts::from_url(&config.connection_string)
-                .map_err(|e| Error::database(format!("MySQL连接字符串解析错误: {}", e)))?;
-            
-            // 创建连接池
-            let pool = Pool::new(opts);
-            let mut conn = pool.get_conn().await
-                .map_err(|e| Error::database(format!("MySQL连接错误: {}", e)))?;
-            
-            // 执行查询
-            let result = mysql_async::prelude::Queryable::query(&mut conn, &config.query).await
-                .map_err(|e| Error::database(format!("MySQL查询执行错误: {}", e)))?;
-            
-            // 处理结果
-            let result_set = result.collect::<Vec<Row>>().await
-                .map_err(|e| Error::database(format!("MySQL结果集收集错误: {}", e)))?;
-            
-            // 处理每一行数据
-            for row in result_set {
-                let mut feature_row = Vec::new();
-                
-                // 提取每一列的值
-                for i in 0..row.len() {
-                    let value: f32 = match row.get(i) {
-                        Some(val) => match val {
-                            mysql_async::Value::Int(n) => n as f32,
-                            mysql_async::Value::Float(f) => f,
-                            mysql_async::Value::Double(d) => d as f32,
-                            mysql_async::Value::Bytes(b) => {
-                                if let Ok(s) = String::from_utf8(b.clone()) {
-                                    // 使用生产级文本特征提取
-                                    Self::extract_text_features(&s)
-                                } else {
-                                    // 二进制数据，使用长度归一化作为特征
-                                    // 使用对数缩放避免大值占主导
-                                    (b.len() as f32).ln() / 10.0
-                                }
-                            },
-                            mysql_async::Value::Date(year, month, day, hour, minute, second, micro) => {
-                                // 日期时间转换为时间戳
-                                if let Some(dt) = chrono::NaiveDate::from_ymd_opt(year as i32, month, day)
-                                    .and_then(|d| d.and_hms_micro_opt(hour, minute, second, micro))
-                                    .map(|dt| dt.and_utc().timestamp() as f32) {
-                                    dt
-                                } else {
-                                    Self::handle_missing_value(i, None)
-                                }
-                            },
-                            mysql_async::Value::Time(neg, days, hours, minutes, seconds, micros) => {
-                                // 时间值转换为秒数
-                                let total_seconds = (days * 86400 + hours * 3600 + minutes * 60 + seconds) as f32 
-                                    + (micros as f32 / 1_000_000.0);
-                                if neg { -total_seconds } else { total_seconds }
-                            },
-                            _ => Self::handle_missing_value(i, None), // 其他类型标记为缺失值
-                        },
-                        None => Self::handle_missing_value(i, None), // NULL值标记为缺失值
-                    };
-                    
-                    feature_row.push(value);
-                }
-                
-                if !feature_row.is_empty() {
-                    features.push(feature_row);
-                }
-            }
-            
-            // 关闭连接池
-            pool.disconnect().await
-                .map_err(|e| Error::database(format!("MySQL连接池关闭错误: {}", e)))?;
-        }
-        
-        #[cfg(not(feature = "mysql"))]
-        {
-            return Err(Error::not_implemented("MySQL支持需要启用mysql特性"));
-        }
-        
-        #[cfg(feature = "mysql")]
-        {
-            return Ok(());
-        }
+        // 注意：mysql 特性未在 Cargo.toml 中定义，直接返回未实现错误
+        return Err(Error::not_implemented("MySQL支持需要启用mysql特性"));
     }
     
     // 从MongoDB加载数据
@@ -449,111 +363,8 @@ impl DatabaseLoader {
         metadata.insert("db_type".to_string(), "mongodb".to_string());
         metadata.insert("query".to_string(), config.query.clone());
         
-        #[cfg(feature = "mongodb")]
-        {
-            use mongodb::{Client, options::ClientOptions};
-            use mongodb::bson::{Document, Bson};
-            use futures::stream::StreamExt;
-            
-            // 解析连接字符串和查询
-            let mut parts = config.connection_string.split('/');
-            let conn_str = parts.next().unwrap_or("");
-            let db_name = parts.next().unwrap_or("test");
-            let coll_name = parts.next().unwrap_or("data");
-            
-            // 解析查询为BSON文档
-            let filter = match serde_json::from_str::<Document>(&config.query) {
-                Ok(doc) => doc,
-                Err(_) => Document::new(), // 如果解析失败，使用空文档（匹配所有）
-            };
-            
-            // 连接到MongoDB
-            let client_options = ClientOptions::parse(conn_str).await
-                .map_err(|e| Error::database(format!("MongoDB连接选项解析错误: {}", e)))?;
-                
-            let client = Client::with_options(client_options)
-                .map_err(|e| Error::database(format!("MongoDB客户端创建错误: {}", e)))?;
-                
-            // 获取数据库和集合
-            let database = client.database(db_name);
-            let collection = database.collection::<Document>(coll_name);
-            
-            // 执行查询
-            let mut cursor = collection.find(filter, None).await
-                .map_err(|e| Error::database(format!("MongoDB查询执行错误: {}", e)))?;
-                
-            // 处理结果
-            let mut field_names = Vec::new();
-            let mut has_field_names = false;
-            
-            while let Some(result) = cursor.next().await {
-                match result {
-                    Ok(document) => {
-                        // 如果是第一个文档，记录字段名
-                        if !has_field_names {
-                            for key in document.keys() {
-                                field_names.push(key.clone());
-                            }
-                            has_field_names = true;
-                            metadata.insert("fields".to_string(), field_names.join(","));
-                        }
-                        
-                        // 提取特征值
-                        let mut feature_row = Vec::new();
-                        
-                        for field in &field_names {
-                            if let Some(value) = document.get(field) {
-                                let num_value = match value {
-                                    Bson::Double(d) => *d as f32,
-                                    Bson::Int32(i) => *i as f32,
-                                    Bson::Int64(i) => *i as f32,
-                                    Bson::String(s) => {
-                                        // 使用生产级文本特征提取
-                                        Self::extract_text_features(s)
-                                    },
-                                    Bson::Boolean(b) => if *b { 1.0 } else { 0.0 },
-                                    Bson::Array(arr) => {
-                                        // 使用数组长度作为特征
-                                        arr.len() as f32
-                                    },
-                                    Bson::Document(doc) => {
-                                        // 使用文档中的键数量作为特征
-                                        doc.keys().count() as f32
-                                    },
-                                    _ => 0.0, // 其他类型
-                                };
-                                
-                                feature_row.push(num_value);
-                            } else {
-                                // 字段不存在，标记为缺失值
-                                feature_row.push(Self::handle_missing_value(
-                                    field_names.iter().position(|f| f == field).unwrap_or(0),
-                                    Some(field)
-                                ));
-                            }
-                        }
-                        
-                        if !feature_row.is_empty() {
-                            features.push(feature_row);
-                        }
-                    },
-                    Err(e) => {
-                        warn!("MongoDB文档读取错误: {}", e);
-                        continue;
-                    }
-                }
-            }
-        }
-        
-        #[cfg(not(feature = "mongodb"))]
-        {
-            return Err(Error::not_implemented("MongoDB支持需要启用mongodb特性"));
-        }
-        
-        #[cfg(feature = "mongodb")]
-        {
-            return Ok(());
-        }
+        // 注意：mongodb 特性未在 Cargo.toml 中定义，直接返回未实现错误
+        return Err(Error::not_implemented("MongoDB支持需要启用mongodb特性"));
     }
 }
 
@@ -585,24 +396,26 @@ impl DataLoader for DatabaseLoader {
             },
             ConnectorDatabaseType::MySQL => {
                 // MySQL加载实现
-                #[cfg(feature = "mysql")]
+                // 注意：mysql 特性未在 Cargo.toml 中定义，已注释
+        // #[cfg(feature = "mysql")]
                 {
                     self.load_from_mysql(&local_db_config, &mut features, &mut metadata).await?;
                 }
                 
-                #[cfg(not(feature = "mysql"))]
+                // #[cfg(not(feature = "mysql"))]
                 {
                     return Err(Error::not_implemented("MySQL支持需要启用mysql特性"));
                 }
             },
             ConnectorDatabaseType::MongoDB => {
                 // MongoDB加载实现
-                #[cfg(feature = "mongodb")]
+                // 注意：mongodb 特性未在 Cargo.toml 中定义，已注释
+        // #[cfg(feature = "mongodb")]
                 {
                     self.load_from_mongodb(&local_db_config, &mut features, &mut metadata).await?;
                 }
                 
-                #[cfg(not(feature = "mongodb"))]
+                // #[cfg(not(feature = "mongodb"))]
                 {
                     return Err(Error::not_implemented("MongoDB支持需要启用mongodb特性"));
                 }
@@ -658,6 +471,10 @@ impl DataLoader for DatabaseLoader {
         use crate::data::DatabaseType as ConnectorDatabaseType;
         let schema = match db_config.db_type {
             ConnectorDatabaseType::SQLite => {
+                // 注意：sqlite 特性未在 Cargo.toml 中定义，直接返回未实现错误
+                return Err(Error::not_implemented("SQLite架构获取需要启用sqlite特性"));
+                
+                /*
                 // SQLite架构获取实现
                 #[cfg(feature = "sqlite")]
                 {
@@ -701,15 +518,17 @@ impl DataLoader for DatabaseLoader {
                     }
                     schema
                 }
+                */
             },
             ConnectorDatabaseType::PostgreSQL => {
                 // PostgreSQL架构获取实现
-                #[cfg(feature = "postgres")]
+                // 注意：postgres 特性未在 Cargo.toml 中定义，已注释
+        // #[cfg(feature = "postgres")]
                 {
                     self.get_postgres_schema(&local_db_config).await?
                 }
                 
-                #[cfg(not(feature = "postgres"))]
+                // #[cfg(not(feature = "postgres"))]
                 {
                     // 返回默认模式
                     let mut schema = DataSchema::new("postgres_default", "1.0");
@@ -834,73 +653,12 @@ impl DataLoader for DatabaseLoader {
         // 根据数据库类型执行COUNT查询
         match db_config.db_type {
             DatabaseType::Sqlite => {
-                #[cfg(feature = "sqlite")]
-                {
-                    use rusqlite::Connection;
-                    let conn = Connection::open(&db_config.connection_string)
-                        .map_err(|e| Error::database(format!("SQLite连接错误: {}", e)))?;
-                    
-                    // 构建COUNT查询
-                    let count_query = if db_config.query.to_uppercase().starts_with("SELECT") {
-                        // 如果是SELECT查询，包装为COUNT查询
-                        format!("SELECT COUNT(*) FROM ({}) AS subquery", db_config.query)
-                    } else {
-                        // 否则使用表名
-                        if let Some(table) = &db_config.table {
-                            format!("SELECT COUNT(*) FROM {}", table)
-                        } else {
-                            return Err(Error::invalid_argument("无法确定表名，无法估算数据大小"));
-                        }
-                    };
-                    
-                    let count: i64 = conn.query_row(&count_query, rusqlite::params![], |row| {
-                        row.get(0)
-                    })
-                    .map_err(|e| Error::database(format!("SQLite COUNT查询错误: {}", e)))?;
-                    
-                    Ok(count as usize)
-                }
-                
-                #[cfg(not(feature = "sqlite"))]
-                {
-                    Err(Error::not_implemented("SQLite支持需要启用sqlite特性"))
-                }
+                // 注意：sqlite 特性未在 Cargo.toml 中定义，直接返回未实现错误
+                Err(Error::not_implemented("SQLite支持需要启用sqlite特性"))
             },
             DatabaseType::Postgres => {
-                #[cfg(feature = "postgres")]
-                {
-                    use tokio_postgres::{Client, NoTls};
-                    let (client, connection) = tokio_postgres::connect(&db_config.connection_string, NoTls)
-                        .await
-                        .map_err(|e| Error::database(format!("PostgreSQL连接错误: {}", e)))?;
-                    
-                    tokio::spawn(async move {
-                        if let Err(e) = connection.await {
-                            error!("PostgreSQL连接错误: {}", e);
-                        }
-                    });
-                    
-                    // 构建COUNT查询
-                    let count_query = if db_config.query.to_uppercase().starts_with("SELECT") {
-                        format!("SELECT COUNT(*) FROM ({}) AS subquery", db_config.query)
-                    } else if let Some(table) = &db_config.table {
-                        format!("SELECT COUNT(*) FROM {}", table)
-                    } else {
-                        return Err(Error::invalid_argument("无法确定表名，无法估算数据大小"));
-                    };
-                    
-                    let row = client.query_one(&count_query, &[])
-                        .await
-                        .map_err(|e| Error::database(format!("PostgreSQL COUNT查询错误: {}", e)))?;
-                    
-                    let count: i64 = row.get(0);
-                    Ok(count as usize)
-                }
-                
-                #[cfg(not(feature = "postgres"))]
-                {
-                    Err(Error::not_implemented("PostgreSQL支持需要启用postgres特性"))
-                }
+                // 注意：postgres 特性未在 Cargo.toml 中定义，直接返回未实现错误
+                Err(Error::not_implemented("PostgreSQL支持需要启用postgres特性"))
             },
             _ => {
                 // 其他数据库类型，返回错误而不是默认值
@@ -913,8 +671,13 @@ impl DataLoader for DatabaseLoader {
 // 为DatabaseLoader添加辅助方法
 impl DatabaseLoader {
     // 获取SQLite数据库架构
-    #[cfg(feature = "sqlite")]
-    async fn get_sqlite_schema(&self, config: &DatabaseConfig) -> Result<DataSchema> {
+    // 注意：sqlite 特性未在 Cargo.toml 中定义，已注释
+    // #[cfg(feature = "sqlite")]
+    async fn get_sqlite_schema(&self, _config: &DatabaseConfig) -> Result<DataSchema> {
+        // sqlite 特性未启用，返回未实现错误
+        return Err(Error::not_implemented("SQLite架构获取需要启用sqlite特性"));
+        
+        /*
         use rusqlite::Connection;
         
         // 连接SQLite数据库
@@ -1002,11 +765,17 @@ impl DatabaseLoader {
         }
         
         Ok(schema)
+        */
     }
     
     // 获取PostgreSQL数据库架构
-    #[cfg(feature = "postgres")]
-    async fn get_postgres_schema(&self, config: &DatabaseConfig) -> Result<DataSchema> {
+    // 注意：postgres 特性未在 Cargo.toml 中定义，已注释
+    // #[cfg(feature = "postgres")]
+    async fn get_postgres_schema(&self, _config: &DatabaseConfig) -> Result<DataSchema> {
+        // postgres 特性未启用，返回未实现错误
+        return Err(Error::not_implemented("PostgreSQL架构获取需要启用postgres特性"));
+        
+        /*
         use tokio_postgres::{Client, NoTls};
         
         // 连接PostgreSQL数据库
@@ -1097,5 +866,6 @@ impl DatabaseLoader {
         }
         
         Ok(schema)
+        */
     }
 }

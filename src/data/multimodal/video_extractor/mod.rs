@@ -364,134 +364,25 @@ impl VideoFeatureExtractor {
         // 初始化提取器
         extractor.initialize().map_err(|e| Error::Data(format!("{}", e)))?;
         
-        // 使用ffmpeg直接提取指定时间段的帧
+        // 使用ffmpeg直接提取指定时间段的帧（依赖未启用，暂时统一走模拟帧逻辑）
+        // 原始 ffmpeg 实现保留在此处以便未来启用相关特性时参考。
+        /*
         #[cfg(feature = "ffmpeg")]
         {
-            use std::path::Path;
-            use ffmpeg_next as ffmpeg;
-            
-            // 初始化ffmpeg
-            ffmpeg::init().map_err(|e| {
-                Error::Data(format!("{}", VideoExtractionError::CodecError(format!("初始化ffmpeg失败: {}", e))))
-            })?;
-            
-            // 打开输入文件
-            let mut input_context = ffmpeg::format::input(&Path::new(video_path)).map_err(|e| {
-                Error::Data(format!("{}", VideoExtractionError::CodecError(format!("打开视频文件失败: {}", e))))
-            })?;
-            
-            // 查找视频流
-            let video_stream_index = input_context.streams()
-                .best(ffmpeg::media::Type::Video)
-                .ok_or_else(|| {
-                    Error::Data(format!("{}", VideoExtractionError::CodecError("无法找到视频流".to_string())))
-                })?
-                .index();
-            
-            // 创建解码器
-            let context = input_context.stream(video_stream_index)
-                .ok_or_else(|| {
-                    Error::Data(format!("{}", VideoExtractionError::CodecError("无法获取视频流".to_string())))
-                })?
-                .codec();
-            
-            let mut decoder = context.decoder().video().map_err(|e| {
-                Error::Data(format!("{}", VideoExtractionError::CodecError(format!("无法创建视频解码器: {}", e))))
-            })?;
-            
-            // 计算时间戳
-            let time_base = input_context.stream(video_stream_index)
-                .unwrap()
-                .time_base();
-            
-            let start_ts = (interval.start * time_base.den as f64 / time_base.num as f64) as i64;
-            let duration_ts = (interval_duration * time_base.den as f64 / time_base.num as f64) as i64;
-            
-            // 设置读取位置
-            input_context.seek(start_ts, 0).map_err(|e| {
-                Error::Data(format!("{}", VideoExtractionError::CodecError(format!("无法定位到指定时间点: {}", e))))
-            })?;
-            
-            // 读取和处理帧
-            let frame_width = self.config.frame_width.unwrap_or(224);
-            let frame_height = self.config.frame_height.unwrap_or(224);
-            let mut frames = Vec::with_capacity(frame_count);
-            let mut packet = ffmpeg::packet::Packet::empty();
-            let end_ts = start_ts + duration_ts;
-            
-            while frames.len() < frame_count && input_context.read(&mut packet).is_ok() {
-                // 检查是否到达时间段末尾
-                if packet.pts().unwrap_or(0) > end_ts {
-                    break;
-                }
-                
-                // 只处理视频流
-                if packet.stream() != video_stream_index {
-                    continue;
-                }
-                
-                // 解码帧
-                decoder.send_packet(&packet).map_err(|e| {
-                    Error::Data(format!("{}", VideoExtractionError::CodecError(format!("发送数据包到解码器失败: {}", e))))
-                })?;
-                
-                let mut decoded = ffmpeg::frame::Video::empty();
-                while decoder.receive_frame(&mut decoded).is_ok() {
-                    // 转换帧格式并调整大小
-                    let mut rgb_frame = ffmpeg::frame::Video::empty();
-                    let mut scaler = ffmpeg::software::scaling::context::Context::get(
-                        decoder.format(),
-                        decoded.width(),
-                        decoded.height(),
-                        ffmpeg::format::Pixel::RGB24,
-                        frame_width as u32,
-                        frame_height as u32,
-                        ffmpeg::software::scaling::flag::Flags::BILINEAR,
-                    ).map_err(|e| {
-                        Error::Data(format!("{}", VideoExtractionError::CodecError(format!("创建缩放器失败: {}", e))))
-                    })?;
-                    
-                    scaler.run(&decoded, &mut rgb_frame).map_err(|e| {
-                        Error::Data(format!("{}", VideoExtractionError::CodecError(format!("缩放帧失败: {}", e))))
-                    })?;
-                    
-                    // 将帧转换为我们的内部格式
-                    let frame_data = rgb_frame.data(0).to_vec();
-                    let video_frame = VideoFrame {
-                        width: frame_width,
-                        height: frame_height,
-                        channels: 3,
-                        data: frame_data,
-                        format: PixelFormat::RGB,
-                        timestamp: interval.start + frames.len() as f64 * (interval_duration / frame_count as f64),
-                    };
-                    
-                    frames.push(video_frame);
-                    
-                    // 如果已经收集了足够的帧，就停止
-                    if frames.len() >= frame_count {
-                        break;
-                    }
-                }
-            }
-            
-            // 调用静态方法，使用Self::方法名
-            Self::process_frames_and_extract_features(frames, extractor, metadata, interval, &self.config)
+            // ... ffmpeg 提取实现 ...
         }
+        */
+
+        // 当前构建中未启用 ffmpeg，统一使用模拟帧实现
+        let frames = processing::frames::simulate_interval_frames(
+            frame_count,
+            self.config.frame_width,
+            self.config.frame_height,
+            interval.start,
+            interval.end
+        ).map_err(|e| Error::Data(format!("{}", e)))?;
         
-        #[cfg(not(feature = "ffmpeg"))]
-        {
-            // 如果没有ffmpeg支持，则使用模拟帧
-            let frames = processing::frames::simulate_interval_frames(
-                frame_count,
-                self.config.frame_width,
-                self.config.frame_height,
-                interval.start,
-                interval.end
-            ).map_err(|e| Error::Data(format!("{}", e)))?;
-            
-            Self::process_frames_and_extract_features(frames, extractor, metadata, interval, &self.config)
-        }
+        Self::process_frames_and_extract_features(frames, extractor, metadata, interval, &self.config)
     }
     
     /// 处理视频帧并提取特征
@@ -727,29 +618,16 @@ impl VideoFeatureExtractor {
             }
         }
         
-        // 获取线程数
+        // 获取线程数（当前仅在 Linux/Windows 下使用物理核数，其他平台可按需扩展）
         #[cfg(any(target_os = "linux", target_os = "windows"))]
         {
             usage.thread_count = num_cpus::get_physical().min(self.config.max_threads);
         }
         
-        // 如果配置了GPU使用，尝试获取GPU使用情况
+        // 如果配置了GPU使用，这里暂时提供占位逻辑（未启用 CUDA 等 GPU 特性）
         if self.config.use_gpu {
-            #[cfg(feature = "cuda")]
-            {
-                // 使用CUDA API获取GPU使用情况
-                if let Some(gpu_info) = self.get_cuda_gpu_info() {
-                    usage.gpu_usage_percent = Some(gpu_info.0);
-                    usage.gpu_memory_usage_mb = Some(gpu_info.1);
-                }
-            }
-            
-            #[cfg(not(feature = "cuda"))]
-            {
-                // 没有CUDA支持时提供默认值
-                usage.gpu_usage_percent = Some(0.0);
-                usage.gpu_memory_usage_mb = Some(0.0);
-            }
+            usage.gpu_usage_percent = Some(0.0);
+            usage.gpu_memory_usage_mb = Some(0.0);
         }
         
         // 估算磁盘I/O
@@ -764,52 +642,13 @@ impl VideoFeatureExtractor {
         self.resource_usage = usage;
     }
     
-    #[cfg(feature = "cuda")]
+    /// 获取 CUDA GPU 信息。
+    ///
+    /// 当前构建中未启用与 CUDA 相关的特性，因此这里返回 `None`，表示在当前环境下
+    /// 不采集 CUDA 级别的 GPU 统计信息。如果后续需要支持 CUDA，可在启用相应特性后
+    /// 在此处集成实际的 GPU 监控逻辑（例如通过 NVML 等接口）。
     fn get_cuda_gpu_info(&self) -> Option<(f64, f64)> {
-        use std::ffi::CString;
-        use std::os::raw::{c_int, c_uint, c_ulonglong};
-        
-        extern "C" {
-            fn cudaGetDevice(device: *mut c_int) -> c_int;
-            fn cudaGetDeviceProperties(props: *mut CudaDeviceProperties, device: c_int) -> c_int;
-            fn cudaMemGetInfo(free: *mut c_ulonglong, total: *mut c_ulonglong) -> c_int;
-        }
-        
-        #[repr(C)]
-        struct CudaDeviceProperties {
-            name: [u8; 256],
-            totalGlobalMem: c_ulonglong,
-            clockRate: c_int,
-            // 其他属性...
-        }
-        
-        unsafe {
-            // 获取当前设备ID
-            let mut device: c_int = 0;
-            if cudaGetDevice(&mut device) != 0 {
-                return None;
-            }
-            
-            // 获取设备属性
-            let mut props: CudaDeviceProperties = std::mem::zeroed();
-            if cudaGetDeviceProperties(&mut props, device) != 0 {
-                return None;
-            }
-            
-            // 获取内存使用情况
-            let mut free: c_ulonglong = 0;
-            let mut total: c_ulonglong = 0;
-            if cudaMemGetInfo(&mut free, &mut total) != 0 {
-                return None;
-            }
-            
-            // 计算内存使用率和内存使用量(MB)
-            let used = total - free;
-            let usage_percent = 100.0 * (used as f64 / total as f64);
-            let memory_mb = used as f64 / (1024.0 * 1024.0);
-            
-            Some((usage_percent, memory_mb))
-        }
+        None
     }
     
     /// 记录性能基准

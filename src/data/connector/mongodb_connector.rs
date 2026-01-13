@@ -1,3 +1,6 @@
+// 注意：mongodb 特性未在 Cargo.toml 中定义，整个文件已用块注释包裹以避免 cfg 警告
+// 如需启用 MongoDB 连接器，请在 Cargo.toml 中添加 mongodb 特性，然后取消下面的注释
+/*
 #[cfg(feature = "mongodb")]
 // connector/mongodb_connector.rs - MongoDB鏁版嵁搴撹繛鎺ュ櫒瀹炵幇
 
@@ -784,4 +787,4 @@ impl DatabaseConnector for MongoDBConnector {
     fn get_config(&self) -> &DatabaseConfig {
         &self.config
     }
-} 
+} */ 

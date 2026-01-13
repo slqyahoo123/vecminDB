@@ -3,8 +3,11 @@
 //! 梅尔谱图是一种音频特征，它模拟了人类听觉系统对不同频率的音频信号的响应。
 //! 梅尔谱图通常用于语音识别、音乐分析和声音分类等应用。
 
+#[cfg(feature = "multimodal")]
 use ndarray::Array2;
+#[cfg(feature = "multimodal")]
 use crate::Result;
+#[cfg(feature = "multimodal")]
 use crate::Error;
 #[cfg(feature = "multimodal")]
 use super::{

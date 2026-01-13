@@ -434,6 +434,7 @@ impl CompressionUtils {
         algorithm: CompressionAlgorithm,
         level: CompressionLevel
     ) -> Result<usize> {
+        #[cfg(any(feature = "tempfile", feature = "walkdir"))]
         use tar::{Builder, Header};
         
         // 创建临时TAR文件

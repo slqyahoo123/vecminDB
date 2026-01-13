@@ -6,12 +6,11 @@ use std::fmt::{Debug, Formatter, Result as FmtResult};
 use image::{GenericImageView, DynamicImage, imageops};
 #[cfg(feature = "multimodal")]
 use image::imageops::FilterType;
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
+use base64::Engine as _;
 use rayon::prelude::*;
 // use serde::{Serialize, Deserialize}; // derive used inline as serde::Serialize / serde::Deserialize
 
 use crate::{Error, Result};
-use crate::compat::tensor::TensorData;
 use crate::data::multimodal::extractors::interface::FeatureExtractor;
 use crate::data::multimodal::*;
 use crate::data::multimodal::models::image_models::ImageFeatureModel;
@@ -262,45 +261,39 @@ impl ImageFeatureExtractor {
     
     /// 增强图像质量
     #[cfg(feature = "multimodal")]
-    fn enhance_quality(&self, img: &DynamicImage, enhancement: &QualityEnhancement) -> Result<DynamicImage> {
+    fn enhance_quality(&self, img: &DynamicImage, enhancement: & QualityEnhancement) -> Result<DynamicImage> {
         let mut processed = img.clone();
         
-        // 锐化处理
+        // 根据配置依次执行锐化、降噪和超分辨率等增强操作
         if enhancement.sharpness > 0.0 {
             processed = self.apply_sharpening(&processed, enhancement.sharpness)?;
         }
         
-        // 降噪处理
         if enhancement.denoise > 0.0 {
             processed = self.apply_denoising(&processed, enhancement.denoise)?;
         }
         
-        // 超分辨率处理（简化实现）
+        // 超分辨率处理：通过多级插值提升空间分辨率，并在必要时限制输出尺寸
         if enhancement.super_resolution_factor > 1 {
             let factor = enhancement.super_resolution_factor as u32;
-            let new_width = processed.width() * factor;
-            let new_height = processed.height() * factor;
+            let new_width = processed.width().saturating_mul(factor);
+            let new_height = processed.height().saturating_mul(factor);
             
-            processed = DynamicImage::ImageRgba8(
-                imageops::resize(
-                    &processed.to_rgba8(),
-                    new_width,
-                    new_height,
-                    FilterType::Lanczos3
-                )
+            let mut upscaled = imageops::resize(
+                &processed.to_rgba8(),
+                new_width,
+                new_height,
+                FilterType::Lanczos3,
             );
             
-            // 如果设置了resize_dim，确保不超过
+            // 如有配置最大尺寸，则进行裁剪或缩放以保证不超出限制
             if new_width > self.config.resize_dim || new_height > self.config.resize_dim {
-                processed = DynamicImage::ImageRgba8(
-                    imageops::resize(
-                        &processed.to_rgba8(),
-                        self.config.resize_dim,
-                        self.config.resize_dim,
-                        FilterType::Lanczos3
-                    )
-                );
+                let target_w = self.config.resize_dim;
+                let target_h = self.config.resize_dim * new_height / new_width;
+                upscaled = imageops::resize(&upscaled, target_w, target_h, FilterType::Lanczos3);
             }
+            
+            processed = DynamicImage::ImageRgba8(upscaled);
         }
         
         Ok(processed)

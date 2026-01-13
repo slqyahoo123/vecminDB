@@ -20,16 +20,13 @@ pub use types::*;
 pub use mysql_connector::MySQLConnector;
 pub use postgresql_connector::PostgreSQLConnector;
 pub use sqlite_connector::SQLiteConnector;
-#[cfg(feature = "mongodb")]
-pub use mongodb_connector::MongoDBConnector;
+// 下面这些连接器依赖的特性/外部库当前未在 Cargo.toml 中声明，先不对外导出
+// pub use mongodb_connector::MongoDBConnector;
 #[cfg(feature = "redis")]
 pub use redis_connector::RedisConnector;
-#[cfg(feature = "cassandra")]
-pub use cassandra_connector::CassandraConnector;
-#[cfg(feature = "elasticsearch")]
-pub use elasticsearch_connector::ElasticsearchConnector;
-#[cfg(feature = "neo4rs")]
-pub use neo4j_connector::Neo4jConnector;
+// pub use cassandra_connector::CassandraConnector;
+// pub use elasticsearch_connector::ElasticsearchConnector;
+// pub use neo4j_connector::Neo4jConnector;
 pub use manager::{DatabaseManager, DatabaseConnection};
 pub use factory::DatabaseConnectorFactory;
 

@@ -516,15 +516,35 @@ impl extractors::interface::ModalityExtractor for TextModalityExtractor {
             .ok_or_else(|| Error::InvalidArgument("缺少文本数据".to_string()))?;
         
         // 使用配置创建文本特征提取器并提取特征
-        // 这里简化实现，返回空的 TensorData
+        use crate::data::text_features::factory::TextFeatureExtractorFactory;
+        use crate::data::text_features::config::TextFeatureConfig;
+        
+        let text_config = TextFeatureConfig {
+            method: crate::data::text_features::methods::TextFeatureMethod::TfIdf,
+            dimension: self.config.dimension,
+            normalize: true,
+            ..Default::default()
+        };
+        
+        let extractor = TextFeatureExtractorFactory::create(&text_config)
+            .map_err(|e| Error::InvalidArgument(format!("创建文本特征提取器失败: {}", e)))?;
+        
+        let features = extractor.extract(text)
+            .map_err(|e| Error::InvalidArgument(format!("提取文本特征失败: {}", e)))?;
+        
         Ok(extractors::interface::TensorData {
             id: Uuid::new_v4().to_string(),
-            shape: vec![0],
-            data: Vec::new(),
+            shape: vec![1, features.len()],
+            data: features,
             dtype: "float32".to_string(),
             device: "cpu".to_string(),
             requires_grad: false,
-            metadata: HashMap::new(),
+            metadata: {
+                let mut meta = HashMap::new();
+                meta.insert("modality".to_string(), "text".to_string());
+                meta.insert("dimension".to_string(), self.config.dimension.to_string());
+                meta
+            },
             created_at: Utc::now(),
             updated_at: Utc::now(),
         })
@@ -575,19 +595,51 @@ impl ModalityExtractor for ImageModalityExtractor {
 
 // 实现 interface.rs 中的 ModalityExtractor trait
 impl extractors::interface::ModalityExtractor for ImageModalityExtractor {
-    fn extract_features(&self, _data: &serde_json::Value) -> Result<extractors::interface::TensorData> {
-        // 简化实现，返回空的 TensorData
-        Ok(extractors::interface::TensorData {
-            id: Uuid::new_v4().to_string(),
-            shape: vec![0],
-            data: Vec::new(),
-            dtype: "float32".to_string(),
-            device: "cpu".to_string(),
-            requires_grad: false,
-            metadata: HashMap::new(),
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-        })
+    fn extract_features(&self, data: &serde_json::Value) -> Result<extractors::interface::TensorData> {
+        // 从 JSON 中提取图像数据
+        #[cfg(feature = "multimodal")]
+        {
+            use crate::data::multimodal::extractors::image::ImageFeatureExtractor;
+            use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+            
+            let image_data = if let Some(serde_json::Value::String(base64_data)) = data.get("data") {
+                BASE64.decode(base64_data.as_bytes())
+                    .map_err(|e| Error::InvalidArgument(format!("Base64解码失败: {}", e)))?
+            } else if let Some(serde_json::Value::String(path)) = data.get("path") {
+                std::fs::read(path)
+                    .map_err(|e| Error::InvalidArgument(format!("读取图像文件失败: {}", e)))?
+            } else {
+                return Err(Error::InvalidArgument("缺少图像数据（需要 'data' 或 'path' 字段）".to_string()));
+            };
+            
+            // 使用图像特征提取器提取特征
+            let extractor = ImageFeatureExtractor::new(self.config.clone())
+                .map_err(|e| Error::InvalidArgument(format!("创建图像特征提取器失败: {}", e)))?;
+            
+            let features = extractor.extract_features_from_bytes(&image_data)
+                .map_err(|e| Error::InvalidArgument(format!("提取图像特征失败: {}", e)))?;
+            
+            Ok(extractors::interface::TensorData {
+                id: Uuid::new_v4().to_string(),
+                shape: vec![1, features.len()],
+                data: features,
+                dtype: "float32".to_string(),
+                device: "cpu".to_string(),
+                requires_grad: false,
+                metadata: {
+                    let mut meta = HashMap::new();
+                    meta.insert("modality".to_string(), "image".to_string());
+                    meta.insert("dimension".to_string(), features.len().to_string());
+                    meta
+                },
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+            })
+        }
+        #[cfg(not(feature = "multimodal"))]
+        {
+            Err(Error::feature_not_enabled("multimodal"))
+        }
     }
     
     fn get_config(&self) -> Result<serde_json::Value> {
@@ -635,19 +687,50 @@ impl ModalityExtractor for AudioModalityExtractor {
 
 // 实现 interface.rs 中的 ModalityExtractor trait
 impl extractors::interface::ModalityExtractor for AudioModalityExtractor {
-    fn extract_features(&self, _data: &serde_json::Value) -> Result<extractors::interface::TensorData> {
-        // 简化实现，返回空的 TensorData
-        Ok(extractors::interface::TensorData {
-            id: Uuid::new_v4().to_string(),
-            shape: vec![0],
-            data: Vec::new(),
-            dtype: "float32".to_string(),
-            device: "cpu".to_string(),
-            requires_grad: false,
-            metadata: HashMap::new(),
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-        })
+    fn extract_features(&self, data: &serde_json::Value) -> Result<extractors::interface::TensorData> {
+        // 从 JSON 中提取音频数据
+        #[cfg(feature = "multimodal")]
+        {
+            use crate::data::multimodal::extractors::audio::extractor::AudioFeatureExtractor;
+            use crate::data::multimodal::extractors::audio::config::AudioSource;
+            use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+            
+            let audio_source = if let Some(serde_json::Value::String(base64_data)) = data.get("data") {
+                AudioSource::Base64(base64_data.clone())
+            } else if let Some(serde_json::Value::String(path)) = data.get("path") {
+                AudioSource::File(std::path::PathBuf::from(path))
+            } else if let Some(serde_json::Value::String(url)) = data.get("url") {
+                AudioSource::URL(url.clone())
+            } else {
+                return Err(Error::InvalidArgument("缺少音频数据（需要 'data'、'path' 或 'url' 字段）".to_string()));
+            };
+            
+            // 使用音频特征提取器提取特征
+            let extractor = AudioFeatureExtractor::new(self.config.clone());
+            
+            let feature_vector = extractor.extract_from_source(&audio_source)
+                .map_err(|e| Error::InvalidArgument(format!("提取音频特征失败: {}", e)))?;
+            
+            Ok(extractors::interface::TensorData {
+                id: Uuid::new_v4().to_string(),
+                shape: vec![1, feature_vector.data.len()],
+                data: feature_vector.data,
+                dtype: "float32".to_string(),
+                device: "cpu".to_string(),
+                requires_grad: false,
+                metadata: {
+                    let mut meta = feature_vector.metadata;
+                    meta.insert("modality".to_string(), "audio".to_string());
+                    meta
+                },
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+            })
+        }
+        #[cfg(not(feature = "multimodal"))]
+        {
+            Err(Error::feature_not_enabled("multimodal"))
+        }
     }
     
     fn get_config(&self) -> Result<serde_json::Value> {

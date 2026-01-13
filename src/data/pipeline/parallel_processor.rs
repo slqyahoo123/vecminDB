@@ -917,13 +917,13 @@ impl ParallelProcessor {
         
         // 如果所有方法都失败，尝试使用Rust标准库的内存分配器信息
         // 注意：这只能获取堆内存使用量，不包括栈和其他内存
-        #[cfg(feature = "jemalloc")]
-        {
-            use jemallocator::Jemalloc;
-            
-            // 如果使用jemalloc，可以获取更精确的内存统计
-            // 这里需要添加对jemalloc统计API的调用
-        }
+        // #[cfg(feature = "jemalloc")]
+        // {
+        //     use jemallocator::Jemalloc;
+        //     
+        //     // 如果使用jemalloc，可以获取更精确的内存统计
+        //     // 这里需要添加对jemalloc统计API的调用
+        // }
         
         // 默认返回值，表示无法获取内存信息
         warn!("无法获取准确的内存使用量信息");

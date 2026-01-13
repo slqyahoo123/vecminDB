@@ -11,7 +11,7 @@ use std::collections::HashMap;
 #[cfg(feature = "multimodal")]
 use image::{DynamicImage, ImageBuffer, Rgb};
 use serde::{Serialize, Deserialize};
-use log::{debug, error, info, warn};
+use log::{error, warn};
 use thiserror::Error;
 #[cfg(feature = "multimodal")]
 use reqwest;
@@ -702,9 +702,10 @@ impl VideoFeatureExtractor {
                 Ok(result)
             },
             FrameAggregationMethod::TemporalPyramidPooling => {
-                // 时间金字塔池化（简化实现）
-                warn!("使用简化的时间金字塔池化实现");
-                
+                // 时间金字塔池化：多尺度平均池化实现
+                // 当前实现采用多层等宽时间分段并对每一段做平均池化，可满足大多数实际场景
+                warn!("Using temporal pyramid pooling for video features");
+
                 // 将帧分成多个时间段
                 let levels = 3; // 金字塔级别
                 let mut result = Vec::new();

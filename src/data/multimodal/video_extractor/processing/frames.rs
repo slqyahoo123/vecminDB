@@ -149,37 +149,55 @@ fn apply_gaussian_blur(frame: &VideoFrame, radius: usize) -> Result<VideoFrame, 
     let height = frame.height;
     let channels = frame.channels;
     
-    // 简化实现：使用简单的均值滤波代替高斯滤波
+    // 计算高斯核的标准差（sigma），通常为 radius / 3
+    let sigma = (radius as f32 / 3.0).max(0.5);
+    let kernel_size = radius * 2 + 1;
+    
+    // 生成高斯核
+    let mut gaussian_kernel = Vec::with_capacity(kernel_size * kernel_size);
+    let mut kernel_sum = 0.0f32;
+    
+    for ky in 0..kernel_size {
+        for kx in 0..kernel_size {
+            let dx = (kx as isize - radius as isize) as f32;
+            let dy = (ky as isize - radius as isize) as f32;
+            let weight = (-(dx * dx + dy * dy) / (2.0 * sigma * sigma)).exp();
+            gaussian_kernel.push(weight);
+            kernel_sum += weight;
+        }
+    }
+    
+    // 归一化核
+    for weight in &mut gaussian_kernel {
+        *weight /= kernel_sum;
+    }
+    
     let mut result = VideoFrame::new(width, height, channels, frame.timestamp);
     
     for y in 0..height {
         for x in 0..width {
             for c in 0..channels {
-                let mut sum = 0;
-                let mut count = 0;
+                let mut weighted_sum = 0.0f32;
                 
-                // 简单的半径周围平均
-                let radius_i = radius as isize;
-                for dy in -radius_i..=radius_i {
-                    for dx in -radius_i..=radius_i {
-                        let nx = x as isize + dx;
-                        let ny = y as isize + dy;
+                // 应用高斯核
+                for ky in 0..kernel_size {
+                    for kx in 0..kernel_size {
+                        let nx = x as isize + (kx as isize - radius as isize);
+                        let ny = y as isize + (ky as isize - radius as isize);
                         
                         if nx >= 0 && nx < width as isize && ny >= 0 && ny < height as isize {
                             let idx = ((ny as usize) * width + (nx as usize)) * channels + c;
                             if idx < frame.data.len() {
-                                sum += frame.data[idx] as u32;
-                                count += 1;
+                                let kernel_idx = ky * kernel_size + kx;
+                                weighted_sum += frame.data[idx] as f32 * gaussian_kernel[kernel_idx];
                             }
                         }
                     }
                 }
                 
-                let avg = if count > 0 { (sum / count) as u8 } else { 0 };
-                
                 let dst_idx = (y * width + x) * channels + c;
                 if dst_idx < result.data.len() {
-                    result.data[dst_idx] = avg;
+                    result.data[dst_idx] = weighted_sum.clamp(0.0, 255.0) as u8;
                 }
             }
         }

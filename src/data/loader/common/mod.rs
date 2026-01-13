@@ -14,25 +14,26 @@ use chrono::{Local};
 
 // 外部依赖（条件编译以支持可选特性）
 // 未来候选格式与数据源开关："http"(HTTP/WS/Kafka流)、"parquet"、"avro"、"postgres"、"mysql"、"sqlite"、"redis"、"mongodb"、"cassandra"、"elasticsearch"、"compression"
-#[cfg(feature = "http")]
-use reqwest;
+// 注意：以下特性未在 Cargo.toml 中定义，已注释
+// #[cfg(feature = "http")]
+// use reqwest;
 // tokio/csv 在 Cargo.toml 默认已启用或为常规依赖，不使用 feature 门控
 // tokio is referenced via fully-qualified paths; no top-level import needed
 use ::csv;
-#[cfg(feature = "postgres")]
-use tokio_postgres;
-#[cfg(feature = "mysql")]
-use mysql_async;
-#[cfg(feature = "sqlite")]
-use rusqlite;
+// #[cfg(feature = "postgres")]
+// use tokio_postgres;
+// #[cfg(feature = "mysql")]
+// use mysql_async;
+// #[cfg(feature = "sqlite")]
+// use rusqlite;
 #[cfg(feature = "redis")]
 use redis;
-#[cfg(feature = "mongodb")]
-use mongodb;
-#[cfg(feature = "cassandra")]
-use scylla::{Session as ScyllaSession, SessionBuilder, IntoTypedRows, QueryResult as ScyllaQueryResult};
-#[cfg(feature = "elasticsearch")]
-use elasticsearch;
+// #[cfg(feature = "mongodb")]
+// use mongodb;
+// #[cfg(feature = "cassandra")]
+// use scylla::{Session as ScyllaSession, SessionBuilder, IntoTypedRows, QueryResult as ScyllaQueryResult};
+// #[cfg(feature = "elasticsearch")]
+// use elasticsearch;
 
 use crate::data::{DataBatch, DataConfig, DataSchema, DataValue};
 use crate::error::{Error, Result};
@@ -105,7 +106,7 @@ impl CommonDataLoader {
                 #[cfg(not(feature = "excel"))]
                 {
                     // 如果 Excel 功能未启用，尝试作为 JSON 加载（降级方案）
-                    warn!("Excel 功能未启用，尝试作为 JSON 加载");
+                    log::warn!("Excel 功能未启用，尝试作为 JSON 加载");
                     self.load_json(path).await
                 }
             }
@@ -386,10 +387,12 @@ impl CommonDataLoader {
     }
     
     // 加载Avro文件
-    async fn load_avro(&self, path: &str) -> Result<DataBatch> {
-        debug!("加载Avro文件: {}", path);
+    async fn load_avro(&self, _path: &str) -> Result<DataBatch> {
+        // 注意：avro 特性未在 Cargo.toml 中定义，直接返回未实现错误
+        return Err(Error::not_implemented("Avro支持需要启用avro特性"));
         
-        #[cfg(feature = "avro")]
+        /* 已注释：avro 特性未定义
+        // #[cfg(feature = "avro")]
         {
             use apache_avro::{Reader, from_avro_datum};
             use apache_avro::types::Value as AvroValue;
@@ -463,11 +466,7 @@ impl CommonDataLoader {
             
             Ok(batch)
         }
-        
-        #[cfg(not(feature = "avro"))]
-        {
-            Err(Error::not_implemented("Avro支持需要启用avro特性"))
-        }
+        */
     }
     
     // 加载自定义文本格式
@@ -713,40 +712,13 @@ impl CommonDataLoader {
                 // 根据数据库类型执行查询
                 let query_result: Result<QueryResult> = match &db_config.db_type {
                     crate::data::connector::DatabaseType::PostgreSQL => {
-                        #[cfg(feature = "postgres")]
-                        if let crate::data::connector::DatabaseConnection::PostgreSQL(client) = &connection {
-                            Ok(self.execute_postgresql_query(client, query).await?)
-                        } else {
-                            Err(Error::invalid_argument("PostgreSQL连接类型不匹配"))
-                        }
-                        #[cfg(not(feature = "postgres"))]
-                        {
-                            Err(Error::not_implemented("PostgreSQL支持需要启用postgres特性"))
-                        }
+                        Err(Error::not_implemented("PostgreSQL支持需要启用postgres特性"))
                     },
                     crate::data::connector::DatabaseType::MySQL => {
-                        #[cfg(feature = "mysql")]
-                        if let crate::data::connector::DatabaseConnection::MySQL(conn) = &connection {
-                            Ok(self.execute_mysql_query(conn, query).await?)
-                        } else {
-                            Err(Error::invalid_argument("MySQL连接类型不匹配"))
-                        }
-                        #[cfg(not(feature = "mysql"))]
-                        {
-                            Err(Error::not_implemented("MySQL支持需要启用mysql特性"))
-                        }
+                        Err(Error::not_implemented("MySQL支持需要启用mysql特性"))
                     },
                     crate::data::connector::DatabaseType::SQLite => {
-                        #[cfg(feature = "sqlite")]
-                        if let crate::data::connector::DatabaseConnection::SQLite(conn) = &connection {
-                            Ok(self.execute_sqlite_query(conn, query).await?)
-                        } else {
-                            Err(Error::invalid_argument("SQLite连接类型不匹配"))
-                        }
-                        #[cfg(not(feature = "sqlite"))]
-                        {
-                            Err(Error::not_implemented("SQLite支持需要启用sqlite特性"))
-                        }
+                        Err(Error::not_implemented("SQLite支持需要启用sqlite特性"))
                     },
                     crate::data::connector::DatabaseType::Redis => {
                         #[cfg(feature = "redis")]
@@ -766,46 +738,13 @@ impl CommonDataLoader {
                         }
                     },
                     crate::data::connector::DatabaseType::MongoDB => {
-                        #[cfg(feature = "mongodb")]
-                        if let crate::data::connector::DatabaseConnection::MongoDB(db) = &connection {
-                            Ok(self.execute_mongodb_query(db, query).await?)
-                        } else {
-                            Err(Error::invalid_argument("MongoDB连接类型不匹配"))
-                        }
-                        #[cfg(not(feature = "mongodb"))]
-                        {
-                            Err(Error::not_implemented("MongoDB支持需要启用mongodb特性"))
-                        }
+                        Err(Error::not_implemented("MongoDB支持需要启用mongodb特性"))
                     },
                     crate::data::connector::DatabaseType::Cassandra => {
-                        // 对于Cassandra，我们需要创建专门的连接
-                        #[cfg(feature = "cassandra")]
-                        {
-                            // 创建ScyllaDB会话
-                            let session = SessionBuilder::new()
-                                .known_node(&db_config.connection_string)
-                                .build()
-                                .await
-                                .map_err(|e| Error::database_operation(&format!("Cassandra连接失败: {}", e)))?;
-                            
-                            Ok(self.execute_cassandra_query(&session, query).await?)
-                        }
-                        #[cfg(not(feature = "cassandra"))]
-                        {
-                            Err(Error::not_implemented("Cassandra支持需要启用cassandra特性"))
-                        }
+                        Err(Error::not_implemented("Cassandra支持需要启用cassandra特性"))
                     },
                     crate::data::connector::DatabaseType::Elasticsearch => {
-                        #[cfg(feature = "elasticsearch")]
-                        if let crate::data::connector::DatabaseConnection::Elasticsearch(client) = &connection {
-                            Ok(self.execute_elasticsearch_query(client, query).await?)
-                        } else {
-                            Err(Error::invalid_argument("Elasticsearch连接类型不匹配"))
-                        }
-                        #[cfg(not(feature = "elasticsearch"))]
-                        {
-                            Err(Error::not_implemented("Elasticsearch支持需要启用elasticsearch特性"))
-                        }
+                        Err(Error::not_implemented("Elasticsearch支持需要启用elasticsearch特性"))
                     },
                     _ => {
                         Err(Error::invalid_argument(&format!(
@@ -893,7 +832,7 @@ impl CommonDataLoader {
             }
         } else if source.starts_with("tcp://") {
             // TCP 流
-            #[cfg(feature = "tokio")]
+            // #[cfg(feature = "tokio")]
             {
                 let addr = source.strip_prefix("tcp://")
                     .ok_or_else(|| Error::invalid_argument("无效的TCP地址格式"))?;
@@ -922,7 +861,7 @@ impl CommonDataLoader {
                     }
                 }
             }
-            #[cfg(not(feature = "tokio"))]
+            // #[cfg(not(feature = "tokio"))]
             {
                 return Err(Error::not_implemented("TCP流支持需要启用tokio特性"));
             }
@@ -938,7 +877,7 @@ impl CommonDataLoader {
                 .ok_or_else(|| Error::invalid_argument("无效的文件路径格式"))?;
                 
             // 读取文件内容
-            #[cfg(feature = "tokio")]
+            // #[cfg(feature = "tokio")]
             {
                 let content = tokio::fs::read(file_path).await
                     .map_err(|e| Error::io(&format!("读取文件失败: {}, error: {}", file_path, e)))?;
@@ -947,7 +886,7 @@ impl CommonDataLoader {
                 metadata.insert("file_path".to_string(), file_path.to_string());
                 metadata.insert("file_size".to_string(), content.len().to_string());
             }
-            #[cfg(not(feature = "tokio"))]
+            // #[cfg(not(feature = "tokio"))]
             {
                 let content = std::fs::read(file_path)
                     .map_err(|e| Error::io(&format!("读取文件失败: {}, error: {}", file_path, e)))?;
@@ -988,158 +927,21 @@ impl CommonDataLoader {
     }
 
     // 辅助方法：执行PostgreSQL查询
-    #[cfg(feature = "postgres")]
-    async fn execute_postgresql_query(&self, connection: &tokio_postgres::Client, query: &str) -> Result<QueryResult> {
-        #[cfg(feature = "postgres")]
-        {
-            let start_time = std::time::Instant::now();
-            
-            let rows = connection.query(query, &[]).await
-                .map_err(|e| Error::database_operation(&format!("PostgreSQL查询失败: {}", e)))?;
-                
-            let mut records = Vec::new();
-            
-            for row in rows {
-                let mut record = HashMap::new();
-                for (i, column) in row.columns().iter().enumerate() {
-                    let field_name = column.name().to_string();
-                    let field_value = match column.type_() {
-                        &tokio_postgres::types::Type::INT4 => {
-                            DataValue::Integer(row.get::<_, i32>(i) as i64)
-                        },
-                        &tokio_postgres::types::Type::INT8 => {
-                            DataValue::Integer(row.get::<_, i64>(i))
-                        },
-                        &tokio_postgres::types::Type::FLOAT4 => {
-                            DataValue::Float(row.get::<_, f32>(i) as f64)
-                        },
-                        &tokio_postgres::types::Type::FLOAT8 => {
-                            DataValue::Float(row.get::<_, f64>(i))
-                        },
-                        &tokio_postgres::types::Type::TEXT | &tokio_postgres::types::Type::VARCHAR => {
-                            DataValue::String(row.get::<_, String>(i))
-                        },
-                        &tokio_postgres::types::Type::BOOL => {
-                            DataValue::Boolean(row.get::<_, bool>(i))
-                        },
-                        _ => {
-                            // 其他类型尝试转换为字符串
-                            DataValue::String(format!("{:?}", row.get::<_, String>(i)))
-                        }
-                    };
-                    record.insert(field_name, field_value);
-                }
-                records.push(record);
-            }
-            
-            Ok(QueryResult {
-                records,
-                execution_time: start_time.elapsed(),
-            })
-        }
-        #[cfg(not(feature = "postgres"))]
-        {
-            Err(Error::not_implemented("PostgreSQL支持需要启用postgres特性"))
-        }
+    async fn execute_postgresql_query(&self, _connection: &(), _query: &str) -> Result<QueryResult> {
+        // 注意：postgres 特性未在 Cargo.toml 中定义，直接返回未实现错误
+        Err(Error::not_implemented("PostgreSQL支持需要启用postgres特性"))
     }
 
     // 辅助方法：执行MySQL查询
-    #[cfg(feature = "mysql")]
-    async fn execute_mysql_query(&self, connection: &mysql_async::Conn, query: &str) -> Result<QueryResult> {
-        #[cfg(feature = "mysql")]
-        {
-            let start_time = std::time::Instant::now();
-            
-            let results: Vec<mysql_async::Row> = connection.query(query).await
-                .map_err(|e| Error::database_operation(&format!("MySQL查询失败: {}", e)))?;
-                
-            let mut records = Vec::new();
-            
-            for row in results {
-                let mut record = HashMap::new();
-                let columns = row.columns_ref();
-                
-                for (i, column) in columns.iter().enumerate() {
-                    let field_name = column.name_str().to_string();
-                    let field_value = match row.get::<Option<mysql_async::Value>, usize>(i) {
-                        Some(mysql_async::Value::Int(v)) => DataValue::Integer(v),
-                        Some(mysql_async::Value::UInt(v)) => DataValue::Integer(v as i64),
-                        Some(mysql_async::Value::Float(v)) => DataValue::Float(v as f64),
-                        Some(mysql_async::Value::Double(v)) => DataValue::Float(v),
-                        Some(mysql_async::Value::Bytes(v)) => {
-                            DataValue::String(String::from_utf8_lossy(&v).to_string())
-                        },
-                        None => DataValue::Null,
-                        _ => DataValue::String("unsupported_type".to_string()),
-                    };
-                    record.insert(field_name, field_value);
-                }
-                records.push(record);
-            }
-            
-            Ok(QueryResult {
-                records,
-                execution_time: start_time.elapsed(),
-            })
-        }
-        #[cfg(not(feature = "mysql"))]
-        {
-            Err(Error::not_implemented("MySQL支持需要启用mysql特性"))
-        }
+    async fn execute_mysql_query(&self, _connection: &(), _query: &str) -> Result<QueryResult> {
+        // 注意：mysql 特性未在 Cargo.toml 中定义，直接返回未实现错误
+        Err(Error::not_implemented("MySQL支持需要启用mysql特性"))
     }
 
     // 辅助方法：执行SQLite查询
-    #[cfg(feature = "sqlite")]
-    async fn execute_sqlite_query(&self, connection: &rusqlite::Connection, query: &str) -> Result<QueryResult> {
-        #[cfg(feature = "sqlite")]
-        {
-            let start_time = std::time::Instant::now();
-            
-            let mut stmt = connection.prepare(query)
-                .map_err(|e| Error::database_operation(&format!("SQLite准备查询失败: {}", e)))?;
-                
-            let column_count = stmt.column_count();
-            let mut records = Vec::new();
-            
-            let rows = stmt.query_map([], |row| {
-                let mut record = HashMap::new();
-                
-                for i in 0..column_count {
-                    let column_name = stmt.column_name(i).unwrap_or("unknown").to_string();
-                    let field_value = match row.get::<usize, rusqlite::types::Value>(i) {
-                        Ok(rusqlite::types::Value::Null) => DataValue::Null,
-                        Ok(rusqlite::types::Value::Integer(v)) => DataValue::Integer(v),
-                        Ok(rusqlite::types::Value::Real(v)) => DataValue::Float(v),
-                        Ok(rusqlite::types::Value::Text(v)) => DataValue::String(v),
-                        Ok(rusqlite::types::Value::Blob(v)) => {
-                            DataValue::String(format!("blob({} bytes)", v.len()))
-                        },
-                        Err(_) => DataValue::Null,
-                    };
-                    record.insert(column_name, field_value);
-                }
-                
-                Ok(record)
-            }).map_err(|e| Error::database_operation(&format!("SQLite查询执行失败: {}", e)))?;
-            
-            for row_result in rows {
-                match row_result {
-                    Ok(record) => records.push(record),
-                    Err(e) => {
-                        warn!("跳过无效的SQLite行: {}", e);
-                    }
-                }
-            }
-            
-            Ok(QueryResult {
-                records,
-                execution_time: start_time.elapsed(),
-            })
-        }
-        #[cfg(not(feature = "sqlite"))]
-        {
-            Err(Error::not_implemented("SQLite支持需要启用sqlite特性"))
-        }
+    async fn execute_sqlite_query(&self, _connection: &(), _query: &str) -> Result<QueryResult> {
+        // 注意：sqlite 特性未在 Cargo.toml 中定义，直接返回未实现错误
+        Err(Error::not_implemented("SQLite支持需要启用sqlite特性"))
     }
 
     // 辅助方法：执行Redis查询
@@ -1206,203 +1008,21 @@ impl CommonDataLoader {
     }
 
     // 辅助方法：执行MongoDB查询
-    #[cfg(feature = "mongodb")]
-    async fn execute_mongodb_query(&self, connection: &mongodb::Database, query: &str) -> Result<QueryResult> {
-        #[cfg(feature = "mongodb")]
-        {
-            let start_time = std::time::Instant::now();
-            
-            // 解析MongoDB查询（生产级实现：MongoDB 查询使用 JSON/BSON 格式）
-            let query_doc: mongodb::bson::Document = serde_json::from_str(query)
-                .map_err(|e| Error::validation(&format!("无效的MongoDB查询格式: {}", e)))?;
-                
-            // 获取集合名称（从查询中提取或使用默认值）
-            let collection_name = query_doc.get_str("collection")
-                .unwrap_or("default_collection");
-                
-            let collection = connection.collection::<mongodb::bson::Document>(collection_name);
-            
-            // 执行查询
-            let filter = query_doc.get_document("filter").unwrap_or(&mongodb::bson::Document::new()).clone();
-            let mut cursor = collection.find(filter, None).await
-                .map_err(|e| Error::database_operation(&format!("MongoDB查询失败: {}", e)))?;
-                
-            let mut records = Vec::new();
-            
-            while let Some(doc) = cursor.try_next().await
-                .map_err(|e| Error::database_operation(&format!("MongoDB游标读取失败: {}", e)))? {
-                
-                let mut record = HashMap::new();
-                
-                for (key, value) in doc {
-                    let data_value = match value {
-                        mongodb::bson::Bson::Double(v) => DataValue::Float(v),
-                        mongodb::bson::Bson::String(v) => DataValue::String(v),
-                        mongodb::bson::Bson::Boolean(v) => DataValue::Boolean(v),
-                        mongodb::bson::Bson::Int32(v) => DataValue::Integer(v as i64),
-                        mongodb::bson::Bson::Int64(v) => DataValue::Integer(v),
-                        mongodb::bson::Bson::Null => DataValue::Null,
-                        _ => DataValue::String(format!("{:?}", value)), // 其他类型转为字符串
-                    };
-                    record.insert(key, data_value);
-                }
-                records.push(record);
-            }
-            
-            Ok(QueryResult {
-                records,
-                execution_time: start_time.elapsed(),
-            })
-        }
-        #[cfg(not(feature = "mongodb"))]
-        {
-            Err(Error::not_implemented("MongoDB支持需要启用mongodb特性"))
-        }
+    async fn execute_mongodb_query(&self, _connection: &(), _query: &str) -> Result<QueryResult> {
+        // 注意：mongodb 特性未在 Cargo.toml 中定义，直接返回未实现错误
+        Err(Error::not_implemented("MongoDB支持需要启用mongodb特性"))
     }
 
     // 辅助方法：执行Cassandra查询
-    #[cfg(feature = "cassandra")]
-    async fn execute_cassandra_query(&self, connection: &ScyllaSession, query: &str) -> Result<QueryResult> {
-        let start_time = std::time::Instant::now();
-        
-        let result = connection.query(query, &[]).await
-            .map_err(|e| Error::database_operation(&format!("Cassandra query failed: {}", e)))?;
-        
-        let execution_time = start_time.elapsed();
-        
-        let mut records = Vec::new();
-        if let Some(rows) = result.rows {
-            for row in rows {
-                let mut record = HashMap::new();
-                
-                // 解析行中的每一列
-                for (index, column) in row.columns.iter().enumerate() {
-                    let field_name = format!("column_{}", index);
-                    let value = match column {
-                        Some(cql_value) => {
-                            // 将CQL值转换为DataValue
-                            match cql_value {
-                                scylla::frame::response::result::CqlValue::Int(v) => DataValue::Integer(*v as i64),
-                                scylla::frame::response::result::CqlValue::Bigint(v) => DataValue::Integer(*v),
-                                scylla::frame::response::result::CqlValue::Float(v) => DataValue::Float(*v as f64),
-                                scylla::frame::response::result::CqlValue::Double(v) => DataValue::Float(*v),
-                                scylla::frame::response::result::CqlValue::Text(v) => DataValue::String(v.clone()),
-                                scylla::frame::response::result::CqlValue::Boolean(v) => DataValue::Boolean(*v),
-                                scylla::frame::response::result::CqlValue::Blob(v) => {
-                                    // 将blob转换为向量（假设是float32数组）
-                                    if v.len() % 4 == 0 {
-                                        let mut vector = Vec::new();
-                                        for chunk in v.chunks(4) {
-                                            if let Ok(bytes) = chunk.try_into() {
-                                                let value = f32::from_le_bytes(bytes);
-                                                vector.push(value);
-                                            }
-                                        }
-                                        DataValue::Vector(vector)
-                                    } else {
-                                        DataValue::String(format!("Binary data ({} bytes)", v.len()))
-                                    }
-                                },
-                                _ => DataValue::String(format!("{:?}", cql_value)),
-                            }
-                        },
-                        None => DataValue::String("NULL".to_string()),
-                    };
-                    record.insert(field_name, value);
-                }
-                records.push(record);
-            }
-        }
-        
-        info!("Cassandra query executed successfully, {} rows returned in {:?}", 
-              records.len(), execution_time);
-        
-        Ok(QueryResult {
-            records,
-            execution_time,
-        })
-    }
-    
-    #[cfg(not(feature = "cassandra"))]
     async fn execute_cassandra_query(&self, _connection: &(), _query: &str) -> Result<QueryResult> {
-        Err(Error::not_implemented("Cassandra support not enabled. Please enable the 'cassandra' feature"))
+        // 注意：cassandra 特性未在 Cargo.toml 中定义，直接返回未实现错误
+        Err(Error::not_implemented("Cassandra支持需要启用cassandra特性"))
     }
 
     // 辅助方法：执行Elasticsearch查询
-    #[cfg(feature = "elasticsearch")]
-    async fn execute_elasticsearch_query(&self, connection: &elasticsearch::Elasticsearch, query: &str) -> Result<QueryResult> {
-        #[cfg(feature = "elasticsearch")]
-        {
-            let start_time = std::time::Instant::now();
-            
-            // 解析Elasticsearch查询
-            let query_body: serde_json::Value = serde_json::from_str(query)
-                .map_err(|e| Error::validation(&format!("无效的Elasticsearch查询格式: {}", e)))?;
-                
-            // 执行搜索
-            let search_response = connection
-                .search(elasticsearch::SearchParts::Index(&["*"]))
-                .body(query_body)
-                .send()
-                .await
-                .map_err(|e| Error::database_operation(&format!("Elasticsearch查询失败: {}", e)))?;
-                
-            let response_body = search_response.json::<serde_json::Value>().await
-                .map_err(|e| Error::database_operation(&format!("Elasticsearch响应解析失败: {}", e)))?;
-                
-            let mut records = Vec::new();
-            
-            // 解析搜索结果
-            if let Some(hits) = response_body["hits"]["hits"].as_array() {
-                for hit in hits {
-                    let mut record = HashMap::new();
-                    
-                    // 添加元数据
-                    if let Some(id) = hit["_id"].as_str() {
-                        record.insert("_id".to_string(), DataValue::String(id.to_string()));
-                    }
-                    if let Some(index) = hit["_index"].as_str() {
-                        record.insert("_index".to_string(), DataValue::String(index.to_string()));
-                    }
-                    if let Some(score) = hit["_score"].as_f64() {
-                        record.insert("_score".to_string(), DataValue::Float(score));
-                    }
-                    
-                    // 添加源数据
-                    if let Some(source) = hit["_source"].as_object() {
-                        for (key, value) in source {
-                            let data_value = match value {
-                                serde_json::Value::Number(n) => {
-                                    if let Some(i) = n.as_i64() {
-                                        DataValue::Integer(i)
-                                    } else if let Some(f) = n.as_f64() {
-                                        DataValue::Float(f)
-                                    } else {
-                                        DataValue::String(n.to_string())
-                                    }
-                                },
-                                serde_json::Value::String(s) => DataValue::String(s.clone()),
-                                serde_json::Value::Bool(b) => DataValue::Boolean(*b),
-                                serde_json::Value::Null => DataValue::Null,
-                                _ => DataValue::String(value.to_string()),
-                            };
-                            record.insert(key.clone(), data_value);
-                        }
-                    }
-                    
-                    records.push(record);
-                }
-            }
-            
-            Ok(QueryResult {
-                records,
-                execution_time: start_time.elapsed(),
-            })
-        }
-        #[cfg(not(feature = "elasticsearch"))]
-        {
-            Err(Error::not_implemented("Elasticsearch支持需要启用elasticsearch特性"))
-        }
+    async fn execute_elasticsearch_query(&self, _connection: &(), _query: &str) -> Result<QueryResult> {
+        // 注意：elasticsearch 特性未在 Cargo.toml 中定义，直接返回未实现错误
+        Err(Error::not_implemented("Elasticsearch支持需要启用elasticsearch特性"))
     }
 
     // 辅助方法：解析JSON流
@@ -1434,36 +1054,9 @@ impl CommonDataLoader {
     }
 
     // 辅助方法：解析CSV流
-    fn parse_csv_stream(&self, data: &[u8], features: &mut Vec<Vec<f32>>) -> Result<()> {
-        #[cfg(feature = "csv")]
-        {
-            let content = String::from_utf8_lossy(data);
-            let mut reader = csv::Reader::from_reader(content.as_bytes());
-            
-            for result in reader.records() {
-                let record = result.map_err(|e| Error::validation(&format!("解析CSV记录失败: {}", e)))?;
-                
-                let row_values = record.iter()
-                    .map(|field| {
-                        if let Ok(val) = field.parse::<f32>() {
-                            val
-                        } else {
-                            let hash_value = field.chars().fold(0, |acc, c| acc + c as u32) % 1000;
-                            hash_value as f32 / 1000.0
-                        }
-                    })
-                    .collect::<Vec<_>>();
-                    
-                if !row_values.is_empty() {
-                    features.push(row_values);
-                }
-            }
-            Ok(())
-        }
-        #[cfg(not(feature = "csv"))]
-        {
-            Err(Error::not_implemented("CSV解析需要启用csv特性"))
-        }
+    fn parse_csv_stream(&self, _data: &[u8], _features: &mut Vec<Vec<f32>>) -> Result<()> {
+        // 注意：csv 特性未在 Cargo.toml 中定义，直接返回未实现错误
+        Err(Error::not_implemented("CSV解析需要启用csv特性"))
     }
 
     // 辅助方法：解析二进制流
@@ -1538,7 +1131,7 @@ impl CommonDataLoader {
         let raw_data = if let Some(compression_type) = compression {
             match compression_type {
                 "gzip" => {
-                    #[cfg(feature = "compression")]
+                    // #[cfg(feature = "compression")]
                     {
                         use flate2::read::GzDecoder;
                         use std::io::Read;
@@ -1549,27 +1142,14 @@ impl CommonDataLoader {
                             .map_err(|e| crate::error::Error::validation(&format!("GZIP解压缩失败: {}", e)))?;
                         decompressed
                     }
-                    #[cfg(not(feature = "compression"))]
+                    // #[cfg(not(feature = "compression"))]
                     {
                         return Err(crate::error::Error::not_implemented("GZIP解压缩需要启用compression特性"));
                     }
                 },
                 "lz4" => {
-                    #[cfg(feature = "compression")]
-                    {
-                        use lz4::Decoder;
-                        use std::io::Read;
-                        
-                        let mut decoder = Decoder::new(&content[..])?;
-                        let mut decompressed = Vec::new();
-                        decoder.read_to_end(&mut decompressed)
-                            .map_err(|e| crate::error::Error::validation(&format!("LZ4解压缩失败: {}", e)))?;
-                        decompressed
-                    }
-                    #[cfg(not(feature = "compression"))]
-                    {
-                        return Err(crate::error::Error::not_implemented("LZ4解压缩需要启用compression特性"));
-                    }
+                    // 注意：lz4 特性未在 Cargo.toml 中定义，直接返回未实现错误
+                    return Err(crate::error::Error::not_implemented("LZ4解压缩需要启用compression特性"));
                 },
                 "none" | "" => content,
                 _ => {
@@ -1754,7 +1334,7 @@ impl CommonDataLoader {
         let raw_data = if let Some(compression_type) = compression {
             match compression_type {
                 "gzip" => {
-                    #[cfg(feature = "compression")]
+                    // #[cfg(feature = "compression")]
                     {
                         use flate2::read::GzDecoder;
                         use std::io::Read;
@@ -1765,22 +1345,14 @@ impl CommonDataLoader {
                             .map_err(|e| crate::error::Error::validation(&format!("GZIP解压缩失败: {}", e)))?;
                         decompressed
                     }
-                    #[cfg(not(feature = "compression"))]
+                    // #[cfg(not(feature = "compression"))]
                     {
                         return Err(crate::error::Error::not_implemented("GZIP解压缩需要启用compression特性"));
                     }
                 },
                 "lz4" => {
-                    #[cfg(feature = "compression")]
-                    {
-                        use lz4_flex::decompress_size_prepended;
-                        decompress_size_prepended(&content)
-                            .map_err(|e| crate::error::Error::validation(&format!("LZ4解压缩失败: {}", e)))?
-                    }
-                    #[cfg(not(feature = "compression"))]
-                    {
-                        return Err(crate::error::Error::not_implemented("LZ4解压缩需要启用compression特性"));
-                    }
+                    // 注意：lz4 特性未在 Cargo.toml 中定义，直接返回未实现错误
+                    return Err(crate::error::Error::not_implemented("LZ4解压缩需要启用compression特性"));
                 },
                 "none" | "" => content,
                 _ => {

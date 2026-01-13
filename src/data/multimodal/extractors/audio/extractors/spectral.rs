@@ -3,7 +3,9 @@
 //! 这个模块包含各种频谱相关的特征提取器，如色度特征、谱质心、
 //! 谱衰减、零交叉率和能量特征等。这些特征常用于音乐分析和音频分类。
 
+#[cfg(feature = "multimodal")]
 use ndarray::{Array2, Axis};
+#[cfg(feature = "multimodal")]
 use crate::{Result, Error};
 #[cfg(feature = "multimodal")]
 use super::{
@@ -84,6 +86,7 @@ impl ChromaExtractor {
     }
     
     /// 创建色度滤波器组
+    #[cfg(feature = "multimodal")]
     fn create_chroma_filterbank(&self) -> Array2<f32> {
         let n_bins = self.n_fft / 2 + 1;
         let mut filterbank = Array2::zeros((self.n_chroma, n_bins));

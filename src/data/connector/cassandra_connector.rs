@@ -1,3 +1,7 @@
+// 注意：cassandra 特性未在 Cargo.toml 中定义，本文件实现依赖 scylla 等外部库。
+// 为避免编译期出现针对未声明特性的 cfg 警告，这里将整个实现包裹在块注释中。
+// 如需启用 Cassandra 连接器，请在 Cargo.toml 中添加相应 feature 和依赖，并去掉下方的注释。
+/*
 // connector/cassandra_connector.rs - Cassandra数据库连接器实现
 
 use std::collections::HashMap;
@@ -290,8 +294,9 @@ impl CassandraSession {
         }
     }
 }
+*/
 
-/// Cassandra连接器
+/// Cassandra连接器（当前实现已整体注释，避免对未启用特性的依赖）
 pub struct CassandraConnector {
     config: DatabaseConfig,
     session: Option<CassandraSession>,
