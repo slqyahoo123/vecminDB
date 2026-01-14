@@ -1367,12 +1367,31 @@ impl DatasetStorageAdapter {
 // Trait实现已经在拆分后的模块文件中完成，通过模块导入确保可用
 
 // 默认实现
+// 注意：Default trait 需要返回 Self，但 Storage 的创建需要配置
+// 这里提供一个最小化的实现，但强烈建议使用 Storage::new() 或 Storage::new_in_memory()
 impl Default for Storage {
     fn default() -> Self {
-        // 注意：Default trait 需要返回 Self，但 new_in_memory() 返回 Arc<Self>
-        // 这里使用 unsafe 从 Arc 中提取，但这不是最佳实践
-        // 更好的方案是移除 Default 实现，或者改变设计
-        // 临时方案：panic，提示不应该直接使用 Default
-        panic!("Storage::default() 不应该被直接调用，使用 Storage::new() 或 Storage::new_in_memory() 代替。")
+        // 使用临时目录创建最小化的存储实例
+        // 注意：这不是推荐的使用方式，仅用于满足Default trait的要求
+        use std::env;
+        let temp_dir = env::temp_dir().join("vecmindb_default_storage");
+        let config = StorageConfig {
+            path: temp_dir.to_string_lossy().to_string(),
+            ..Default::default()
+        };
+        
+        // 如果创建失败，返回一个错误状态（通过panic提示）
+        // 但根据生产级标准，我们应该避免panic
+        // 由于Default trait的限制，这里使用log记录警告
+        log::warn!("Storage::default() 被调用，这不是推荐的使用方式。请使用 Storage::new() 或 Storage::new_in_memory() 代替。");
+        
+        // 尝试创建存储实例，如果失败则panic（因为Default trait无法返回Result）
+        match Self::open(config) {
+            Ok(storage) => storage,
+            Err(e) => {
+                log::error!("Storage::default() 创建失败: {}", e);
+                panic!("Storage::default() 创建失败: {}。请使用 Storage::new() 或 Storage::new_in_memory() 代替。", e)
+            }
+        }
     }
 }

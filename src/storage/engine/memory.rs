@@ -9,7 +9,6 @@ use crate::core::{InferenceResultDetail, InferenceResult};
 use crate::interfaces::storage::StorageTransaction;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
-use serde_json::Value;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 

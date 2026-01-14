@@ -2,7 +2,7 @@ use crate::Result;
 use crate::Error;
 use crate::storage::config::StorageConfig;
 use crate::storage::engine::StorageService;
-use crate::compat::{ModelArchitecture, ModelParameters, TrainingMetrics};
+use crate::compat::{ModelArchitecture, ModelParameters};
 // remove unused Enhanced* imports
 use crate::core::{InferenceResultDetail, InferenceResult};
 // 注意：向量数据库系统不需要训练相关功能，已移除所有训练相关导入

@@ -391,7 +391,7 @@ pub trait PipelineStage: Send + Sync {
     }
     
     /// 处理阶段
-    fn process(&self, context: &mut PipelineContext) -> Result<(), Error>;
+    fn process(&self, context: &mut PipelineContext) -> Result<()>;
     
     /// 检查阶段是否可以处理
     fn can_process(&self, context: &PipelineContext) -> bool {

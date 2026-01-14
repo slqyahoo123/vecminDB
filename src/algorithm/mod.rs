@@ -491,7 +491,47 @@ impl SecureAlgorithmExecutor {
             execution_time_ms: engine_result.execution_time.as_millis() as u64,
             peak_memory_bytes: engine_result.resource_usage.peak_memory_bytes as usize,
             security_events: vec![], // 原生算法没有详细的安全事件
-            performance_metrics: HashMap::new(), // TODO: 从resource_usage中提取性能指标
+            performance_metrics: {
+                // 从resource_usage中提取性能指标
+                let mut metrics = HashMap::new();
+                metrics.insert("cpu_usage_percent".to_string(), serde_json::Value::Number(
+                    serde_json::Number::from_f64(engine_result.resource_usage.cpu_usage)
+                        .unwrap_or_else(|| serde_json::Number::from(0))
+                ));
+                metrics.insert("memory_usage_bytes".to_string(), serde_json::Value::Number(
+                    serde_json::Number::from(engine_result.resource_usage.memory_usage)
+                ));
+                metrics.insert("peak_memory_bytes".to_string(), serde_json::Value::Number(
+                    serde_json::Number::from(engine_result.resource_usage.peak_memory_usage)
+                ));
+                metrics.insert("execution_time_ms".to_string(), serde_json::Value::Number(
+                    serde_json::Number::from(engine_result.resource_usage.execution_time_ms)
+                ));
+                if let Some(gpu_usage) = engine_result.resource_usage.gpu_usage {
+                    metrics.insert("gpu_usage_percent".to_string(), serde_json::Value::Number(
+                        serde_json::Number::from_f64(gpu_usage)
+                            .unwrap_or_else(|| serde_json::Number::from(0))
+                    ));
+                }
+                if let Some(gpu_memory) = engine_result.resource_usage.gpu_memory_usage {
+                    metrics.insert("gpu_memory_bytes".to_string(), serde_json::Value::Number(
+                        serde_json::Number::from(gpu_memory)
+                    ));
+                }
+                metrics.insert("disk_read_bytes".to_string(), serde_json::Value::Number(
+                    serde_json::Number::from(engine_result.resource_usage.disk_read)
+                ));
+                metrics.insert("disk_write_bytes".to_string(), serde_json::Value::Number(
+                    serde_json::Number::from(engine_result.resource_usage.disk_write)
+                ));
+                metrics.insert("network_received_bytes".to_string(), serde_json::Value::Number(
+                    serde_json::Number::from(engine_result.resource_usage.network_received)
+                ));
+                metrics.insert("network_sent_bytes".to_string(), serde_json::Value::Number(
+                    serde_json::Number::from(engine_result.resource_usage.network_sent)
+                ));
+                metrics
+            },
             error_message: if !engine_result.success {
                 Some("原生算法执行失败".to_string())
             } else {

@@ -3,7 +3,6 @@
 //! 定义各种监控指标类型
 
 use serde::{Serialize, Deserialize};
-use std::time::Duration;
 
 /// 向量操作指标
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -217,6 +216,7 @@ mod tests {
         assert_eq!(snapshot.query_failure_rate(), 0.05);
     }
 }
+
 
 
 

@@ -10,7 +10,6 @@ use crate::compat::{TrainingMetrics};
 // 未使用的导入移除，保持代码整洁
 // 注意：Model, ModelArchitecture, ModelParameters, TrainingStateManager 在代码中使用完全限定路径
 use crate::core::InferenceResult;
-use crate::compat::TrainingResultDetail; // 使用 compat 模块中的 stub 类型
 
 use super::interfaces::{StorageEngine, DatasetStorageInterface};
 use crate::core::interfaces::storage_interface::{StorageService, StorageTransaction};

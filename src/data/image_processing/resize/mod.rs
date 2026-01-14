@@ -3,7 +3,9 @@
 // 该模块提供各种图像大小调整算法的实现，用于高效处理图像缩放。
 // 支持最近邻、双线性、双三次和Lanczos等多种插值算法。
 
-use std::io::{Error, ErrorKind, Result, Cursor};
+use std::io::{Error, ErrorKind, Result};
+#[cfg(feature = "multimodal")]
+use std::io::Cursor;
 #[cfg(feature = "multimodal")]
 use image::{DynamicImage, GenericImageView, imageops, ImageBuffer, Rgba, Pixel};
 use rayon::prelude::*;

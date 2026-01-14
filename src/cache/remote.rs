@@ -12,7 +12,7 @@ use std::time::Duration;
 #[cfg(feature = "multimodal")]
 use reqwest;
 use tracing::warn;
-use base64::{Engine as _, engine::general_purpose};
+use base64::Engine as _;
 
 /// 远程缓存协议类型
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]

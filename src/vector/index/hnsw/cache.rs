@@ -80,8 +80,13 @@ impl QueryCache {
 
     /// 获取缓存统计信息
     pub fn stats(&self) -> (usize, usize, f32) {
-        let hits = *self.hits.read().unwrap_or_else(|_| panic!("无法读取缓存命中"));
-        let misses = *self.misses.read().unwrap_or_else(|_| panic!("无法读取缓存未命中"));
+        // 使用默认值处理锁获取失败的情况，避免panic
+        let hits = self.hits.read()
+            .map(|guard| *guard)
+            .unwrap_or(0);
+        let misses = self.misses.read()
+            .map(|guard| *guard)
+            .unwrap_or(0);
         let total = hits + misses;
         let hit_rate = if total > 0 { hits as f32 / total as f32 } else { 0.0 };
         (hits, misses, hit_rate)
@@ -157,8 +162,13 @@ impl QueryCache {
 
     /// 获取命中率
     pub fn hit_rate(&self) -> f64 {
-        let hits = *self.hits.read().unwrap_or_else(|_| panic!("无法读取缓存命中"));
-        let misses = *self.misses.read().unwrap_or_else(|_| panic!("无法读取缓存未命中"));
+        // 使用默认值处理锁获取失败的情况，避免panic
+        let hits = self.hits.read()
+            .map(|guard| *guard)
+            .unwrap_or(0);
+        let misses = self.misses.read()
+            .map(|guard| *guard)
+            .unwrap_or(0);
         let total = hits + misses;
         if total > 0 {
             hits as f64 / total as f64

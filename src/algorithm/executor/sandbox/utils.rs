@@ -1,22 +1,32 @@
+#[cfg(feature = "wasmtime")]
 use std::sync::Arc;
+#[cfg(feature = "wasmtime")]
 use std::time::Duration;
-use log::{debug, warn, error};
 #[cfg(feature = "wasmtime")]
 use wasmtime::{Module, Linker};
 #[cfg(feature = "wasmtime")]
 use wasmtime_wasi::{WasiCtx};
+#[cfg(feature = "wasmtime")]
 use std::sync::atomic::Ordering;
+#[cfg(feature = "wasmtime")]
+use log::{debug, warn};
 
-use crate::{Error, Result};
-use crate::algorithm::executor::config::SandboxConfig;
+use crate::Result;
+#[cfg(feature = "wasmtime")]
 use crate::algorithm::types::{ResourceLimits};
+#[cfg(feature = "wasmtime")]
 use crate::algorithm::executor::sandbox::environment::ExecutionEnvironment;
+#[cfg(feature = "wasmtime")]
 use crate::algorithm::executor::sandbox::error::SandboxError;
+#[cfg(feature = "wasmtime")]
 use crate::algorithm::executor::sandbox::result::SandboxResult;
+#[cfg(feature = "wasmtime")]
+use crate::algorithm::executor::config::SandboxConfig;
 
 /// 强制执行资源限制
 ///
 /// 在一个循环中监控资源使用情况，如果超出限制则返回错误。
+#[cfg(feature = "wasmtime")]
 async fn enforce_resource_limits(
     env: &Arc<ExecutionEnvironment>,
     limits: &ResourceLimits,
@@ -701,8 +711,6 @@ fn get_current_cpu_usage() -> Result<f32, anyhow::Error> {
 
 /// 获取可用磁盘空间（生产级实现：使用系统调用查询真实磁盘空间）
 fn get_available_disk_space() -> Result<i64, anyhow::Error> {
-    use std::path::Path;
-    
     // 获取当前工作目录
     let current_dir = std::env::current_dir()
         .map_err(|e| anyhow::anyhow!("无法获取当前目录: {}", e))?;

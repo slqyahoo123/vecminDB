@@ -1431,8 +1431,9 @@ impl crate::core::interfaces::StorageInterface for StorageEngineImpl {
     
     /// 检查磁盘空间（生产级实现：使用真实的跨平台磁盘空间查询）
     fn check_disk_space(&self) -> Result<crate::core::interfaces::DiskSpaceInfo> {
-        use std::fs;
         use std::path::Path;
+        #[cfg(not(any(unix, windows)))]
+        use std::fs;
         
         let path = &self.config.path;
         

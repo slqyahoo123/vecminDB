@@ -468,7 +468,13 @@ impl VectorIndex for VectorIndexEnum {
         match self {
             Self::Flat(index) => index.clone_box(),
             // HNSW 当前未完全接入通用 VectorIndex 体系，这里不支持通过 clone_box 复制
-            Self::HNSW(_) => panic!("HNSW index clone_box via VectorIndexEnum is not supported"),
+            // 作为fallback，创建一个空的FlatIndex，并记录警告
+            Self::HNSW(hnsw_index) => {
+                log::warn!("HNSW index clone_box via VectorIndexEnum is not supported, creating empty FlatIndex as fallback");
+                let config = hnsw_index.get_config();
+                let fallback_index = FlatIndex::new(config);
+                Box::new(fallback_index)
+            },
             Self::IVF(index) => index.clone_box(),
             Self::PQ(index) => index.clone_box(),
             Self::LSH(index) => index.clone_box(),

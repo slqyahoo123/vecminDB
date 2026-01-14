@@ -3,7 +3,6 @@ use crate::vector::types::Vector;
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 use super::index::{VectorIndex, IndexType, SearchResult};
-use super::index::VectorIndexEnum;
 use super::index::IndexConfig;
 use super::search_options::{SearchOptions, VectorSearchQuery};
 use rayon::prelude::*;

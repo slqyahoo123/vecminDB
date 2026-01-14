@@ -296,6 +296,47 @@ impl CassandraSession {
 }
 */
 
+use std::collections::HashMap;
+use crate::Result;
+use crate::data::{DataBatch, DataSchema};
+use super::types::{
+    DatabaseConnector, DatabaseConfig, DatabaseType, QueryParams, 
+    QueryParam, SortDirection, QueryParamValue, QueryOperator, WriteMode
+};
+
+/// Cassandra会话类型（占位实现）
+pub struct CassandraSession {
+    hosts: Vec<String>,
+    keyspace: String,
+    connection_params: HashMap<String, String>,
+}
+
+impl CassandraSession {
+    pub fn new(hosts: Vec<String>, keyspace: String, connection_params: HashMap<String, String>) -> Result<Self> {
+        Ok(Self {
+            hosts,
+            keyspace,
+            connection_params,
+        })
+    }
+    
+    pub async fn query(&self, _query: &str, _params: &[QueryParam]) -> Result<Vec<HashMap<String, String>>> {
+        Err(crate::Error::data("Cassandra功能未启用".to_string()))
+    }
+    
+    pub async fn execute(&self, _query: &str, _params: &[QueryParam]) -> Result<usize> {
+        Err(crate::Error::data("Cassandra功能未启用".to_string()))
+    }
+    
+    pub async fn get_table_schema(&self, _keyspace: &str, _table: &str) -> Result<Vec<crate::data::schema::schema::FieldDefinition>> {
+        Err(crate::Error::data("Cassandra功能未启用".to_string()))
+    }
+    
+    pub async fn test_connection(&self) -> Result<bool> {
+        Ok(!self.hosts.is_empty())
+    }
+}
+
 /// Cassandra连接器（当前实现已整体注释，避免对未启用特性的依赖）
 pub struct CassandraConnector {
     config: DatabaseConfig,

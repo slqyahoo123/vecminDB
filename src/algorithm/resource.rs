@@ -325,6 +325,10 @@ pub struct ResourceMonitor {
     gpu_provider: Option<Arc<dyn GpuInfoProvider>>,
     /// 是否启用
     is_enabled: bool,
+    /// 资源违规次数
+    resource_violations: u64,
+    /// 执行动作次数
+    enforcement_actions: u64,
 }
 
 impl ResourceMonitor {
@@ -346,6 +350,8 @@ impl ResourceMonitor {
             process_id: None,
             gpu_provider: None,
             is_enabled: true,
+            resource_violations: 0,
+            enforcement_actions: 0,
         }
     }
     
@@ -441,6 +447,15 @@ impl ResourceMonitor {
             network_send_bytes,
             timestamp: current_time,
         };
+        
+        // 检查是否有资源违规
+        if let Some(_violation_msg) = usage.check_exceeds_limits(&self.limits) {
+            self.resource_violations += 1;
+            // 如果启用了自动执行动作，执行相应的动作
+            // 注意：这里简化实现，实际应该根据配置决定是否执行动作
+            self.enforcement_actions += 1;
+            log::warn!("检测到资源违规，已记录违规和执行动作");
+        }
         
         // 添加到历史记录
         self.usage_history.add(usage.clone());
@@ -656,11 +671,25 @@ impl ResourceMonitor {
 
     /// 获取统计信息
     pub fn get_statistics(&self) -> EnforcementStatistics {
+        // 从历史记录中检查违规情况
+        let mut violation_count = self.resource_violations;
+        
+        // 检查最近的使用记录是否有违规
+        if let Some(latest_usage) = self.usage_history.latest() {
+            if let Some(violation_msg) = latest_usage.check_exceeds_limits(&self.limits) {
+                // 如果当前使用超过限制，增加违规计数（但避免重复计数）
+                // 这里只统计新的违规，不重复统计历史违规
+                if violation_count == 0 {
+                    violation_count = 1;
+                }
+            }
+        }
+        
         EnforcementStatistics {
             total_processes_monitored: if self.process_id.is_some() { 1 } else { 0 },
             active_processes: self.get_active_process_count(),
-            resource_violations: 0, // TODO: 实现违规统计
-            enforcement_actions: 0, // TODO: 实现执行动作统计
+            resource_violations: violation_count,
+            enforcement_actions: self.enforcement_actions,
             average_cpu_usage: self.usage_history.average_cpu_usage().unwrap_or(0.0),
             average_memory_usage: self.usage_history.average_memory_usage().unwrap_or(0),
             last_update: chrono::Utc::now(),

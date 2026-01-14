@@ -1,19 +1,7 @@
 #[cfg(test)]
 use crate::storage::*;
-use crate::error::Result;
-use crate::compat::{ModelParameters, TensorData, DataType};
-use std::fs;
-#[cfg(all(test, feature = "tempfile"))]
-use tempfile::tempdir;
-use std::sync::Arc;
-use std::thread;
-use std::time::Duration;
-use std::time::Instant;
-use std::collections::HashMap;
-use crate::Error;
 #[cfg(all(test, feature = "tempfile"))]
 use tempfile::TempDir;
-use crate::storage::{StorageConfig, Storage};
 
 #[cfg(all(test, feature = "tempfile"))]
 pub fn create_test_storage() -> Result<(Storage, TempDir)> {

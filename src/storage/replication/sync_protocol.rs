@@ -2,18 +2,18 @@
 //
 // 提供高效的分布式状态同步机制，支持增量同步和快照同步
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 use std::thread;
-use log::{debug, error, info, warn};
+use log::{debug, error, info};
 use uuid::Uuid;
 use rocksdb::WriteBatch;
 
 use crate::error::{Error, Result};
 use crate::storage::replication::state_sync::{
     NodeId, StateVersion, SyncPriority, SyncState, SyncOperationType,
-    SyncStatus, NodeRole, NodeStatus, StateSyncManager, StateProvider, StateApplier
+    StateSyncManager, StateProvider, StateApplier
 };
 
 /// 同步会话

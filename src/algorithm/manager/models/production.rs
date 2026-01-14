@@ -20,7 +20,6 @@ use crate::storage::models::implementation::StorageFormat;
 use crate::algorithm::manager::types::SerializableModel;
 use crate::algorithm::manager::models::common::*;
 use crate::data::DataBatch;
-use crate::compat::{TrainingConfig, TrainingStatus};
 use crate::algorithm::manager::models::common::{
     ModelVersionInfo, ModelHealthStatus,
     ModelPerformanceMetrics, MonitoringConfig, BackupType, BackupInfo,
@@ -377,8 +376,6 @@ impl ModelManager for ProductionModelManager {
     
     /// 列出模型版本（生产级实现：从存储中查询所有版本信息）
     fn list_model_versions(&self, model_id: &str) -> Result<Vec<ModelVersionInfo>> {
-        use std::time::SystemTime;
-        
         // 验证模型是否存在
         let model_key = format!("model:{}", model_id);
         if self.storage.get(&model_key)?.is_none() {

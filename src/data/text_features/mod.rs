@@ -451,7 +451,7 @@ impl TextFeatureExtractor for TransformerModel {
 }
 
 /// 创建Transformer特征提取器
-pub fn create_transformer_extractor(config: Option<TransformerConfig>) -> Result<Arc<dyn TextFeatureExtractor>, Box<dyn StdError>> {
+pub fn create_transformer_extractor(config: Option<TransformerConfig>) -> std::result::Result<Arc<dyn TextFeatureExtractor>, Box<dyn StdError>> {
     let config = config.unwrap_or_default();
     let model = TransformerModel::new(config)
         .map_err(|e| Box::new(e) as Box<dyn StdError>)?;

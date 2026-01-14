@@ -26,6 +26,21 @@ walkdir = ["dep:walkdir"]
 redis = ["dep:redis"]
 wasmtime = ["dep:wasmtime", "dep:wasmtime-wasi", "dep:wasmparser"]
 multimodal = ["image", "reqwest", "symphonia", "realfft", "rustfft"]
+# Database connector features (optional, for future use)
+postgres = []
+mysql = []
+sqlite = []
+mongodb = []
+elasticsearch = []
+cassandra = []
+neo4rs = []
+# Other optional features
+regex = []
+sysinfo = []
+wasmparser = []
+memcached = []
+snappy = []
+grpc = []
 
 [dependencies]
 # Core dependencies

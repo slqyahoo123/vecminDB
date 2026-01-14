@@ -385,13 +385,39 @@ impl DatabaseConnector for Neo4jConnector {
             let neo4j_params = Self::convert_params(&params.params);
             
             // 执行查询
-            let result_stream = client.execute(cypher_query).await?;
+            let mut result_stream = client.execute(cypher_query).await?;
             
-            // 收集结果
+            // 收集结果 - 遍历结果流并收集数据
             let mut results = Vec::new();
-            // 这里简化处理，实际应该遍历结果流并收集数据
-            let dummy_result = HashMap::new();
-            results.push(dummy_result);
+            while let Ok(Some(row)) = result_stream.next().await {
+                let mut row_map = HashMap::new();
+                
+                // 获取所有列名并提取值
+                for key in row.keys() {
+                    // 尝试获取不同类型的值并转换为字符串
+                    if let Ok(value) = row.get::<String>(key) {
+                        row_map.insert(key.to_string(), value);
+                    } else if let Ok(value) = row.get::<i64>(key) {
+                        row_map.insert(key.to_string(), value.to_string());
+                    } else if let Ok(value) = row.get::<f64>(key) {
+                        row_map.insert(key.to_string(), value.to_string());
+                    } else if let Ok(value) = row.get::<bool>(key) {
+                        row_map.insert(key.to_string(), value.to_string());
+                    } else {
+                        // 对于其他类型，尝试作为JSON值获取
+                        if let Ok(json_value) = row.get::<serde_json::Value>(key) {
+                            row_map.insert(key.to_string(), json_value.to_string());
+                        } else {
+                            // 最后尝试使用Debug格式化
+                            row_map.insert(key.to_string(), format!("{:?}", row.get::<serde_json::Value>(key)));
+                        }
+                    }
+                }
+                
+                if !row_map.is_empty() {
+                    results.push(row_map);
+                }
+            }
             
             // 转换结果
             Self::convert_results(results)

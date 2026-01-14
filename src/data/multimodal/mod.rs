@@ -516,7 +516,7 @@ impl extractors::interface::ModalityExtractor for TextModalityExtractor {
             .ok_or_else(|| Error::InvalidArgument("缺少文本数据".to_string()))?;
         
         // 使用配置创建文本特征提取器并提取特征
-        use crate::data::text_features::factory::TextFeatureExtractorFactory;
+        use crate::data::text_features::extractors::create_extractor_from_config;
         use crate::data::text_features::config::TextFeatureConfig;
         
         let text_config = TextFeatureConfig {
@@ -526,7 +526,7 @@ impl extractors::interface::ModalityExtractor for TextModalityExtractor {
             ..Default::default()
         };
         
-        let extractor = TextFeatureExtractorFactory::create(&text_config)
+        let extractor = create_extractor_from_config(&text_config)
             .map_err(|e| Error::InvalidArgument(format!("创建文本特征提取器失败: {}", e)))?;
         
         let features = extractor.extract(text)

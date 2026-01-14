@@ -3,7 +3,7 @@
 //! This is a minimal stub for network-related types.
 
 use serde::{Deserialize, Serialize};
-use crate::{Result, Error};
+use crate::Result;
 
 /// Node role
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

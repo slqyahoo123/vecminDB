@@ -8,8 +8,7 @@ use tempfile::TempDir;
 use uuid::Uuid;
 #[cfg(feature = "wasmtime")]
 use wasmtime::{Engine as WasmEngine, Store as WasmStore, Module, Linker};
-use log::{debug, warn};
-use tokio::time::timeout as tokio_timeout;
+use log::debug;
 #[cfg(feature = "wasmtime")]
 use wasmtime_wasi::WasiCtxBuilder;
 
@@ -19,7 +18,6 @@ use crate::algorithm::types::ResourceUsage;
 use crate::algorithm::executor::sandbox::interface::Sandbox;
 use crate::algorithm::executor::sandbox::result::SandboxResult;
 use crate::algorithm::types::SandboxStatus;
-use crate::algorithm::executor::sandbox::error::SandboxError;
 use crate::algorithm::executor::sandbox::environment::ExecutionEnvironment;
 
 /// WebAssembly沙箱实现

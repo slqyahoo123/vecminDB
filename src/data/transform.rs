@@ -48,7 +48,7 @@ impl From<TransformError> for Error {
 }
 
 /// 数据转换结果
-pub type TransformResult<T> = Result<T, TransformError>;
+pub type TransformResult<T> = std::result::Result<T, TransformError>;
 
 /// 数据转换器特性
 pub trait Transformer: Send + Sync {

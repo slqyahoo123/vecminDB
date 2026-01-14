@@ -4,7 +4,6 @@
 use std::path::Path;
 use std::fs::{File, create_dir_all};
 use std::io::{BufReader, BufWriter};
-use std::sync::Arc;
 
 use log::{debug, info, warn, error, trace};
 use serde_json::{Value as JsonValue};

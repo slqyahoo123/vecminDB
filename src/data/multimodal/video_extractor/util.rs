@@ -224,7 +224,7 @@ pub fn calculate_config_similarity(config1: &VideoFeatureConfig, config2: &Video
 }
 
 /// 创建测试视频文件夹
-pub fn create_test_video_directory() -> Result<String, VideoExtractionError> {
+pub fn create_test_video_directory() -> std::result::Result<String, VideoExtractionError> {
     std_log::info!("创建测试视频目录");
     
     // 创建测试目录
@@ -236,7 +236,7 @@ pub fn create_test_video_directory() -> Result<String, VideoExtractionError> {
 }
 
 /// 下载测试视频
-pub fn download_test_video(url: &str, target_path: &str) -> Result<(), VideoExtractionError> {
+pub fn download_test_video(url: &str, target_path: &str) -> std::result::Result<(), VideoExtractionError> {
     std_log::info!("下载测试视频: {} -> {}", url, target_path);
     
     // 检查目标路径的目录是否存在
@@ -284,7 +284,7 @@ pub fn download_test_video(url: &str, target_path: &str) -> Result<(), VideoExtr
 }
 
 /// 生成测试视频
-pub fn generate_test_video(target_path: &str, duration: u32, width: u32, height: u32, fps: u32) -> Result<(), VideoExtractionError> {
+pub fn generate_test_video(target_path: &str, duration: u32, width: u32, height: u32, fps: u32) -> std::result::Result<(), VideoExtractionError> {
     std_log::info!("生成测试视频: {}s, {}x{} @{}fps -> {}", duration, width, height, fps, target_path);
     
     // 检查目标路径的目录是否存在
@@ -321,7 +321,7 @@ pub fn generate_test_video(target_path: &str, duration: u32, width: u32, height:
 }
 
 /// 加载样本视频列表
-pub fn load_sample_videos() -> Result<Vec<String>, VideoExtractionError> {
+pub fn load_sample_videos() -> std::result::Result<Vec<String>, VideoExtractionError> {
     std_log::info!("加载样本视频列表");
     
     // 检查常见位置的视频文件

@@ -13,9 +13,6 @@ use crate::storage::replication::state_sync::{
     StateSyncManager, StateSyncConfig, SyncOperationType, 
     SyncPriority, NodeRole, VerificationLevel
 };
-use crate::storage::replication::sync_protocol::{
-    SyncProtocol, DefaultStateProvider, DefaultStateApplier
-};
 
 /// 运行状态同步示例
 pub fn run_state_sync_example() -> Result<()> {

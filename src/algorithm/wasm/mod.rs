@@ -1,8 +1,11 @@
  //! Wasm模块，用于执行WebAssembly算法
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
+#[cfg(feature = "wasmtime")]
+use anyhow::Context;
 #[cfg(feature = "wasmtime")]
 use wasmtime::{Engine, Instance, Module as WasmtimeModule, Store, Linker, Val};
+#[cfg(feature = "wasmtime")]
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 use serde::{Serialize, Deserialize};

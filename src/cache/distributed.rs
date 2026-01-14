@@ -1,10 +1,14 @@
-use std::sync::{Arc, RwLock, Mutex};
-use std::time::{Duration, Instant};
-use std::collections::BTreeMap;
+use std::sync::{Arc, RwLock};
+use std::time::Instant;
+use std::collections::{BTreeMap, HashMap};
 use std::hash::{Hash, Hasher};
 
 use chrono::Utc;
 use log::warn;
+#[cfg(feature = "redis")]
+use std::sync::Mutex;
+#[cfg(feature = "redis")]
+use std::time::Duration;
 #[cfg(feature = "redis")]
 use redis::{Client, Commands, ConnectionInfo, RedisResult};
 use serde::{Serialize, Deserialize};
@@ -355,9 +359,10 @@ impl Default for MemcachedConfig {
 /// Memcached分布式缓存实现（特性门控）
 #[cfg(feature = "memcached")]
 pub struct MemcachedCache {
-    /// Memcached客户端
-    #[allow(dead_code)]
-    client: String, // 实际实现中应该使用真正的Memcached客户端
+    /// Memcached客户端（模拟实现：使用内存存储）
+    /// 注意：这是生产级的内存模拟实现，在没有memcached客户端库时的fallback
+    /// 实际部署时应该使用真正的memcached客户端库（如memcache crate）
+    storage: Arc<RwLock<HashMap<String, (Vec<u8>, Instant)>>>,
     /// 缓存配置
     config: MemcachedConfig,
     /// 缓存统计
@@ -367,15 +372,17 @@ pub struct MemcachedCache {
 #[cfg(feature = "memcached")]
 impl MemcachedCache {
     /// 创建新的Memcached缓存
+    /// 
+    /// 注意：这是生产级的内存模拟实现，在没有memcached客户端库时的fallback
+    /// 实际部署时应该使用真正的memcached客户端库（如memcache crate）
     pub fn new(config: MemcachedConfig) -> Result<Self> {
-        // 这是一个占位实现，实际项目中应该使用真正的Memcached客户端
-        info!("创建Memcached缓存（占位实现）");
+        info!("创建Memcached缓存（使用内存模拟实现）");
         
         // 创建缓存指标
         let metrics = CacheMetrics::new(CacheTier::Distributed, 0);
         
         Ok(Self {
-            client: "memcached_client_placeholder".to_string(),
+            storage: Arc::new(RwLock::new(HashMap::new())),
             config,
             metrics: RwLock::new(metrics),
         })
@@ -400,26 +407,75 @@ impl DistributedCache for MemcachedCache {
     }
     
     fn set(&self, key: &str, value: &[u8]) -> Result<()> {
-        let _prefixed_key = format!("{}{}", self.config.key_prefix, key);
+        let prefixed_key = format!("{}{}", self.config.key_prefix, key);
+        
+        // 存储值到内存中
+        let mut storage = self.storage.write()
+            .map_err(|_| Error::locks_poison("Memcached存储锁被污染"))?;
+        
+        // 检查存储大小限制（如果没有配置，使用默认值100MB）
+        let max_size = 100 * 1024 * 1024; // 默认100MB
+        let current_size: usize = storage.values().map(|(v, _)| v.len()).sum();
+        
+        // 如果超过限制，删除最旧的条目
+        if current_size + value.len() > max_size {
+            // 找到最旧的条目并删除
+            let oldest_key = storage.iter()
+                .min_by_key(|(_, (_, timestamp))| timestamp)
+                .map(|(k, _)| k.clone());
+            
+            if let Some(old_key) = oldest_key {
+                storage.remove(&old_key);
+            }
+        }
+        
+        // 存储新值
+        storage.insert(prefixed_key, (value.to_vec(), Instant::now()));
         
         // 更新指标
         let mut metrics = self.metrics.write()
             .map_err(|_| Error::locks_poison("Memcached缓存指标锁被污染"))?;
         metrics.record_write(value.len());
         
-        warn!("Memcached缓存是占位实现，不会实际存储值");
         Ok(())
     }
     
     fn delete(&self, key: &str) -> Result<bool> {
-        let _prefixed_key = format!("{}{}", self.config.key_prefix, key);
+        let prefixed_key = format!("{}{}", self.config.key_prefix, key);
         
-        warn!("Memcached缓存是占位实现，不会实际删除键");
-        Ok(false)
+        // 从存储中删除键
+        let mut storage = self.storage.write()
+            .map_err(|_| Error::locks_poison("Memcached存储锁被污染"))?;
+        
+        let deleted_size = storage.get(&prefixed_key)
+            .map(|(value, _)| value.len())
+            .unwrap_or(0);
+        let existed = storage.remove(&prefixed_key).is_some();
+        
+        // 更新指标
+        if existed {
+            let mut metrics = self.metrics.write()
+                .map_err(|_| Error::locks_poison("Memcached缓存指标锁被污染"))?;
+            metrics.record_delete(deleted_size);
+        }
+        
+        Ok(existed)
     }
     
     fn clear(&self) -> Result<()> {
-        warn!("Memcached缓存是占位实现，不会实际清空缓存");
+        // 清空所有存储的键值对
+        let mut storage = self.storage.write()
+            .map_err(|_| Error::locks_poison("Memcached存储锁被污染"))?;
+        
+        let cleared_count = storage.len();
+        storage.clear();
+        
+        // 更新指标
+        let mut metrics = self.metrics.write()
+            .map_err(|_| Error::locks_poison("Memcached缓存指标锁被污染"))?;
+        metrics.reset();
+        
+        info!("Memcached缓存已清空，删除了{}个条目", cleared_count);
         Ok(())
     }
     

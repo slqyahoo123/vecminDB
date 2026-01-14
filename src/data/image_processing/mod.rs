@@ -6,7 +6,9 @@ pub mod resize;
 pub mod augmentation;
 pub mod color;
 
-use std::io::{Result, Error, ErrorKind, Cursor};
+use std::io::{Result, Error, ErrorKind};
+#[cfg(feature = "multimodal")]
+use std::io::Cursor;
 use std::path::Path;
 
 // 图像格式枚举

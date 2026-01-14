@@ -200,11 +200,14 @@ pub struct ProcessSandbox {
 }
 
 /// 进程句柄
+/// 
+/// 使用Arc<Mutex<>>包装Child进程，以便安全地共享和克隆
+#[derive(Clone)]
 struct ProcessHandle {
-    /// 子进程
-    child: Child,
+    /// 子进程（使用Arc<Mutex<>>包装以便共享）
+    child: Arc<Mutex<Child>>,
     /// 进程信息
-    info: ProcessInfo,
+    info: Arc<Mutex<ProcessInfo>>,
     /// 启动时间
     start_time: Instant,
 }
@@ -245,7 +248,7 @@ impl ProcessSandbox {
         self.prepare_environment().await?;
         
         // 创建进程
-        let mut process_handle = self.create_process(command).await?;
+        let process_handle = self.create_process(command).await?;
         
         // 启动监控
         self.start_monitoring(&process_handle).await?;
@@ -258,15 +261,20 @@ impl ProcessSandbox {
         let result: Result<ProcessExecutionResult> = tokio::select! {
             _ = timeout_check => {
                 // 超时，终止进程
-                if let Err(e) = process_handle.child.kill() {
+                let mut child_guard = process_handle.child.lock().unwrap();
+                if let Err(e) = child_guard.kill() {
                     error!("Failed to kill timed out process: {}", e);
                 }
+                drop(child_guard);
                 
-                process_handle.info.state = ProcessState::Timeout;
-                process_handle.info.ended_at = Some(Instant::now());
+                let mut info_guard = process_handle.info.lock().unwrap();
+                info_guard.state = ProcessState::Timeout;
+                info_guard.ended_at = Some(Instant::now());
+                let process_info = info_guard.clone();
+                drop(info_guard);
                 
                 Ok(ProcessExecutionResult {
-                    process_info: process_handle.info.clone(),
+                    process_info,
                     output: ProcessOutput {
                         stdout: String::new(),
                         stderr: "Process timed out".to_string(),
@@ -279,7 +287,7 @@ impl ProcessSandbox {
                     error_message: Some("Process execution timeout".to_string()),
                 })
             },
-            result = self.wait_for_process(&mut process_handle) => {
+            result = self.wait_for_process(&process_handle) => {
                 result
             }
         };
@@ -298,17 +306,22 @@ impl ProcessSandbox {
     pub async fn terminate(&self) -> Result<()> {
         let mut process_guard = self.current_process.lock().unwrap();
         
-        if let Some(ref mut handle) = *process_guard {
+        if let Some(ref handle) = *process_guard {
             // 尝试优雅终止（标准库Child没有terminate方法，直接使用kill）
-            if let Err(e) = handle.child.kill() {
+            let mut child_guard = handle.child.lock().unwrap();
+            if let Err(e) = child_guard.kill() {
                 error!("Failed to kill process: {}", e);
                 return Err(Error::ExecutionError(format!("Failed to kill process: {}", e)));
             }
+            drop(child_guard);
             
-            handle.info.state = ProcessState::Terminated(-1);
-            handle.info.ended_at = Some(Instant::now());
+            let mut info_guard = handle.info.lock().unwrap();
+            info_guard.state = ProcessState::Terminated(-1);
+            info_guard.ended_at = Some(Instant::now());
+            let pid = info_guard.pid;
+            drop(info_guard);
             
-            info!("Process {} terminated", handle.info.pid);
+            info!("Process {} terminated", pid);
         }
         
         // 停止监控
@@ -321,7 +334,9 @@ impl ProcessSandbox {
     pub fn get_process_info(&self) -> Option<ProcessInfo> {
         self.current_process.lock().unwrap()
             .as_ref()
-            .map(|handle| handle.info.clone())
+            .and_then(|handle| {
+                handle.info.lock().ok().map(|info_guard| info_guard.clone())
+            })
     }
 
     /// 获取资源使用历史
@@ -462,12 +477,12 @@ impl ProcessSandbox {
         };
         
         let handle = ProcessHandle {
-            child,
-            info: process_info,
+            child: Arc::new(Mutex::new(child)),
+            info: Arc::new(Mutex::new(process_info)),
             start_time: Instant::now(),
         };
         
-        // 保存进程句柄
+        // 保存进程句柄（现在可以安全地克隆）
         *self.current_process.lock().unwrap() = Some(handle.clone());
         
         info!("Process {} started: {}", pid, command.join(" "));
@@ -515,7 +530,7 @@ impl ProcessSandbox {
 
     /// 启动监控
     async fn start_monitoring(&self, process_handle: &ProcessHandle) -> Result<()> {
-        let pid = process_handle.info.pid;
+        let pid = process_handle.info.lock().unwrap().pid;
         let is_monitoring = Arc::new(Mutex::new(true));
         let resource_history = Arc::new(Mutex::new(Vec::new()));
         
@@ -568,7 +583,7 @@ impl ProcessSandbox {
     }
 
     /// 等待进程完成
-    async fn wait_for_completion(&self, mut process_handle: ProcessHandle) -> Result<ProcessExecutionResult> {
+    async fn wait_for_completion(&self, process_handle: ProcessHandle) -> Result<ProcessExecutionResult> {
         let timeout = self.config.timeout;
         let start_time = process_handle.start_time;
         
@@ -579,15 +594,20 @@ impl ProcessSandbox {
         let result: Result<ProcessExecutionResult> = tokio::select! {
             _ = timeout_check => {
                 // 超时，终止进程
-                if let Err(e) = process_handle.child.kill() {
+                let mut child_guard = process_handle.child.lock().unwrap();
+                if let Err(e) = child_guard.kill() {
                     error!("Failed to kill timed out process: {}", e);
                 }
+                drop(child_guard);
                 
-                process_handle.info.state = ProcessState::Timeout;
-                process_handle.info.ended_at = Some(Instant::now());
+                let mut info_guard = process_handle.info.lock().unwrap();
+                info_guard.state = ProcessState::Timeout;
+                info_guard.ended_at = Some(Instant::now());
+                let process_info = info_guard.clone();
+                drop(info_guard);
                 
                 Ok(ProcessExecutionResult {
-                    process_info: process_handle.info.clone(),
+                    process_info,
                     output: ProcessOutput {
                         stdout: String::new(),
                         stderr: "Process timed out".to_string(),
@@ -600,7 +620,7 @@ impl ProcessSandbox {
                     error_message: Some("Process execution timeout".to_string()),
                 })
             },
-            result = self.wait_for_process(&mut process_handle) => {
+            result = self.wait_for_process(&process_handle) => {
                 result
             }
         };
@@ -609,35 +629,52 @@ impl ProcessSandbox {
     }
 
     /// 等待进程结束
-    async fn wait_for_process(&self, process_handle: &mut ProcessHandle) -> Result<ProcessExecutionResult> {
+    async fn wait_for_process(&self, process_handle: &ProcessHandle) -> Result<ProcessExecutionResult> {
         // 等待进程结束
-        let exit_status: std::process::ExitStatus = process_handle.child.wait()
+        let mut child_guard = process_handle.child.lock().unwrap();
+        let exit_status: std::process::ExitStatus = child_guard.wait()
             .map_err(|e| Error::ExecutionError(format!("Failed to wait for process: {}", e)))?;
+        drop(child_guard);
         
         let exit_code = exit_status.code().unwrap_or(-1);
         let success = exit_status.success();
         
         // 更新进程信息
-        process_handle.info.state = if success {
+        let mut info_guard = process_handle.info.lock().unwrap();
+        info_guard.state = if success {
             ProcessState::Completed(exit_code)
         } else {
             ProcessState::Terminated(exit_code)
         };
-        process_handle.info.exit_code = Some(exit_code);
-        process_handle.info.ended_at = Some(Instant::now());
+        info_guard.exit_code = Some(exit_code);
+        info_guard.ended_at = Some(Instant::now());
+        let process_info = info_guard.clone();
+        drop(info_guard);
         
         // 收集输出
-        let output = self.collect_output(&mut process_handle.child).await?;
+        let mut child_guard = process_handle.child.lock().unwrap();
+        let output = self.collect_output(&mut *child_guard).await?;
+        drop(child_guard);
         
         // 收集最终资源使用情况
-        if let Ok(final_usage) = Self::collect_resource_usage(process_handle.info.pid) {
-            process_handle.info.resource_usage = final_usage;
+        let pid = {
+            let info_guard = process_handle.info.lock().unwrap();
+            info_guard.pid
+        };
+        if let Ok(final_usage) = Self::collect_resource_usage(pid) {
+            let mut info_guard = process_handle.info.lock().unwrap();
+            info_guard.resource_usage = final_usage;
         }
         
         let execution_time = process_handle.start_time.elapsed();
         
+        let process_info = {
+            let info_guard = process_handle.info.lock().unwrap();
+            info_guard.clone()
+        };
+        
         Ok(ProcessExecutionResult {
-            process_info: process_handle.info.clone(),
+            process_info,
             output,
             execution_time,
             success,
@@ -715,13 +752,15 @@ impl ProcessSandbox {
     }
 }
 
-impl Clone for ProcessHandle {
-    fn clone(&self) -> Self {
-        // 注意：这里不能真正克隆Child，所以这个实现是有问题的
-        // 在实际使用中，应该避免克隆ProcessHandle
-        panic!("ProcessHandle cannot be cloned due to Child process")
-    }
-}
+// ProcessHandle 不能实现 Clone，因为 Child 进程不能克隆
+// 如果需要共享 ProcessHandle，应该使用 Arc<ProcessHandle>
+// 这里移除 Clone 实现，避免误用
+// impl Clone for ProcessHandle {
+//     fn clone(&self) -> Self {
+//         // Child 进程不能克隆，如果需要共享，请使用 Arc<ProcessHandle>
+//         panic!("ProcessHandle cannot be cloned due to Child process")
+//     }
+// }
 
 impl Default for ProcessSandboxConfig {
     fn default() -> Self {

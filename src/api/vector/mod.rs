@@ -7,7 +7,6 @@ pub mod types;
 use std::sync::Arc;
 use crate::vector::VectorService;
 use crate::Result;
-use crate::vector::search::VectorMetadata;
 
 /// 向量API实现
 #[derive(Clone)]
