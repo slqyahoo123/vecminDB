@@ -153,7 +153,7 @@ pub struct StreamingStats {
 }
 
 impl<'de> Deserialize<'de> for StreamingStats {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
@@ -169,7 +169,7 @@ impl<'de> Deserialize<'de> for StreamingStats {
                 formatter.write_str("struct StreamingStats")
             }
 
-            fn visit_map<V>(self, mut map: V) -> Result<StreamingStats, V::Error>
+            fn visit_map<V>(self, mut map: V) -> std::result::Result<StreamingStats, V::Error>
             where
                 V: MapAccess<'de>,
             {

@@ -394,13 +394,13 @@ impl<T: PipelineStage> PipelineStage for MonitoredPipeline<T> {
     }
     
     /// 初始化阶段
-    fn init(&mut self, context: &mut PipelineContext) -> Result<(), std::boxed::Box<dyn std::error::Error>> {
+    fn init(&mut self, context: &mut PipelineContext) -> std::result::Result<(), std::boxed::Box<dyn std::error::Error>> {
         self.status = PipelineStageStatus::Initialized;
         self.pipeline.init(context)
     }
     
     /// 处理数据
-    fn process(&mut self, context: &mut PipelineContext) -> Result<(), std::boxed::Box<dyn std::error::Error>> {
+    fn process(&mut self, context: &mut PipelineContext) -> std::result::Result<(), std::boxed::Box<dyn std::error::Error>> {
         // 获取管道ID和阶段名称
         // PipelineContext 没有 pipeline_id 字段，从 metadata 或生成新的
         let pipeline_id = context.metadata.get("pipeline_id")
@@ -457,7 +457,7 @@ impl<T: PipelineStage> PipelineStage for MonitoredPipeline<T> {
     }
     
     /// 清理阶段
-    fn cleanup(&mut self, context: &mut PipelineContext) -> Result<(), std::boxed::Box<dyn std::error::Error>> {
+    fn cleanup(&mut self, context: &mut PipelineContext) -> std::result::Result<(), std::boxed::Box<dyn std::error::Error>> {
         let result = self.pipeline.cleanup(context);
         if result.is_ok() {
             self.status = PipelineStageStatus::Cleaned;
@@ -555,12 +555,12 @@ impl<T: PipelineStage> PipelineStage for MonitoredStage<T> {
         self.inner.name()
     }
     
-    fn init(&mut self, context: &mut PipelineContext) -> Result<(), std::boxed::Box<dyn std::error::Error>> {
+    fn init(&mut self, context: &mut PipelineContext) -> std::result::Result<(), std::boxed::Box<dyn std::error::Error>> {
         self.status = crate::data::pipeline::traits::PipelineStageStatus::Initialized;
         self.inner.init(context)
     }
     
-    fn process(&mut self, context: &mut PipelineContext) -> Result<(), std::boxed::Box<dyn std::error::Error>> {
+    fn process(&mut self, context: &mut PipelineContext) -> std::result::Result<(), std::boxed::Box<dyn std::error::Error>> {
         // 记录开始事件
         // PipelineContext 没有 pipeline_id 字段，从 metadata 或使用默认值
         let pipeline_id = context.metadata.get("pipeline_id")
@@ -595,7 +595,7 @@ impl<T: PipelineStage> PipelineStage for MonitoredStage<T> {
         result
     }
     
-    fn cleanup(&mut self, context: &mut PipelineContext) -> Result<(), std::boxed::Box<dyn std::error::Error>> {
+    fn cleanup(&mut self, context: &mut PipelineContext) -> std::result::Result<(), std::boxed::Box<dyn std::error::Error>> {
         let result = self.inner.cleanup(context);
         if result.is_ok() {
             self.status = crate::data::pipeline::traits::PipelineStageStatus::Cleaned;

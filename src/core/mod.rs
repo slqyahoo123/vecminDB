@@ -749,7 +749,7 @@ impl SimpleLockManager {
         }
     }
     
-    pub fn set_value(&self, key: String, value: String) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn set_value(&self, key: String, value: String) -> std::result::Result<(), Box<dyn std::error::Error>> {
         let mut data = self.data.write().map_err(|e| {
             std::io::Error::new(std::io::ErrorKind::Other, format!("获取写锁失败: {}", e))
         })?;
@@ -757,7 +757,7 @@ impl SimpleLockManager {
         Ok(())
     }
     
-    pub fn get_value(&self, key: &str) -> Result<Option<String>, Box<dyn std::error::Error>> {
+    pub fn get_value(&self, key: &str) -> std::result::Result<Option<String>, Box<dyn std::error::Error>> {
         let data = self.data.read().map_err(|e| {
             std::io::Error::new(std::io::ErrorKind::Other, format!("获取读锁失败: {}", e))
         })?;

@@ -228,44 +228,11 @@ impl TransformerModel {
         self.state.is_training = true;
         self.state.training_steps = 0;
         
-        info!("开始训练模型，数据量: {}", training_data.len());
-        
-        let mut total_loss = 0.0;
-        let mut correct_predictions = 0;
-        
-        for (epoch, batch) in training_data.chunks(self.config.batch_size).enumerate() {
-            let batch_loss = self.train_batch(batch)?;
-            total_loss += batch_loss;
-            
-            // 计算准确率（简化实现）
-            correct_predictions += batch.len();
-            
-            if epoch % 10 == 0 {
-                info!("Epoch {}, Loss: {:.4}", epoch, batch_loss);
-            }
-        }
-        
-        let avg_loss = total_loss / training_data.len() as f32;
-        let accuracy = correct_predictions as f32 / training_data.len() as f32;
-        
-        // 更新状态
-        self.state.current_loss = avg_loss;
-        if avg_loss < self.state.best_loss {
-            self.state.best_loss = avg_loss;
-        }
-        self.state.validation_accuracy = accuracy;
-        self.state.training_epochs += 1;
-        self.state.is_training = false;
-        self.state.last_updated = std::time::SystemTime::now();
-        
-        info!("训练完成，平均损失: {:.4}, 准确率: {:.4}", avg_loss, accuracy);
-        
-        Ok(TrainingResult {
-            epochs: self.state.training_epochs,
-            final_loss: avg_loss,
-            accuracy,
-            training_steps: self.state.training_steps,
-        })
+        // Training is not supported in vecminDB - this is a vector database, not a training platform
+        Err(TransformerError::Internal(format!(
+            "model training is not supported in vecminDB (attempted to train with {} examples)",
+            training_data.len()
+        )))
     }
     
     /// 训练单个批次
@@ -283,7 +250,7 @@ impl TransformerModel {
             let loss = self.calculate_loss(&prediction, &example.target)?;
             batch_loss += loss;
             
-            // 更新模型参数（简化实现）
+            // Update parameters (training not supported in vecminDB)
             self.update_parameters(&processed.encoded, &example.target)?;
             
             self.state.training_steps += 1;

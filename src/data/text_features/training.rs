@@ -115,12 +115,15 @@ impl Trainer {
     }
     
     /// 训练模型
+    /// 
+    /// 注意：vecminDB是一个向量数据库，不提供模型训练功能。
+    /// 训练功能已被禁用，调用此方法将返回错误。
     pub fn train(&mut self, training_data: Vec<TrainingExample>) -> Result<TrainingResult, TransformerError> {
-        if training_data.is_empty() {
-            return Err(TransformerError::InputError("训练数据为空".to_string()));
-        }
-        
-        info!("开始训练，数据量: {}, 配置: {:?}", training_data.len(), self.config);
+        // Training is not supported in vecminDB - this is a vector database, not a training platform
+        Err(TransformerError::Internal(format!(
+            "model training is not supported in vecminDB (attempted to train with {} examples)",
+            training_data.len()
+        )))
         
         // 分割训练和验证数据
         let (train_data, val_data) = self.split_data(training_data)?;
@@ -214,7 +217,7 @@ impl Trainer {
         
         Ok(EpochMetrics {
             loss: avg_loss,
-            accuracy: 0.0, // 简化实现
+            accuracy: 0.0, // Training not supported - placeholder value
             steps: total_steps,
         })
     }
@@ -238,7 +241,7 @@ impl Trainer {
             let loss = self.loss_function.compute(&prediction, &example.target)?;
             batch_loss += loss;
             
-            // 反向传播（简化实现）
+            // Backpropagation (training not supported in vecminDB)
             let grad = self.backward_pass(&prediction, &example.target)?;
             gradients.push(grad);
         }
@@ -274,7 +277,7 @@ impl Trainer {
                 let loss = self.loss_function.compute(&prediction, &example.target)?;
                 total_loss += loss;
                 
-                // 计算准确率（简化实现）
+                // Calculate accuracy (training not supported in vecminDB)
                 if self.is_correct_prediction(&prediction, &example.target) {
                     correct_predictions += 1;
                 }

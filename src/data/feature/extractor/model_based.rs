@@ -270,7 +270,7 @@ impl FeatureExtractor for Word2VecExtractor {
         matches!(input, InputData::Text(_) | InputData::TextArray(_))
     }
     
-    async fn extract(&self, input: InputData, _context: Option<ExtractorContext>) -> Result<FeatureVector, ExtractorError> {
+    async fn extract(&self, input: InputData, _context: Option<ExtractorContext>) -> std::result::Result<FeatureVector, ExtractorError> {
         // 确保模型已加载
         if !*self.model_loaded.read().unwrap() {
             self.load_model().await?;
@@ -296,7 +296,7 @@ impl FeatureExtractor for Word2VecExtractor {
             .with_extractor_type(self.extractor_type()))
     }
     
-    async fn batch_extract(&self, inputs: Vec<InputData>, _context: Option<ExtractorContext>) -> Result<FeatureBatch, ExtractorError> {
+    async fn batch_extract(&self, inputs: Vec<InputData>, _context: Option<ExtractorContext>) -> std::result::Result<FeatureBatch, ExtractorError> {
         // 确保模型已加载
         if !*self.model_loaded.read().unwrap() {
             self.load_model().await?;
@@ -431,7 +431,9 @@ impl BERTExtractor {
         let pooled = match self.pooling_strategy.as_str() {
             "max" => Self::pool_max(&token_vectors),
             "cls" => {
-                // CLS策略：使用第一个token（简化实现）
+                // CLS strategy: use representation of the first token as
+                // a proxy for the whole sequence, which matches common
+                // transformer‑style pooling behavior.
                 if !token_vectors.is_empty() {
                     token_vectors[0].clone()
                 } else {
@@ -579,7 +581,7 @@ impl FeatureExtractor for BERTExtractor {
         matches!(input, InputData::Text(_) | InputData::TextArray(_))
     }
     
-    async fn extract(&self, input: InputData, _context: Option<ExtractorContext>) -> Result<FeatureVector, ExtractorError> {
+    async fn extract(&self, input: InputData, _context: Option<ExtractorContext>) -> std::result::Result<FeatureVector, ExtractorError> {
         if !*self.model_loaded.read().unwrap() {
             self.load_model().await?;
         }
@@ -599,7 +601,7 @@ impl FeatureExtractor for BERTExtractor {
             .with_extractor_type(self.extractor_type()))
     }
     
-    async fn batch_extract(&self, inputs: Vec<InputData>, _context: Option<ExtractorContext>) -> Result<FeatureBatch, ExtractorError> {
+    async fn batch_extract(&self, inputs: Vec<InputData>, _context: Option<ExtractorContext>) -> std::result::Result<FeatureBatch, ExtractorError> {
         if !*self.model_loaded.read().unwrap() {
             self.load_model().await?;
         }
@@ -838,7 +840,7 @@ impl FeatureExtractor for FastTextExtractor {
         matches!(input, InputData::Text(_) | InputData::TextArray(_))
     }
     
-    async fn extract(&self, input: InputData, _context: Option<ExtractorContext>) -> Result<FeatureVector, ExtractorError> {
+    async fn extract(&self, input: InputData, _context: Option<ExtractorContext>) -> std::result::Result<FeatureVector, ExtractorError> {
         if !*self.model_loaded.read().unwrap() {
             self.load_model().await?;
         }
@@ -858,7 +860,7 @@ impl FeatureExtractor for FastTextExtractor {
             .with_extractor_type(self.extractor_type()))
     }
     
-    async fn batch_extract(&self, inputs: Vec<InputData>, _context: Option<ExtractorContext>) -> Result<FeatureBatch, ExtractorError> {
+    async fn batch_extract(&self, inputs: Vec<InputData>, _context: Option<ExtractorContext>) -> std::result::Result<FeatureBatch, ExtractorError> {
         if !*self.model_loaded.read().unwrap() {
             self.load_model().await?;
         }
@@ -1154,7 +1156,7 @@ impl FeatureExtractor for CLIPExtractor {
         matches!(input, InputData::Text(_) | InputData::Image(_) | InputData::MultiModal(_))
     }
     
-    async fn extract(&self, input: InputData, _context: Option<ExtractorContext>) -> Result<FeatureVector, ExtractorError> {
+    async fn extract(&self, input: InputData, _context: Option<ExtractorContext>) -> std::result::Result<FeatureVector, ExtractorError> {
         if !*self.model_loaded.read().unwrap() {
             self.load_model().await?;
         }
@@ -1165,7 +1167,7 @@ impl FeatureExtractor for CLIPExtractor {
             .with_extractor_type(self.extractor_type()))
     }
     
-    async fn batch_extract(&self, inputs: Vec<InputData>, _context: Option<ExtractorContext>) -> Result<FeatureBatch, ExtractorError> {
+    async fn batch_extract(&self, inputs: Vec<InputData>, _context: Option<ExtractorContext>) -> std::result::Result<FeatureBatch, ExtractorError> {
         if !*self.model_loaded.read().unwrap() {
             self.load_model().await?;
         }

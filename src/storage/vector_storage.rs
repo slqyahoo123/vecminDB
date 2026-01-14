@@ -74,7 +74,7 @@ impl Default for VectorStorageConfig {
 /// 向量存储接口
 pub struct VectorStorage {
     /// 底层KV存储引擎
-    storage: Arc<KeyValueStorageEngine>,
+    storage: Arc<dyn KeyValueStorageEngine>,
     /// 配置
     config: VectorStorageConfig,
     /// 键前缀

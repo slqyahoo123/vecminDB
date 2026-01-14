@@ -91,7 +91,7 @@ impl FeatureExtractor for IdentityExtractor {
         matches!(input, InputData::Tensor(_, _))
     }
     
-    async fn extract(&self, input: InputData, _context: Option<ExtractorContext>) -> Result<FeatureVector, ExtractorError> {
+    async fn extract(&self, input: InputData, _context: Option<ExtractorContext>) -> std::result::Result<FeatureVector, ExtractorError> {
         let numeric_data = self.extract_numeric_vector(&input)?;
         
         // 身份变换：直接返回输入数据
@@ -99,7 +99,7 @@ impl FeatureExtractor for IdentityExtractor {
             .with_extractor_type(self.extractor_type()))
     }
     
-    async fn batch_extract(&self, inputs: Vec<InputData>, _context: Option<ExtractorContext>) -> Result<FeatureBatch, ExtractorError> {
+    async fn batch_extract(&self, inputs: Vec<InputData>, _context: Option<ExtractorContext>) -> std::result::Result<FeatureBatch, ExtractorError> {
         let mut results = Vec::with_capacity(inputs.len());
         for input in inputs {
             let numeric_data = self.extract_numeric_vector(&input)?;
@@ -313,7 +313,7 @@ impl FeatureExtractor for FeatureSelectionExtractor {
         matches!(input, InputData::Tensor(_, _))
     }
     
-    async fn extract(&self, input: InputData, context: Option<ExtractorContext>) -> Result<FeatureVector, ExtractorError> {
+    async fn extract(&self, input: InputData, context: Option<ExtractorContext>) -> std::result::Result<FeatureVector, ExtractorError> {
         // 注意：这里需要&mut self来调用fit，但trait方法签名不允许
         // 实际使用中，fit应该在创建提取器后单独调用
         // 这里我们假设已经拟合过了
@@ -325,7 +325,7 @@ impl FeatureExtractor for FeatureSelectionExtractor {
             .with_extractor_type(self.extractor_type()))
     }
     
-    async fn batch_extract(&self, inputs: Vec<InputData>, _context: Option<ExtractorContext>) -> Result<FeatureBatch, ExtractorError> {
+    async fn batch_extract(&self, inputs: Vec<InputData>, _context: Option<ExtractorContext>) -> std::result::Result<FeatureBatch, ExtractorError> {
         let mut results = Vec::with_capacity(inputs.len());
         for input in inputs {
             let numeric_data = self.extract_numeric_vector(&input)?;

@@ -75,7 +75,7 @@ impl Default for IndexStorageConfig {
 /// 索引存储接口
 pub struct IndexStorage {
     /// 底层KV存储引擎
-    storage: Arc<KeyValueStorageEngine>,
+    storage: Arc<dyn KeyValueStorageEngine>,
     /// 配置
     config: IndexStorageConfig,
     /// 键前缀

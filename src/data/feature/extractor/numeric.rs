@@ -181,7 +181,7 @@ impl FeatureExtractor for StandardizeExtractor {
         matches!(input, InputData::Tensor(_, _))
     }
     
-    async fn extract(&self, input: InputData, context: Option<ExtractorContext>) -> Result<FeatureVector, ExtractorError> {
+    async fn extract(&self, input: InputData, context: Option<ExtractorContext>) -> std::result::Result<FeatureVector, ExtractorError> {
         // 检查是否有训练数据需要拟合
         if let Some(ctx) = &context {
             if let Some(training_data_str) = ctx.get_param("training_data") {
@@ -198,7 +198,7 @@ impl FeatureExtractor for StandardizeExtractor {
             .with_extractor_type(self.extractor_type()))
     }
     
-    async fn batch_extract(&self, inputs: Vec<InputData>, context: Option<ExtractorContext>) -> Result<FeatureBatch, ExtractorError> {
+    async fn batch_extract(&self, inputs: Vec<InputData>, context: Option<ExtractorContext>) -> std::result::Result<FeatureBatch, ExtractorError> {
         // 检查是否有训练数据需要拟合
         if let Some(ctx) = &context {
             if let Some(training_data_str) = ctx.get_param("training_data") {
@@ -380,7 +380,7 @@ impl FeatureExtractor for NormalizeExtractor {
         matches!(input, InputData::Tensor(_, _))
     }
     
-    async fn extract(&self, input: InputData, context: Option<ExtractorContext>) -> Result<FeatureVector, ExtractorError> {
+    async fn extract(&self, input: InputData, context: Option<ExtractorContext>) -> std::result::Result<FeatureVector, ExtractorError> {
         // 检查是否有训练数据需要拟合
         if let Some(ctx) = &context {
             if let Some(training_data_str) = ctx.get_param("training_data") {
@@ -397,7 +397,7 @@ impl FeatureExtractor for NormalizeExtractor {
             .with_extractor_type(self.extractor_type()))
     }
     
-    async fn batch_extract(&self, inputs: Vec<InputData>, context: Option<ExtractorContext>) -> Result<FeatureBatch, ExtractorError> {
+    async fn batch_extract(&self, inputs: Vec<InputData>, context: Option<ExtractorContext>) -> std::result::Result<FeatureBatch, ExtractorError> {
         // 检查是否有训练数据需要拟合
         if let Some(ctx) = &context {
             if let Some(training_data_str) = ctx.get_param("training_data") {
@@ -521,7 +521,7 @@ impl FeatureExtractor for LogTransformExtractor {
         matches!(input, InputData::Tensor(_, _))
     }
     
-    async fn extract(&self, input: InputData, _context: Option<ExtractorContext>) -> Result<FeatureVector, ExtractorError> {
+    async fn extract(&self, input: InputData, _context: Option<ExtractorContext>) -> std::result::Result<FeatureVector, ExtractorError> {
         let numeric_data = self.extract_numeric_vector(&input)?;
         let transformed = self.transform(&numeric_data)?;
         
@@ -529,7 +529,7 @@ impl FeatureExtractor for LogTransformExtractor {
             .with_extractor_type(self.extractor_type()))
     }
     
-    async fn batch_extract(&self, inputs: Vec<InputData>, _context: Option<ExtractorContext>) -> Result<FeatureBatch, ExtractorError> {
+    async fn batch_extract(&self, inputs: Vec<InputData>, _context: Option<ExtractorContext>) -> std::result::Result<FeatureBatch, ExtractorError> {
         let mut results = Vec::with_capacity(inputs.len());
         for input in inputs {
             let numeric_data = self.extract_numeric_vector(&input)?;

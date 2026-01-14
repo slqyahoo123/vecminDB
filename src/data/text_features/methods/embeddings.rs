@@ -21,8 +21,51 @@ impl EmbeddingsExtractor {
     
     /// 加载词嵌入
     pub fn load_embeddings(&mut self, path: &str) -> Result<()> {
-        // 实际实现应该从文件加载词嵌入
-        // 这里只是一个占位实现
+        use std::fs::File;
+        use std::io::{BufRead, BufReader};
+        
+        let file = File::open(path)
+            .map_err(|e| crate::error::Error::io_error(format!("failed to open embeddings file {}: {}", path, e)))?;
+        let reader = BufReader::new(file);
+        
+        let mut map = HashMap::new();
+        for (line_no, line) in reader.lines().enumerate() {
+            let line = line.map_err(|e| crate::error::Error::io_error(format!(
+                "failed to read embeddings line {} from {}: {}",
+                line_no + 1,
+                path,
+                e
+            )))?;
+            
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() < 2 {
+                continue;
+            }
+            
+            let token = parts[0].to_string();
+            let mut values = Vec::new();
+            for (i, p) in parts[1..].iter().enumerate() {
+                match p.parse::<f32>() {
+                    Ok(v) => values.push(v),
+                    Err(e) => {
+                        return Err(crate::error::Error::invalid_data(format!(
+                            "invalid float value at line {} column {} in {}: {}",
+                            line_no + 1,
+                            i + 2,
+                            path,
+                            e
+                        )));
+                    }
+                }
+            }
+            
+            // 只接受与配置维度一致的向量
+            if !values.is_empty() && values.len() == self.config.vector_dim {
+                map.insert(token, values);
+            }
+        }
+        
+        self.embedding_map = map;
         Ok(())
     }
 }
@@ -64,7 +107,7 @@ impl FeatureMethod for EmbeddingsExtractor {
     
     /// 文本分词
     fn tokenize_text(&self, text: &str) -> Result<Vec<String>> {
-        // 简单分词实现，生产环境应使用专业分词器
+        // Basic tokenizer: lowercase, strip punctuation, split by whitespace.
         let tokens: Vec<String> = text
             .to_lowercase()
             .split_whitespace()
@@ -118,7 +161,8 @@ impl FeatureMethod for EmbeddingsExtractor {
     
     /// 获取未知词嵌入
     fn get_unknown_word_embedding(&self) -> Result<Vec<f32>> {
-        // 对于未知词，可以使用字符级特征或随机向量
+        // For unknown tokens we generate a deterministic fallback embedding so
+        // that behavior is stable across runs.
         let vec_dim = self.config.vector_dim;
         
         // 基于固定的随机种子的简单嵌入

@@ -1275,7 +1275,7 @@ impl DatasetStorageInterface for StorageEngineImpl {
 
 #[async_trait::async_trait]
 impl MonitoringInterface for StorageEngineImpl {
-    async fn get_stats(&self) -> Result<std::collections::HashMap<String, f64>, crate::Error> {
+    async fn get_stats(&self) -> Result<std::collections::HashMap<String, f64>> {
         let db = self.get_db_clone();
         let db_guard = db.read().await;
         let mut stats = std::collections::HashMap::new();
@@ -1310,7 +1310,7 @@ impl MonitoringInterface for StorageEngineImpl {
             Ok(stats)
     }
     
-    async fn get_counter(&self, name: &str) -> Result<u64, crate::Error> {
+    async fn get_counter(&self, name: &str) -> Result<u64> {
         let key = format!("counter:{}", name);
         let db = self.get_db_clone();
         let db_guard = db.read().await;
@@ -1322,7 +1322,7 @@ impl MonitoringInterface for StorageEngineImpl {
         }
     }
     
-    async fn increment_counter(&self, name: &str, value: u64) -> Result<(), crate::Error> {
+    async fn increment_counter(&self, name: &str, value: u64) -> Result<()> {
         let key = format!("counter:{}", name);
         let db = self.get_db_clone();
         let db_guard = db.read().await;
@@ -1340,7 +1340,7 @@ impl MonitoringInterface for StorageEngineImpl {
         Ok(())
     }
     
-    async fn count_models(&self) -> Result<u64, crate::Error> {
+    async fn count_models(&self) -> Result<u64> {
         let db = self.get_db_clone();
         let db_guard = db.read().await;
         let mut count = 0u64;
@@ -1353,7 +1353,7 @@ impl MonitoringInterface for StorageEngineImpl {
         Ok(count)
     }
     
-    async fn count_models_by_type(&self, model_type: &str) -> Result<u64, crate::Error> {
+    async fn count_models_by_type(&self, model_type: &str) -> Result<u64> {
         let db = self.get_db_clone();
         let db_guard = db.read().await;
         let mut count = 0u64;
@@ -1374,7 +1374,7 @@ impl MonitoringInterface for StorageEngineImpl {
         Ok(count)
     }
     
-    async fn get_recent_models(&self, limit: usize) -> Result<Vec<String>, crate::Error> {
+    async fn get_recent_models(&self, limit: usize) -> Result<Vec<String>> {
         let db = self.get_db_clone();
         let db_guard = db.read().await;
         let mut models = Vec::new();
@@ -1395,7 +1395,7 @@ impl MonitoringInterface for StorageEngineImpl {
         Ok(models)
     }
     
-    async fn count_tasks(&self) -> Result<u64, crate::Error> {
+    async fn count_tasks(&self) -> Result<u64> {
         let db = self.get_db_clone();
         let db_guard = db.read().await;
         let mut count = 0u64;
@@ -1408,7 +1408,7 @@ impl MonitoringInterface for StorageEngineImpl {
         Ok(count)
     }
     
-    async fn count_tasks_by_status(&self, status: &str) -> Result<u64, crate::Error> {
+    async fn count_tasks_by_status(&self, status: &str) -> Result<u64> {
         let db = self.get_db_clone();
         let db_guard = db.read().await;
         let mut count = 0u64;
@@ -1429,7 +1429,7 @@ impl MonitoringInterface for StorageEngineImpl {
         Ok(count)
     }
     
-    async fn get_recent_tasks(&self, limit: usize) -> Result<Vec<String>, crate::Error> {
+    async fn get_recent_tasks(&self, limit: usize) -> Result<Vec<String>> {
         let db = self.get_db_clone();
         let db_guard = db.read().await;
         let mut tasks = Vec::new();
@@ -1450,7 +1450,7 @@ impl MonitoringInterface for StorageEngineImpl {
         Ok(tasks)
     }
     
-    async fn get_logs(&self, level: &str, limit: usize) -> Result<Vec<String>, crate::Error> {
+    async fn get_logs(&self, level: &str, limit: usize) -> Result<Vec<String>> {
         let db = self.get_db_clone();
         let db_guard = db.read().await;
         let mut logs = Vec::new();
@@ -1485,7 +1485,7 @@ impl MonitoringInterface for StorageEngineImpl {
         Ok(logs)
     }
     
-    async fn count_active_tasks(&self) -> Result<u64, crate::Error> {
+    async fn count_active_tasks(&self) -> Result<u64> {
         let db = self.get_db_clone();
         let db_guard = db.read().await;
         let mut active_count = 0u64;
@@ -1510,7 +1510,7 @@ impl MonitoringInterface for StorageEngineImpl {
         Ok(active_count)
     }
     
-    async fn get_api_stats(&self) -> Result<std::collections::HashMap<String, f64>, crate::Error> {
+    async fn get_api_stats(&self) -> Result<std::collections::HashMap<String, f64>> {
         let db = self.get_db_clone();
         let db_guard = db.read().await;
         let mut stats = std::collections::HashMap::new();
@@ -1566,7 +1566,7 @@ impl MonitoringInterface for StorageEngineImpl {
         Ok(stats)
     }
     
-    async fn check_health(&self) -> Result<bool, crate::Error> {
+    async fn check_health(&self) -> Result<bool> {
         let db = self.get_db_clone();
         let db_guard = db.read().await;
         
@@ -1578,7 +1578,7 @@ impl MonitoringInterface for StorageEngineImpl {
         Ok(true)
     }
     
-    async fn record_metric(&self, name: &str, value: f64, tags: &std::collections::HashMap<String, String>) -> Result<(), crate::Error> {
+    async fn record_metric(&self, name: &str, value: f64, tags: &std::collections::HashMap<String, String>) -> Result<()> {
         let db = self.get_db_clone();
         let db_guard = db.read().await;
         let key = format!("metric:{}:{}", name, chrono::Utc::now().timestamp());
@@ -1593,7 +1593,7 @@ impl MonitoringInterface for StorageEngineImpl {
         Ok(())
     }
     
-    async fn get_metrics(&self, name: &str) -> Result<Vec<crate::core::interfaces::MetricPoint>, crate::Error> {
+    async fn get_metrics(&self, name: &str) -> Result<Vec<crate::core::interfaces::MetricPoint>> {
         let db = self.get_db_clone();
         let db_guard = db.read().await;
         let mut metrics = Vec::new();
@@ -1622,7 +1622,7 @@ impl MonitoringInterface for StorageEngineImpl {
         Ok(metrics)
     }
     
-    async fn create_alert(&self, condition: &crate::core::interfaces::monitoring::AlertCondition) -> Result<(), crate::Error> {
+    async fn create_alert(&self, condition: &crate::core::interfaces::monitoring::AlertCondition) -> Result<()> {
         let db = self.get_db_clone();
         let db_guard = db.read().await;
         let alert_id = uuid::Uuid::new_v4().to_string();
@@ -1632,7 +1632,7 @@ impl MonitoringInterface for StorageEngineImpl {
         Ok(())
     }
     
-    async fn get_system_health(&self) -> Result<crate::core::interfaces::monitoring::SystemHealth, crate::Error> {
+    async fn get_system_health(&self) -> Result<crate::core::interfaces::monitoring::SystemHealth> {
         let db = self.get_db_clone();
         let db_guard = db.read().await;
         

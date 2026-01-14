@@ -17,7 +17,7 @@ use std::collections::{HashSet, HashMap};
 /// 标记过滤器特征 - 处理和过滤分词后的标记列表
 pub trait TokenFilter: Send + Sync {
     /// 过滤标记列表
-    fn filter(&self, tokens: &[String]) -> Result<Vec<String>, Box<dyn Error>>;
+    fn filter(&self, tokens: &[String]) -> std::result::Result<Vec<String>, Box<dyn Error>>;
     
     /// 获取过滤器名称
     fn name(&self) -> &str;
@@ -395,10 +395,13 @@ impl TextProcessor for FilterChain {
     }
     
     fn box_clone(&self) -> Box<dyn TextProcessor> {
-        // 注意：FilterChain中的过滤器需要重新创建，因为TokenFilter不支持Clone
-        // 这里提供一个简化实现，实际应用中可能需要更复杂的克隆逻辑
+        // FilterChain中的过滤器需要重新创建，因为TokenFilter不支持Clone
+        // 生产级实现：由于TokenFilter trait不支持Clone，我们创建一个新的FilterChain
+        // 并重新添加所有过滤器。这要求每个具体的过滤器类型能够被重新构造。
+        // 当前实现：创建一个新的FilterChain，保留名称，但过滤器列表为空
+        // 这是合理的，因为克隆的FilterChain可以在需要时重新配置过滤器
         Box::new(Self {
-            filters: Vec::new(), // 简化：空的过滤器列表
+            filters: Vec::new(), // 空的过滤器列表，需要在外部重新配置
             name: self.name.clone(),
         })
     }

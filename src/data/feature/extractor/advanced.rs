@@ -233,7 +233,7 @@ impl FeatureExtractor for PCAExtractor {
         matches!(input, InputData::Tensor(_, _))
     }
     
-    async fn extract(&self, input: InputData, context: Option<ExtractorContext>) -> Result<FeatureVector, ExtractorError> {
+    async fn extract(&self, input: InputData, context: Option<ExtractorContext>) -> std::result::Result<FeatureVector, ExtractorError> {
         // 检查是否有训练数据需要拟合
         if let Some(ctx) = &context {
             if let Some(training_data_str) = ctx.get_param("training_data") {
@@ -250,7 +250,7 @@ impl FeatureExtractor for PCAExtractor {
             .with_extractor_type(self.extractor_type()))
     }
     
-    async fn batch_extract(&self, inputs: Vec<InputData>, context: Option<ExtractorContext>) -> Result<FeatureBatch, ExtractorError> {
+    async fn batch_extract(&self, inputs: Vec<InputData>, context: Option<ExtractorContext>) -> std::result::Result<FeatureBatch, ExtractorError> {
         // 检查是否有训练数据需要拟合
         if let Some(ctx) = &context {
             if let Some(training_data_str) = ctx.get_param("training_data") {
@@ -446,7 +446,7 @@ impl FeatureExtractor for FusionExtractor {
         matches!(input, InputData::MultiModal(_))
     }
     
-    async fn extract(&self, input: InputData, _context: Option<ExtractorContext>) -> Result<FeatureVector, ExtractorError> {
+    async fn extract(&self, input: InputData, _context: Option<ExtractorContext>) -> std::result::Result<FeatureVector, ExtractorError> {
         let features = self.extract_features(&input)?;
         let fused = self.fuse(&features)?;
         
@@ -454,7 +454,7 @@ impl FeatureExtractor for FusionExtractor {
             .with_extractor_type(self.extractor_type()))
     }
     
-    async fn batch_extract(&self, inputs: Vec<InputData>, _context: Option<ExtractorContext>) -> Result<FeatureBatch, ExtractorError> {
+    async fn batch_extract(&self, inputs: Vec<InputData>, _context: Option<ExtractorContext>) -> std::result::Result<FeatureBatch, ExtractorError> {
         let mut results = Vec::with_capacity(inputs.len());
         for input in inputs {
             let features = self.extract_features(&input)?;

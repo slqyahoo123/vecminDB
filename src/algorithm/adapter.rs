@@ -14,7 +14,12 @@ use crate::core::{
     CoreTensorData, DataType, DeviceType,
 };
 
-/// 算法模型实现
+/// Algorithm model implementation used as a thin compatibility layer.
+/// 
+/// In the vector database context we don't provide full training
+/// capabilities – any training‑related operations will return a
+/// `feature_not_enabled` error so that callers can clearly know
+/// that model training is out of scope for this service.
 pub struct AlgorithmModelImpl {
     model_id: String,
 }
@@ -28,64 +33,105 @@ impl AlgorithmModelImpl {
 #[async_trait]
 impl AlgorithmModelInterface for AlgorithmModelImpl {
     async fn train(&self, data: &[f32], labels: &[f32]) -> Result<()> {
-        // 简化实现 - 记录训练请求
-        log::info!("训练模型 {} 使用 {} 个数据点", self.model_id, data.len());
-        Ok(())
+        // Training is intentionally not supported in vecminDB – this is a
+        // vector database, not a full training platform.
+        Err(crate::error::Error::feature_not_enabled(format!(
+            "model training for id={} ({} samples, {} labels)",
+            self.model_id,
+            data.len(),
+            labels.len()
+        )))
     }
 
     async fn predict(&self, data: &[f32]) -> Result<Vec<f32>> {
-        // 简化实现 - 返回随机预测
-        let predictions = data.iter().map(|_| rand::random::<f32>()).collect();
-        Ok(predictions)
+        // Prediction is not performed locally; models should be served by
+        // external inference services. This adapter only exposes the
+        // contract and fails fast when incorrectly used.
+        Err(crate::error::Error::feature_not_enabled(format!(
+            "local prediction for model {} ({} inputs)",
+            self.model_id,
+            data.len()
+        )))
     }
 
     async fn save_model(&self, path: &str) -> Result<()> {
-        log::info!("保存模型 {} 到 {}", self.model_id, path);
-        Ok(())
+        // Persisting trained models is not handled inside the vector
+        // database – this should be delegated to a dedicated model
+        // registry or storage service.
+        Err(crate::error::Error::feature_not_enabled(format!(
+            "saving model {} to {}",
+            self.model_id,
+            path
+        )))
     }
 
     async fn load_model(&self, path: &str) -> Result<()> {
-        log::info!("从 {} 加载模型 {}", path, self.model_id);
-        Ok(())
+        // Loading models is outside the responsibility of vecminDB – the
+        // database only consumes vectorized representations.
+        Err(crate::error::Error::feature_not_enabled(format!(
+            "loading model {} from {}",
+            self.model_id,
+            path
+        )))
     }
 
     async fn get_parameters(&self) -> Result<HashMap<String, f32>> {
-        // 简化实现 - 返回空参数
-        Ok(HashMap::new())
+        // Parameter inspection for training is not supported; callers
+        // should query their training / model management service instead.
+        Err(crate::error::Error::feature_not_enabled(format!(
+            "getting parameters for model {}",
+            self.model_id
+        )))
     }
 
-    async fn set_parameters(&self, parameters: std::collections::HashMap<String, f32>) -> Result<(), crate::Error> {
-        log::info!("设置模型 {} 参数，数量: {}", self.model_id, parameters.len());
-        Ok(())
+    async fn set_parameters(&self, parameters: std::collections::HashMap<String, f32>) -> Result<()> {
+        // Parameter mutation is not supported inside the vector database.
+        Err(crate::error::Error::feature_not_enabled(format!(
+            "setting {} parameters for model {}",
+            parameters.len(),
+            self.model_id
+        )))
     }
 
-    async fn apply_algorithm_to_model(&self, algorithm_id: &str, model_id: &str) -> Result<String, crate::Error> {
-        log::info!("将算法 {} 应用到模型 {}", algorithm_id, model_id);
-        Ok(format!("{}-{}", algorithm_id, model_id))
+    async fn apply_algorithm_to_model(&self, algorithm_id: &str, model_id: &str) -> Result<String> {
+        // Algorithm application to models is out of scope for the core
+        // vector database – this is left to external training pipelines.
+        Err(crate::error::Error::feature_not_enabled(format!(
+            "applying algorithm {} to model {}",
+            algorithm_id, model_id
+        )))
     }
 
-    async fn get_model_algorithms(&self, model_id: &str) -> Result<Vec<String>, crate::Error> {
-        log::info!("获取模型 {} 的算法列表", model_id);
-        Ok(vec![format!("algorithm_{}", model_id)])
+    async fn get_model_algorithms(&self, model_id: &str) -> Result<Vec<String>> {
+        // This adapter does not manage model‑algorithm relationships;
+        // expose a clear unsupported feature error instead of returning
+        // synthetic data.
+        Err(crate::error::Error::feature_not_enabled(format!(
+            "listing algorithms for model {}",
+            model_id
+        )))
     }
 
-    async fn get_algorithm_models(&self, algorithm_id: &str) -> Result<Vec<String>, crate::Error> {
-        log::info!("获取算法 {} 的模型列表", algorithm_id);
-        Ok(vec![format!("model_{}", algorithm_id)])
+    async fn get_algorithm_models(&self, algorithm_id: &str) -> Result<Vec<String>> {
+        Err(crate::error::Error::feature_not_enabled(format!(
+            "listing models for algorithm {}",
+            algorithm_id
+        )))
     }
 
-    async fn remove_algorithm_from_model(&self, algorithm_id: &str, model_id: &str) -> Result<(), crate::Error> {
-        log::info!("从模型 {} 移除算法 {}", model_id, algorithm_id);
-        Ok(())
+    async fn remove_algorithm_from_model(&self, algorithm_id: &str, model_id: &str) -> Result<()> {
+        Err(crate::error::Error::feature_not_enabled(format!(
+            "removing algorithm {} from model {}",
+            algorithm_id, model_id
+        )))
     }
 
-    async fn validate_compatibility(&self, algorithm_id: &str, model_id: &str) -> Result<crate::core::interfaces::ValidationResult, crate::Error> {
-        log::info!("验证算法 {} 与模型 {} 的兼容性", algorithm_id, model_id);
-        Ok(crate::core::interfaces::ValidationResult {
-            is_valid: true,
-            errors: Vec::new(),
-            warnings: Vec::new(),
-        })
+    async fn validate_compatibility(&self, algorithm_id: &str, model_id: &str) -> Result<crate::core::interfaces::ValidationResult> {
+        // Compatibility validation is not implemented in the core DB.
+        Err(crate::error::Error::feature_not_enabled(format!(
+            "validating compatibility between algorithm {} and model {}",
+            algorithm_id, model_id
+        )))
     }
 }
 

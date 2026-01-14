@@ -167,7 +167,7 @@ pub enum ParallelResult<T> {
 
 impl<T> ParallelResult<T> {
     /// 将 Result 转换为 ParallelResult
-    pub fn from_result<E: std::fmt::Display>(result: Result<T, E>) -> Self {
+    pub fn from_result<E: std::fmt::Display>(result: std::result::Result<T, E>) -> Self {
         match result {
             Ok(data) => ParallelResult::Success(data),
             Err(e) => ParallelResult::Error(format!("{}", e)),
@@ -175,7 +175,7 @@ impl<T> ParallelResult<T> {
     }
     
     /// 将 ParallelResult 转换为 Result
-    pub fn into_result<E>(self) -> Result<T, E> 
+    pub fn into_result<E>(self) -> std::result::Result<T, E> 
     where 
         E: From<String>
     {
@@ -202,7 +202,7 @@ impl<T> ParallelResult<T> {
     }
     
     /// 获取成功结果，如果失败则返回错误
-    pub fn unwrap_or_error<E: From<String>>(self) -> Result<T, E> {
+    pub fn unwrap_or_error<E: From<String>>(self) -> std::result::Result<T, E> {
         match self {
             ParallelResult::Success(data) => Ok(data),
             ParallelResult::Error(msg) => Err(E::from(msg)),
@@ -273,7 +273,7 @@ where
     }
 
     /// 处理数据
-    pub fn process(&self, data: Vec<T>) -> Result<Vec<ParallelResult<R>>, Error> {
+    pub fn process(&self, data: Vec<T>) -> Result<Vec<ParallelResult<R>>> {
         // 如果数据为空，返回空结果
         if data.is_empty() {
             return Ok(Vec::new());
@@ -363,7 +363,7 @@ where
     }
     
     /// 处理数据并直接返回结果向量
-    pub fn process_direct(&self, data: Vec<T>) -> Result<Vec<R>, Error> {
+    pub fn process_direct(&self, data: Vec<T>) -> Result<Vec<R>> {
         let parallel_results = self.process(data)?;
         
         // 检查是否有任何错误
@@ -389,11 +389,11 @@ where
 }
 
 /// 并行执行多个任务
-pub fn execute_in_parallel<T, F, R>(tasks: Vec<T>, executor: F) -> Result<Vec<R>, Error>
+pub fn execute_in_parallel<T, F, R>(tasks: Vec<T>, executor: F) -> crate::Result<Vec<R>>
 where
     T: Send + Clone + 'static,
     R: Send + 'static,
-    F: Fn(T) -> Result<R, Error> + Send + Sync + 'static,
+    F: Fn(T) -> crate::Result<R> + Send + Sync + 'static,
 {
     // 如果任务为空，返回空结果
     if tasks.is_empty() {
@@ -838,9 +838,9 @@ pub fn process_batch_parallel<F, T, R>(
     batch: &[T],
     worker_func: F,
     num_workers: usize,
-) -> Result<Vec<R>, Error>
+) -> crate::Result<Vec<R>>
 where
-    F: Fn(&T) -> Result<R, Error> + Send + Sync,
+    F: Fn(&T) -> crate::Result<R> + Send + Sync,
     T: Send + Sync,
     R: Send,
 {
@@ -854,22 +854,23 @@ where
         .build()
         .map_err(|e| Error::execution(format!("创建线程池失败: {}", e)))?;
 
-    let results: Result<Vec<_>, _> = pool.install(|| {
+    let results: Vec<crate::Result<R>> = pool.install(|| {
         batch
             .par_iter()
             .map(|item| worker_func(item))
             .collect()
     });
 
-    results
+    // 将 Vec<Result<R>> 转换为 Result<Vec<R>>
+    results.into_iter().collect()
 }
 
 /// 并行映射操作
-pub fn parallel_map<T, R, F>(items: &[T], f: F, num_workers: Option<usize>) -> Result<Vec<R>, Error>
+pub fn parallel_map<T, R, F>(items: &[T], f: F, num_workers: Option<usize>) -> crate::Result<Vec<R>>
 where
     T: Send + Sync,
     R: Send,
-    F: Fn(&T) -> Result<R, Error> + Send + Sync,
+    F: Fn(&T) -> crate::Result<R> + Send + Sync,
 {
     let workers = num_workers.unwrap_or_else(|| {
         // 默认使用逻辑核心数

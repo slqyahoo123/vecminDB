@@ -87,7 +87,7 @@ impl GpuMonitor {
         }
     }
     
-    pub async fn start_monitoring(&self) -> Result<(), crate::Error> {
+    pub async fn start_monitoring(&self) -> Result<()> {
         let devices = self.devices.clone();
         let update_interval = self.update_interval;
         
@@ -122,12 +122,12 @@ impl GpuMonitor {
         Ok(())
     }
     
-    pub async fn get_gpu_devices(&self) -> Result<Vec<GpuDevice>, crate::Error> {
+    pub async fn get_gpu_devices(&self) -> Result<Vec<GpuDevice>> {
         let devices = self.devices.read().unwrap();
         Ok(devices.values().cloned().collect())
     }
     
-    pub async fn get_gpu_device(&self, device_id: &str) -> Result<Option<GpuDevice>, crate::Error> {
+    pub async fn get_gpu_device(&self, device_id: &str) -> Result<Option<GpuDevice>> {
         let devices = self.devices.read().unwrap();
         Ok(devices.get(device_id).cloned())
     }
@@ -142,7 +142,7 @@ impl GpuManagerImpl {
         }
     }
     
-    pub async fn initialize(&self) -> Result<(), crate::Error> {
+    pub async fn initialize(&self) -> Result<()> {
         // 启动GPU监控
         self.gpu_monitor.start_monitoring().await?;
         
@@ -157,7 +157,7 @@ impl GpuManagerImpl {
         Ok(())
     }
     
-    pub async fn submit_gpu_task(&self, task: GpuTask) -> Result<String, crate::Error> {
+    pub async fn submit_gpu_task(&self, task: GpuTask) -> Result<String> {
         // 验证GPU设备是否存在
         let devices = self.gpu_devices.read().unwrap();
         if !devices.contains_key(&task.device_id) {
@@ -183,12 +183,12 @@ impl GpuManagerImpl {
         Ok(task_id)
     }
     
-    pub async fn get_gpu_task(&self, task_id: &str) -> Result<Option<GpuTask>, crate::Error> {
+    pub async fn get_gpu_task(&self, task_id: &str) -> Result<Option<GpuTask>> {
         let tasks = self.gpu_tasks.read().unwrap();
         Ok(tasks.get(task_id).cloned())
     }
     
-    pub async fn cancel_gpu_task(&self, task_id: &str) -> Result<(), crate::Error> {
+    pub async fn cancel_gpu_task(&self, task_id: &str) -> Result<()> {
         let mut tasks = self.gpu_tasks.write().unwrap();
         
         if let Some(task) = tasks.get_mut(task_id) {
@@ -200,7 +200,7 @@ impl GpuManagerImpl {
         }
     }
     
-    pub async fn get_available_gpus(&self) -> Result<Vec<GpuDevice>, crate::Error> {
+    pub async fn get_available_gpus(&self) -> Result<Vec<GpuDevice>> {
         let devices = self.gpu_devices.read().unwrap();
         Ok(devices.values()
             .filter(|device| device.status == GpuStatus::Available)
@@ -208,7 +208,7 @@ impl GpuManagerImpl {
             .collect())
     }
     
-    pub async fn get_gpu_utilization(&self, device_id: &str) -> Result<Option<GpuUtilization>, crate::Error> {
+    pub async fn get_gpu_utilization(&self, device_id: &str) -> Result<Option<GpuUtilization>> {
         let devices = self.gpu_devices.read().unwrap();
         
         if let Some(device) = devices.get(device_id) {
@@ -226,7 +226,7 @@ impl GpuManagerImpl {
         }
     }
     
-    pub async fn allocate_gpu_memory(&self, device_id: &str, size: usize) -> Result<GpuMemoryHandle, crate::Error> {
+    pub async fn allocate_gpu_memory(&self, device_id: &str, size: usize) -> Result<GpuMemoryHandle> {
         let mut devices = self.gpu_devices.write().unwrap();
         
         if let Some(device) = devices.get_mut(device_id) {
@@ -251,7 +251,7 @@ impl GpuManagerImpl {
         }
     }
     
-    pub async fn free_gpu_memory(&self, handle: &GpuMemoryHandle) -> Result<(), crate::Error> {
+    pub async fn free_gpu_memory(&self, handle: &GpuMemoryHandle) -> Result<()> {
         let mut devices = self.gpu_devices.write().unwrap();
         
         if let Some(device) = devices.get_mut(&handle.device_id) {
@@ -327,7 +327,7 @@ impl GpuAcceleratedExecutor {
         }
     }
     
-    pub async fn compile_for_gpu(&self, algorithm_code: &str, _target_device: &str) -> Result<String, crate::Error> {
+    pub async fn compile_for_gpu(&self, algorithm_code: &str, _target_device: &str) -> Result<String> {
         // 模拟GPU编译过程
         let algorithm_id = format!("gpu_algo_{}", Utc::now().timestamp_millis());
         
@@ -355,7 +355,7 @@ impl GpuAcceleratedExecutor {
         Ok(algorithm_id)
     }
     
-    pub async fn execute_on_gpu(&self, algorithm_id: &str, inputs: &[CoreTensorData], device_id: &str) -> Result<Vec<CoreTensorData>, crate::Error> {
+    pub async fn execute_on_gpu(&self, algorithm_id: &str, inputs: &[CoreTensorData], device_id: &str) -> Result<Vec<CoreTensorData>> {
         // 获取编译后的算法
         let cache = self.algorithm_cache.read().unwrap();
         let algorithm = cache.get(algorithm_id)
@@ -388,12 +388,12 @@ impl GpuAcceleratedExecutor {
         Ok(outputs)
     }
     
-    pub async fn get_gpu_algorithm_info(&self, algorithm_id: &str) -> Result<Option<CompiledGpuAlgorithm>, crate::Error> {
+    pub async fn get_gpu_algorithm_info(&self, algorithm_id: &str) -> Result<Option<CompiledGpuAlgorithm>> {
         let cache = self.algorithm_cache.read().unwrap();
         Ok(cache.get(algorithm_id).cloned())
     }
     
-    pub async fn list_gpu_algorithms(&self) -> Result<Vec<String>, crate::Error> {
+    pub async fn list_gpu_algorithms(&self) -> Result<Vec<String>> {
         let cache = self.algorithm_cache.read().unwrap();
         Ok(cache.keys().cloned().collect())
     }

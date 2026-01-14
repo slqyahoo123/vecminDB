@@ -46,7 +46,7 @@ impl ToString for FusionStrategy {
 
 impl FusionStrategy {
     /// 从字符串解析融合策略
-    pub fn from_str(s: &str) -> Result<Self, ExtractorError> {
+    pub fn from_str(s: &str) -> std::result::Result<Self, ExtractorError> {
         let strategy = match s.to_lowercase().as_str() {
             "concatenate" | "concat" => FusionStrategy::Concatenate,
             "weighted_average" | "weighted" | "average" => FusionStrategy::WeightedAverage,
@@ -126,7 +126,7 @@ impl FeatureFusionEngine {
         &self, 
         feature_vectors: Vec<FeatureVector>,
         context: Option<ExtractorContext>
-    ) -> Result<FeatureVector, ExtractorError> {
+    ) -> std::result::Result<FeatureVector, ExtractorError> {
         let _span = span!(Level::DEBUG, "feature_fusion").entered();
         
         debug!("开始融合 {} 个特征向量", feature_vectors.len());
@@ -170,7 +170,7 @@ impl FeatureFusionEngine {
     }
 
     /// 连接融合
-    async fn concatenate_fusion(&self, feature_vectors: Vec<FeatureVector>) -> Result<FeatureVector, ExtractorError> {
+    async fn concatenate_fusion(&self, feature_vectors: Vec<FeatureVector>) -> std::result::Result<FeatureVector, ExtractorError> {
         debug!("执行连接融合");
         
         let mut result = FeatureVector::new(FeatureType::Generic, vec![]);
@@ -188,7 +188,7 @@ impl FeatureFusionEngine {
     }
 
     /// 加权平均融合
-    async fn weighted_average_fusion(&self, feature_vectors: Vec<FeatureVector>) -> Result<FeatureVector, ExtractorError> {
+    async fn weighted_average_fusion(&self, feature_vectors: Vec<FeatureVector>) -> std::result::Result<FeatureVector, ExtractorError> {
         debug!("执行加权平均融合");
         
         if feature_vectors.is_empty() {
@@ -246,7 +246,7 @@ impl FeatureFusionEngine {
         &self, 
         feature_vectors: Vec<FeatureVector>,
         context: Option<ExtractorContext>
-    ) -> Result<FeatureVector, ExtractorError> {
+    ) -> std::result::Result<FeatureVector, ExtractorError> {
         debug!("执行注意力融合");
         
         // 简化的注意力机制实现
@@ -294,7 +294,7 @@ impl FeatureFusionEngine {
     }
 
     /// 门控融合
-    async fn gated_fusion(&self, feature_vectors: Vec<FeatureVector>) -> Result<FeatureVector, ExtractorError> {
+    async fn gated_fusion(&self, feature_vectors: Vec<FeatureVector>) -> std::result::Result<FeatureVector, ExtractorError> {
         debug!("执行门控融合");
         
         // 简化的门控机制
@@ -334,7 +334,7 @@ impl FeatureFusionEngine {
     }
 
     /// 深度融合
-    async fn deep_fusion(&self, feature_vectors: Vec<FeatureVector>) -> Result<FeatureVector, ExtractorError> {
+    async fn deep_fusion(&self, feature_vectors: Vec<FeatureVector>) -> std::result::Result<FeatureVector, ExtractorError> {
         debug!("执行深度融合");
         
         // 多层特征变换和融合
@@ -364,7 +364,7 @@ impl FeatureFusionEngine {
     }
 
     /// 自定义融合
-    async fn custom_fusion(&self, feature_vectors: Vec<FeatureVector>, fusion_name: &str) -> Result<FeatureVector, ExtractorError> {
+    async fn custom_fusion(&self, feature_vectors: Vec<FeatureVector>, fusion_name: &str) -> std::result::Result<FeatureVector, ExtractorError> {
         warn!("使用自定义融合策略: {}", fusion_name);
         
         // 默认回退到连接融合
@@ -408,7 +408,7 @@ impl BatchFeatureFusion {
         &self,
         feature_batches: Vec<Vec<FeatureVector>>,
         input_data: Vec<InputData>,
-    ) -> Result<Vec<FeatureVector>, ExtractorError> {
+    ) -> std::result::Result<Vec<FeatureVector>, ExtractorError> {
         let _span = span!(Level::INFO, "batch_feature_fusion").entered();
         
         info!("开始批量处理 {} 个特征批次", feature_batches.len());
@@ -443,10 +443,10 @@ impl BatchFeatureFusion {
 #[async_trait]
 pub trait FeatureFuser: Send + Sync {
     /// 融合多个特征向量
-    async fn fuse(&self, features: Vec<FeatureVector>) -> Result<FeatureVector, ExtractorError>;
+    async fn fuse(&self, features: Vec<FeatureVector>) -> std::result::Result<FeatureVector, ExtractorError>;
     
     /// 批量融合特征
-    async fn batch_fuse(&self, features_batch: Vec<Vec<FeatureVector>>) -> Result<FeatureBatch, ExtractorError> {
+    async fn batch_fuse(&self, features_batch: Vec<Vec<FeatureVector>>) -> std::result::Result<FeatureBatch, ExtractorError> {
         let mut results = Vec::with_capacity(features_batch.len());
         
         for features in features_batch {
@@ -513,7 +513,7 @@ impl ConcatenationFuser {
 
 #[async_trait]
 impl FeatureFuser for ConcatenationFuser {
-    async fn fuse(&self, features: Vec<FeatureVector>) -> Result<FeatureVector, ExtractorError> {
+    async fn fuse(&self, features: Vec<FeatureVector>) -> std::result::Result<FeatureVector, ExtractorError> {
         if features.is_empty() {
             return Err(ExtractorError::ProcessingError("没有提供特征向量".to_string()));
         }
@@ -602,7 +602,7 @@ impl WeightedAverageFuser {
 
 #[async_trait]
 impl FeatureFuser for WeightedAverageFuser {
-    async fn fuse(&self, features: Vec<FeatureVector>) -> Result<FeatureVector, ExtractorError> {
+    async fn fuse(&self, features: Vec<FeatureVector>) -> std::result::Result<FeatureVector, ExtractorError> {
         if features.is_empty() {
             return Err(ExtractorError::ProcessingError("没有提供特征向量".to_string()));
         }
@@ -770,7 +770,7 @@ impl AttentionFuser {
 
 #[async_trait]
 impl FeatureFuser for AttentionFuser {
-    async fn fuse(&self, features: Vec<FeatureVector>) -> Result<FeatureVector, ExtractorError> {
+    async fn fuse(&self, features: Vec<FeatureVector>) -> std::result::Result<FeatureVector, ExtractorError> {
         if features.is_empty() {
             return Err(ExtractorError::ProcessingError("没有提供特征向量".to_string()));
         }
@@ -837,9 +837,12 @@ pub fn create_fuser(strategy: FusionStrategy) -> Box<dyn FeatureFuser> {
     }
 }
 
-/// 使用融合策略名称创建融合器
-pub fn create_fuser_by_name(name: &str) -> Result<Box<dyn FeatureFuser>, ExtractorError> {
-    let strategy = FusionStrategy::from_str(name)?;
+/// Create a feature fuser instance from a human‑readable strategy name.
+pub fn create_fuser_by_name(name: &str) -> crate::Result<Box<dyn FeatureFuser>> {
+    // Parse strategy name using the local parsing helper, converting
+    // any extractor‑level errors into the crate‑wide error type.
+    let strategy = FusionStrategy::from_str(name)
+        .map_err(|e| crate::error::Error::validation(format!("invalid fusion strategy {}: {}", name, e)))?;
     Ok(create_fuser(strategy))
 }
 

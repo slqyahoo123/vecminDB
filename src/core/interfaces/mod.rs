@@ -375,37 +375,37 @@ pub struct ModelDefinition {
 #[async_trait::async_trait]
 pub trait AlgorithmModelInterface: Send + Sync {
     /// 将算法应用到模型
-    async fn apply_algorithm_to_model(&self, algorithm_id: &str, model_id: &str) -> Result<String, crate::Error>;
+    async fn apply_algorithm_to_model(&self, algorithm_id: &str, model_id: &str) -> Result<String>;
     
     /// 获取模型算法映射
-    async fn get_model_algorithms(&self, model_id: &str) -> Result<Vec<String>, crate::Error>;
+    async fn get_model_algorithms(&self, model_id: &str) -> Result<Vec<String>>;
     
     /// 获取算法模型映射
-    async fn get_algorithm_models(&self, algorithm_id: &str) -> Result<Vec<String>, crate::Error>;
+    async fn get_algorithm_models(&self, algorithm_id: &str) -> Result<Vec<String>>;
     
     /// 移除模型算法映射
-    async fn remove_algorithm_from_model(&self, algorithm_id: &str, model_id: &str) -> Result<(), crate::Error>;
+    async fn remove_algorithm_from_model(&self, algorithm_id: &str, model_id: &str) -> Result<()>;
     
     /// 验证算法模型兼容性
-    async fn validate_compatibility(&self, algorithm_id: &str, model_id: &str) -> Result<ValidationResult, crate::Error>;
+    async fn validate_compatibility(&self, algorithm_id: &str, model_id: &str) -> Result<ValidationResult>;
     
     /// 训练模型
-    async fn train(&self, data: &[f32], labels: &[f32]) -> Result<(), crate::Error>;
+    async fn train(&self, data: &[f32], labels: &[f32]) -> Result<()>;
     
     /// 预测
-    async fn predict(&self, data: &[f32]) -> Result<Vec<f32>, crate::Error>;
+    async fn predict(&self, data: &[f32]) -> Result<Vec<f32>>;
     
     /// 保存模型
-    async fn save_model(&self, path: &str) -> Result<(), crate::Error>;
+    async fn save_model(&self, path: &str) -> Result<()>;
     
     /// 加载模型
-    async fn load_model(&self, path: &str) -> Result<(), crate::Error>;
+    async fn load_model(&self, path: &str) -> Result<()>;
     
     /// 获取参数
-    async fn get_parameters(&self) -> Result<std::collections::HashMap<String, f32>, crate::Error>;
+    async fn get_parameters(&self) -> Result<std::collections::HashMap<String, f32>>;
     
     /// 设置参数
-    async fn set_parameters(&self, parameters: std::collections::HashMap<String, f32>) -> Result<(), crate::Error>;
+    async fn set_parameters(&self, parameters: std::collections::HashMap<String, f32>) -> Result<()>;
 }
 
 /// 监控接口
@@ -413,55 +413,55 @@ pub trait AlgorithmModelInterface: Send + Sync {
 #[async_trait::async_trait]
 pub trait MonitoringInterface: Send + Sync {
     /// 记录指标
-    async fn record_metric(&self, name: &str, value: f64, tags: &std::collections::HashMap<String, String>) -> Result<(), crate::Error>;
+    async fn record_metric(&self, name: &str, value: f64, tags: &std::collections::HashMap<String, String>) -> Result<()>;
     
     /// 获取指标
-    async fn get_metrics(&self, name: &str) -> Result<Vec<crate::core::interfaces::MetricPoint>, crate::Error>;
+    async fn get_metrics(&self, name: &str) -> Result<Vec<crate::core::interfaces::MetricPoint>>;
     
     /// 创建告警
-    async fn create_alert(&self, condition: &crate::core::interfaces::monitoring::AlertCondition) -> Result<(), crate::Error>;
+    async fn create_alert(&self, condition: &crate::core::interfaces::monitoring::AlertCondition) -> Result<()>;
     
     /// 获取系统健康状态
-    async fn get_system_health(&self) -> Result<crate::core::interfaces::monitoring::SystemHealth, crate::Error>;
+    async fn get_system_health(&self) -> Result<crate::core::interfaces::monitoring::SystemHealth>;
     
     /// 获取统计信息
-    async fn get_stats(&self) -> Result<std::collections::HashMap<String, f64>, crate::Error>;
+    async fn get_stats(&self) -> Result<std::collections::HashMap<String, f64>>;
     
     /// 获取计数器值
-    async fn get_counter(&self, name: &str) -> Result<u64, crate::Error>;
+    async fn get_counter(&self, name: &str) -> Result<u64>;
     
     /// 增加计数器
-    async fn increment_counter(&self, name: &str, value: u64) -> Result<(), crate::Error>;
+    async fn increment_counter(&self, name: &str, value: u64) -> Result<()>;
     
     /// 统计模型数量
-    async fn count_models(&self) -> Result<u64, crate::Error>;
+    async fn count_models(&self) -> Result<u64>;
     
     /// 按类型统计模型数量
-    async fn count_models_by_type(&self, model_type: &str) -> Result<u64, crate::Error>;
+    async fn count_models_by_type(&self, model_type: &str) -> Result<u64>;
     
     /// 获取最近的模型
-    async fn get_recent_models(&self, limit: usize) -> Result<Vec<String>, crate::Error>;
+    async fn get_recent_models(&self, limit: usize) -> Result<Vec<String>>;
     
     /// 统计任务数量
-    async fn count_tasks(&self) -> Result<u64, crate::Error>;
+    async fn count_tasks(&self) -> Result<u64>;
     
     /// 按状态统计任务数量
-    async fn count_tasks_by_status(&self, status: &str) -> Result<u64, crate::Error>;
+    async fn count_tasks_by_status(&self, status: &str) -> Result<u64>;
     
     /// 获取最近的任务
-    async fn get_recent_tasks(&self, limit: usize) -> Result<Vec<String>, crate::Error>;
+    async fn get_recent_tasks(&self, limit: usize) -> Result<Vec<String>>;
     
     /// 获取日志
-    async fn get_logs(&self, level: &str, limit: usize) -> Result<Vec<String>, crate::Error>;
+    async fn get_logs(&self, level: &str, limit: usize) -> Result<Vec<String>>;
     
     /// 统计活跃任务数量
-    async fn count_active_tasks(&self) -> Result<u64, crate::Error>;
+    async fn count_active_tasks(&self) -> Result<u64>;
     
     /// 获取API统计信息
-    async fn get_api_stats(&self) -> Result<std::collections::HashMap<String, f64>, crate::Error>;
+    async fn get_api_stats(&self) -> Result<std::collections::HashMap<String, f64>>;
     
     /// 检查健康状态
-    async fn check_health(&self) -> Result<bool, crate::Error>;
+    async fn check_health(&self) -> Result<bool>;
 }
 
 /// 模型接口trait
@@ -470,11 +470,11 @@ pub trait ModelInterface: Send + Sync {
     fn get_model_id(&self) -> String;
     fn get_model_parameters(&self) -> Vec<f32>;
     fn set_model_parameters(&self, parameters: Vec<f32>);
-    fn train_step(&self, inputs: &[f32], targets: &[f32]) -> Result<f32, crate::Error>;
-    fn evaluate(&self, inputs: &[f32], targets: &[f32]) -> Result<f32, crate::Error>;
-    fn predict(&self, inputs: &[f32]) -> Result<Vec<f32>, crate::Error>;
-    fn save_model(&self, path: &str) -> Result<(), crate::Error>;
-    fn load_model(&self, path: &str) -> Result<(), crate::Error>;
+    fn train_step(&self, inputs: &[f32], targets: &[f32]) -> Result<f32>;
+    fn evaluate(&self, inputs: &[f32], targets: &[f32]) -> Result<f32>;
+    fn predict(&self, inputs: &[f32]) -> Result<Vec<f32>>;
+    fn save_model(&self, path: &str) -> Result<()>;
+    fn load_model(&self, path: &str) -> Result<()>;
     
     /// 获取模型ID
     fn id(&self) -> &str;
@@ -590,25 +590,25 @@ pub struct TaskData {
 #[async_trait::async_trait]
 pub trait OptimizerInterface: Send + Sync {
     /// 更新参数
-    async fn update_parameters(&self, parameters: &mut std::collections::HashMap<String, crate::core::types::CoreTensorData>, gradients: &std::collections::HashMap<String, crate::core::types::CoreTensorData>) -> Result<(), crate::Error>;
+    async fn update_parameters(&self, parameters: &mut std::collections::HashMap<String, crate::core::types::CoreTensorData>, gradients: &std::collections::HashMap<String, crate::core::types::CoreTensorData>) -> Result<()>;
     
     /// 获取迭代次数
-    async fn get_iterations(&self) -> Result<u32, crate::Error>;
+    async fn get_iterations(&self) -> Result<u32>;
     
     /// 执行优化步骤
-    async fn step(&self) -> Result<(), crate::Error>;
+    async fn step(&self) -> Result<()>;
     
     /// 获取学习率
-    async fn get_learning_rate(&self) -> Result<f64, crate::Error>;
+    async fn get_learning_rate(&self) -> Result<f64>;
     
     /// 设置学习率
-    async fn set_learning_rate(&self, lr: f64) -> Result<(), crate::Error>;
+    async fn set_learning_rate(&self, lr: f64) -> Result<()>;
     
     /// 获取优化器状态
-    async fn get_optimizer_state(&self) -> Result<OptimizerState, crate::Error>;
+    async fn get_optimizer_state(&self) -> Result<OptimizerState>;
     
     /// 重置优化器
-    async fn reset(&self) -> Result<(), crate::Error>;
+    async fn reset(&self) -> Result<()>;
 }
 
 /// 损失函数接口
@@ -616,19 +616,19 @@ pub trait OptimizerInterface: Send + Sync {
 #[async_trait::async_trait]
 pub trait LossFunctionInterface: Send + Sync {
     /// 计算损失
-    async fn compute_loss(&self, predictions: &crate::core::types::CoreTensorData, targets: &crate::core::types::CoreTensorData) -> Result<f64, crate::Error>;
+    async fn compute_loss(&self, predictions: &crate::core::types::CoreTensorData, targets: &crate::core::types::CoreTensorData) -> Result<f64>;
     
     /// 计算梯度
-    async fn compute_gradients(&self, predictions: &crate::core::types::CoreTensorData, targets: &crate::core::types::CoreTensorData) -> Result<std::collections::HashMap<String, crate::core::types::CoreTensorData>, crate::Error>;
+    async fn compute_gradients(&self, predictions: &crate::core::types::CoreTensorData, targets: &crate::core::types::CoreTensorData) -> Result<std::collections::HashMap<String, crate::core::types::CoreTensorData>>;
     
     /// 获取损失函数名称
-    async fn get_loss_function_name(&self) -> Result<String, crate::Error>;
+    async fn get_loss_function_name(&self) -> Result<String>;
     
     /// 获取损失函数参数
-    async fn get_loss_function_parameters(&self) -> Result<std::collections::HashMap<String, f64>, crate::Error>;
+    async fn get_loss_function_parameters(&self) -> Result<std::collections::HashMap<String, f64>>;
     
     /// 设置损失函数参数
-    async fn set_loss_function_parameters(&self, parameters: std::collections::HashMap<String, f64>) -> Result<(), crate::Error>;
+    async fn set_loss_function_parameters(&self, parameters: std::collections::HashMap<String, f64>) -> Result<()>;
 }
 
 /// 优化器状态

@@ -525,7 +525,7 @@ impl FeatureExtractor for TfIdfExtractor {
         }
     }
     
-    async fn extract(&self, input: InputData, context: Option<ExtractorContext>) -> Result<FeatureVector, ExtractorError> {
+    async fn extract(&self, input: InputData, context: Option<ExtractorContext>) -> std::result::Result<FeatureVector, ExtractorError> {
         // 处理输入
         let document = match input {
             InputData::Text(text) => text,
@@ -565,7 +565,7 @@ impl FeatureExtractor for TfIdfExtractor {
         Ok(result)
     }
     
-    async fn batch_extract(&self, inputs: Vec<InputData>, context: Option<ExtractorContext>) -> Result<FeatureBatch, ExtractorError> {
+    async fn batch_extract(&self, inputs: Vec<InputData>, context: Option<ExtractorContext>) -> std::result::Result<FeatureBatch, ExtractorError> {
         // 处理批量输入
         let mut documents = Vec::with_capacity(inputs.len());
         
@@ -629,7 +629,7 @@ impl FeatureExtractor for TfIdfExtractor {
 }
 
 /// 创建TF-IDF特征提取器
-pub fn create_tfidf_extractor(config: ExtractorConfig) -> Result<TfIdfExtractor, ExtractorError> {
+pub fn create_tfidf_extractor(config: ExtractorConfig) -> std::result::Result<TfIdfExtractor, ExtractorError> {
     // 检查配置是否匹配
     if !matches!(config.extractor_type, ExtractorType::Text(TextExtractorType::TfIdf)) {
         return Err(ExtractorError::Config(format!(

@@ -129,7 +129,7 @@ pub struct ProcessStep {
 /// 数据管道特性定义
 pub trait DataPipeline {
     /// 处理数据批次
-    fn process(&self, batch: &mut DataBatch) -> Result<(), String>;
+    fn process(&self, batch: &mut DataBatch) -> std::result::Result<(), String>;
     
     /// 获取管道配置
     fn get_config(&self) -> HashMap<String, String>;

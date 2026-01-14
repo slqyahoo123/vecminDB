@@ -10,8 +10,6 @@ use wasmtime_wasi::{WasiCtx};
 use std::sync::atomic::Ordering;
 #[cfg(feature = "wasmtime")]
 use log::{debug, warn};
-
-use crate::Result;
 #[cfg(feature = "wasmtime")]
 use crate::algorithm::types::{ResourceLimits};
 #[cfg(feature = "wasmtime")]
@@ -447,7 +445,7 @@ where
 }
 
 /// 添加 I/O 相关函数
-fn add_io_functions<T>(linker: &mut wasmtime::Linker<T>) -> Result<(), anyhow::Error> 
+fn add_io_functions<T>(linker: &mut wasmtime::Linker<T>) -> std::result::Result<(), anyhow::Error> 
 where 
     T: Send + 'static,
 {
@@ -479,7 +477,7 @@ where
 }
 
 /// 添加内存管理相关函数
-fn add_memory_functions<T>(linker: &mut wasmtime::Linker<T>) -> Result<(), anyhow::Error> 
+fn add_memory_functions<T>(linker: &mut wasmtime::Linker<T>) -> std::result::Result<(), anyhow::Error> 
 where 
     T: Send + 'static,
 {
@@ -503,7 +501,7 @@ where
 }
 
 /// 添加数学计算相关函数
-fn add_math_functions<T>(linker: &mut wasmtime::Linker<T>) -> Result<(), anyhow::Error> 
+fn add_math_functions<T>(linker: &mut wasmtime::Linker<T>) -> std::result::Result<(), anyhow::Error> 
 where 
     T: Send + 'static,
 {
@@ -528,7 +526,7 @@ where
 }
 
 /// 添加时间相关函数
-fn add_time_functions<T>(linker: &mut wasmtime::Linker<T>) -> Result<(), anyhow::Error> 
+fn add_time_functions<T>(linker: &mut wasmtime::Linker<T>) -> std::result::Result<(), anyhow::Error> 
 where 
     T: Send + 'static,
 {
@@ -551,7 +549,7 @@ where
 }
 
 /// 添加日志记录相关函数
-fn add_logging_functions<T>(linker: &mut wasmtime::Linker<T>) -> Result<(), anyhow::Error> 
+fn add_logging_functions<T>(linker: &mut wasmtime::Linker<T>) -> std::result::Result<(), anyhow::Error> 
 where 
     T: Send + 'static,
 {
@@ -608,7 +606,7 @@ where
 }
 
 /// 添加资源监控相关函数
-fn add_monitoring_functions<T>(linker: &mut wasmtime::Linker<T>) -> Result<(), anyhow::Error> 
+fn add_monitoring_functions<T>(linker: &mut wasmtime::Linker<T>) -> std::result::Result<(), anyhow::Error> 
 where 
     T: Send + 'static,
 {
@@ -634,7 +632,7 @@ where
 }
 
 /// 获取当前内存使用情况（KB）（生产级实现：使用 sysinfo 查询真实系统内存）
-fn get_current_memory_usage() -> Result<u64, anyhow::Error> {
+fn get_current_memory_usage() -> std::result::Result<u64, anyhow::Error> {
     #[cfg(feature = "sysinfo")]
     {
         use sysinfo::{System, SystemExt, ProcessExt, Pid};
@@ -683,7 +681,7 @@ fn get_current_memory_usage() -> Result<u64, anyhow::Error> {
 }
 
 /// 获取当前CPU使用率（生产级实现：使用 sysinfo 查询真实CPU使用率）
-fn get_current_cpu_usage() -> Result<f32, anyhow::Error> {
+fn get_current_cpu_usage() -> std::result::Result<f32, anyhow::Error> {
     #[cfg(feature = "sysinfo")]
     {
         use sysinfo::{System, SystemExt, ProcessExt, Pid};
@@ -710,7 +708,7 @@ fn get_current_cpu_usage() -> Result<f32, anyhow::Error> {
 }
 
 /// 获取可用磁盘空间（生产级实现：使用系统调用查询真实磁盘空间）
-fn get_available_disk_space() -> Result<i64, anyhow::Error> {
+fn get_available_disk_space() -> std::result::Result<i64, anyhow::Error> {
     // 获取当前工作目录
     let current_dir = std::env::current_dir()
         .map_err(|e| anyhow::anyhow!("无法获取当前目录: {}", e))?;

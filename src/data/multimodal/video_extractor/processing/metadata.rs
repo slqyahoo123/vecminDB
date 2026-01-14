@@ -10,13 +10,12 @@ use std::collections::HashMap;
 use std::process::Command;
 use std::str::FromStr;
 use log::{debug, warn};
-use crate::data::multimodal::video_extractor::Result;
 use super::types::{KeyframeInfo, SceneChange, Thumbnail};
 
 /// 从视频文件中提取元数据
 pub fn extract_video_metadata(
     video_path: &str
-) -> Result<VideoMetadata, VideoExtractionError> {
+) -> std::result::Result<VideoMetadata, VideoExtractionError> {
     let path = Path::new(video_path);
     
     if !path.exists() {
@@ -264,7 +263,7 @@ fn generate_video_id(video_path: &str) -> String {
 /// 从视频文件中提取关键帧信息
 pub fn extract_keyframe_info(
     video_path: &str
-) -> Result<Vec<KeyframeInfo>, VideoExtractionError> {
+) -> std::result::Result<Vec<KeyframeInfo>, VideoExtractionError> {
     let path = Path::new(video_path);
     
     if !path.exists() {
@@ -331,7 +330,7 @@ pub fn extract_keyframe_info(
 pub fn extract_scene_changes(
     video_path: &str,
     threshold: f32
-) -> Result<Vec<SceneChange>, VideoExtractionError> {
+) -> std::result::Result<Vec<SceneChange>, VideoExtractionError> {
     let path = Path::new(video_path);
     
     if !path.exists() {
@@ -400,7 +399,7 @@ pub fn generate_thumbnails(
     count: usize,
     width: Option<usize>,
     height: Option<usize>
-) -> Result<Vec<Thumbnail>, VideoExtractionError> {
+) -> std::result::Result<Vec<Thumbnail>, VideoExtractionError> {
     let path = Path::new(video_path);
     
     if !path.exists() {

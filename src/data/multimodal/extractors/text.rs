@@ -154,7 +154,7 @@ impl FeatureExtractor for TextFeatureExtractor {
         matches!(input, InputData::Text(_) | InputData::TextArray(_))
     }
     
-    async fn extract(&self, input: InputData, _context: Option<ExtractorContext>) -> Result<FeatureVector, ExtractorError> {
+    async fn extract(&self, input: InputData, _context: Option<ExtractorContext>) -> std::result::Result<FeatureVector, ExtractorError> {
         // 处理输入数据
         let text = match input {
             InputData::Text(text) => text,
@@ -207,7 +207,7 @@ impl FeatureExtractor for TextFeatureExtractor {
         Ok(feature_vector)
     }
     
-    async fn batch_extract(&self, inputs: Vec<InputData>, _context: Option<ExtractorContext>) -> Result<crate::data::feature::extractor::FeatureBatch, ExtractorError> {
+    async fn batch_extract(&self, inputs: Vec<InputData>, _context: Option<ExtractorContext>) -> std::result::Result<crate::data::feature::extractor::FeatureBatch, ExtractorError> {
         let mut feature_vectors = Vec::with_capacity(inputs.len());
         
         for input in inputs {

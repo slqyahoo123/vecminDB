@@ -215,7 +215,7 @@ impl PipelineContext {
     }
 
     /// 添加参数
-    pub fn add_param<T>(&mut self, key: &str, value: T) -> Result<(), Error> 
+    pub fn add_param<T>(&mut self, key: &str, value: T) -> Result<()> 
     where
         T: serde::Serialize,
     {
@@ -226,7 +226,7 @@ impl PipelineContext {
     }
 
     /// 获取参数
-    pub fn get_param<T>(&self, key: &str) -> Result<T, Error> 
+    pub fn get_param<T>(&self, key: &str) -> Result<T> 
     where
         T: serde::de::DeserializeOwned,
     {
@@ -238,7 +238,7 @@ impl PipelineContext {
     }
 
     /// 添加数据
-    pub fn add_data<T>(&mut self, key: &str, value: T) -> Result<(), Error> 
+    pub fn add_data<T>(&mut self, key: &str, value: T) -> Result<()> 
     where
         T: serde::Serialize,
     {
@@ -249,7 +249,7 @@ impl PipelineContext {
     }
 
     /// 获取数据
-    pub fn get_data<T>(&self, key: &str) -> Result<T, Error> 
+    pub fn get_data<T>(&self, key: &str) -> Result<T> 
     where
         T: serde::de::DeserializeOwned,
     {
@@ -261,7 +261,7 @@ impl PipelineContext {
     }
 
     /// 添加临时数据
-    pub fn add_temp<T>(&mut self, key: &str, value: T) -> Result<(), Error> 
+    pub fn add_temp<T>(&mut self, key: &str, value: T) -> Result<()> 
     where
         T: serde::Serialize,
     {
@@ -272,7 +272,7 @@ impl PipelineContext {
     }
 
     /// 获取临时数据
-    pub fn get_temp<T>(&self, key: &str) -> Result<T, Error> 
+    pub fn get_temp<T>(&self, key: &str) -> Result<T> 
     where
         T: serde::de::DeserializeOwned,
     {
@@ -415,7 +415,7 @@ pub trait Pipeline: Send + Sync {
     }
     
     /// 添加阶段
-    fn add_stage(&mut self, stage: Arc<dyn PipelineStage>) -> Result<(), Error>;
+    fn add_stage(&mut self, stage: Arc<dyn PipelineStage>) -> Result<()>;
     
     /// 执行管道
     fn execute(&self, context: PipelineContext) -> PipelineResult;

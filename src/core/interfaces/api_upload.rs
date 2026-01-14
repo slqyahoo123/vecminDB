@@ -52,9 +52,9 @@ pub enum UploadStatus {
 
 /// 文件处理器trait
 pub trait FileProcessor: Send + Sync {
-    fn process(&self, file_path: &str, metadata: &HashMap<String, String>) -> Result<ProcessedFile, crate::Error>;
+    fn process(&self, file_path: &str, metadata: &HashMap<String, String>) -> Result<ProcessedFile>;
     fn supported_extensions(&self) -> Vec<String>;
-    fn validate_file(&self, file_path: &str) -> Result<bool, crate::Error>;
+    fn validate_file(&self, file_path: &str) -> Result<bool>;
 }
 
 /// 处理后的文件
@@ -72,7 +72,7 @@ pub struct ProcessedFile {
 pub struct ImageProcessor;
 
 impl FileProcessor for ImageProcessor {
-    fn process(&self, file_path: &str, metadata: &HashMap<String, String>) -> Result<ProcessedFile, crate::Error> {
+    fn process(&self, file_path: &str, metadata: &HashMap<String, String>) -> Result<ProcessedFile> {
         let start_time = std::time::Instant::now();
         let processed_path = format!("{}.processed", file_path);
         Ok(ProcessedFile {
@@ -95,7 +95,7 @@ impl FileProcessor for ImageProcessor {
         ]
     }
 
-    fn validate_file(&self, file_path: &str) -> Result<bool, crate::Error> {
+    fn validate_file(&self, file_path: &str) -> Result<bool> {
         Ok(file_path.ends_with(".jpg") || file_path.ends_with(".png"))
     }
 }
@@ -104,7 +104,7 @@ impl FileProcessor for ImageProcessor {
 pub struct TextProcessor;
 
 impl FileProcessor for TextProcessor {
-    fn process(&self, file_path: &str, metadata: &HashMap<String, String>) -> Result<ProcessedFile, crate::Error> {
+    fn process(&self, file_path: &str, metadata: &HashMap<String, String>) -> Result<ProcessedFile> {
         let start_time = std::time::Instant::now();
         let processed_path = format!("{}.processed", file_path);
         Ok(ProcessedFile {
@@ -121,7 +121,7 @@ impl FileProcessor for TextProcessor {
         vec!["txt".to_string(), "csv".to_string(), "json".to_string(), "xml".to_string()]
     }
 
-    fn validate_file(&self, file_path: &str) -> Result<bool, crate::Error> {
+    fn validate_file(&self, file_path: &str) -> Result<bool> {
         Ok(file_path.ends_with(".txt") || file_path.ends_with(".csv"))
     }
 }
@@ -139,9 +139,9 @@ impl FileUploadManager {
         }
     }
 
-    pub async fn create_upload_session(&self, file_name: String, file_size: usize) -> Result<String, crate::Error> {
+    pub async fn create_upload_session(&self, file_name: String, file_size: usize) -> Result<String> {
         if file_size > self.upload_config.max_file_size {
-            return Err(crate::error::Error::Validation(format!(
+            return Err(crate::error::Error::validation(format!(
                 "File size {} exceeds maximum allowed size {}",
                 file_size, self.upload_config.max_file_size
             )));
@@ -153,7 +153,7 @@ impl FileUploadManager {
                 .allowed_extensions
                 .contains(&extension.to_lowercase())
             {
-                return Err(crate::error::Error::Validation(format!(
+                return Err(crate::error::Error::validation(format!(
                     "File extension '{}' is not allowed",
                     extension
                 )));
@@ -181,12 +181,12 @@ impl FileUploadManager {
         Ok(session_id)
     }
 
-    pub async fn upload_chunk(&self, session_id: &str, chunk_index: usize, chunk_data: Vec<u8>) -> Result<(), crate::Error> {
+    pub async fn upload_chunk(&self, session_id: &str, chunk_index: usize, chunk_data: Vec<u8>) -> Result<()> {
         let mut sessions = self.upload_sessions.write().unwrap();
 
         if let Some(session) = sessions.get_mut(session_id) {
             if chunk_index >= session.total_chunks {
-                return Err(crate::error::Error::Validation(format!(
+                return Err(crate::error::Error::validation(format!(
                     "Chunk index {} is out of range (0-{})",
                     chunk_index,
                     session.total_chunks - 1
@@ -194,14 +194,14 @@ impl FileUploadManager {
             }
 
             if chunk_data.len() > self.upload_config.chunk_size {
-                return Err(crate::error::Error::Validation(format!(
+                return Err(crate::error::Error::validation(format!(
                     "Chunk size {} exceeds maximum chunk size {}",
                     chunk_data.len(), self.upload_config.chunk_size
                 )));
             }
 
             if session.uploaded_chunks.contains(&chunk_index) {
-                return Err(crate::error::Error::Validation(format!(
+                return Err(crate::error::Error::validation(format!(
                     "Chunk {} has already been uploaded",
                     chunk_index
                 )));
@@ -225,12 +225,12 @@ impl FileUploadManager {
         }
     }
 
-    pub async fn get_upload_status(&self, session_id: &str) -> Result<Option<UploadSession>, crate::Error> {
+    pub async fn get_upload_status(&self, session_id: &str) -> Result<Option<UploadSession>> {
         let sessions = self.upload_sessions.read().unwrap();
         Ok(sessions.get(session_id).cloned())
     }
 
-    pub async fn cancel_upload(&self, session_id: &str) -> Result<(), crate::Error> {
+    pub async fn cancel_upload(&self, session_id: &str) -> Result<()> {
         let mut sessions = self.upload_sessions.write().unwrap();
 
         if let Some(session) = sessions.get_mut(session_id) {
@@ -245,12 +245,12 @@ impl FileUploadManager {
         }
     }
 
-    pub async fn process_uploaded_file(&self, session_id: &str) -> Result<ProcessedFile, crate::Error> {
+    pub async fn process_uploaded_file(&self, session_id: &str) -> Result<ProcessedFile> {
         let sessions = self.upload_sessions.read().unwrap();
 
         if let Some(session) = sessions.get(session_id) {
             if session.status != UploadStatus::Completed {
-                return Err(crate::error::Error::Validation(format!(
+                return Err(crate::error::Error::validation(format!(
                     "Upload session is not completed, current status: {:?}",
                     session.status
                 )));
@@ -275,7 +275,7 @@ impl FileUploadManager {
         }
     }
 
-    fn get_processor_for_extension(&self, extension: &str) -> Result<&Box<dyn FileProcessor>, crate::Error> {
+    fn get_processor_for_extension(&self, extension: &str) -> Result<&Box<dyn FileProcessor>> {
         for (_file_type, processor) in &self.file_processors {
             if processor
                 .supported_extensions()
@@ -291,7 +291,7 @@ impl FileUploadManager {
         )))
     }
 
-    pub async fn cleanup_expired_sessions(&self) -> Result<(), crate::Error> {
+    pub async fn cleanup_expired_sessions(&self) -> Result<()> {
         let mut sessions = self.upload_sessions.write().unwrap();
         let now = Utc::now();
         let cleanup_threshold = now - chrono::Duration::hours(1);

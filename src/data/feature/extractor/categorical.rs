@@ -130,7 +130,7 @@ impl FeatureExtractor for OneHotExtractor {
         matches!(input, InputData::Text(_) | InputData::TextArray(_))
     }
     
-    async fn extract(&self, input: InputData, context: Option<ExtractorContext>) -> Result<FeatureVector, ExtractorError> {
+    async fn extract(&self, input: InputData, context: Option<ExtractorContext>) -> std::result::Result<FeatureVector, ExtractorError> {
         // 检查是否有训练数据需要拟合
         if let Some(ctx) = &context {
             if let Some(training_data_str) = ctx.get_param("training_data") {
@@ -147,7 +147,7 @@ impl FeatureExtractor for OneHotExtractor {
             .with_extractor_type(self.extractor_type()))
     }
     
-    async fn batch_extract(&self, inputs: Vec<InputData>, context: Option<ExtractorContext>) -> Result<FeatureBatch, ExtractorError> {
+    async fn batch_extract(&self, inputs: Vec<InputData>, context: Option<ExtractorContext>) -> std::result::Result<FeatureBatch, ExtractorError> {
         // 检查是否有训练数据需要拟合
         if let Some(ctx) = &context {
             if let Some(training_data_str) = ctx.get_param("training_data") {
@@ -289,7 +289,7 @@ impl FeatureExtractor for LabelEncodingExtractor {
         matches!(input, InputData::Text(_) | InputData::TextArray(_))
     }
     
-    async fn extract(&self, input: InputData, context: Option<ExtractorContext>) -> Result<FeatureVector, ExtractorError> {
+    async fn extract(&self, input: InputData, context: Option<ExtractorContext>) -> std::result::Result<FeatureVector, ExtractorError> {
         // 检查是否有训练数据需要拟合
         if let Some(ctx) = &context {
             if let Some(training_data_str) = ctx.get_param("training_data") {
@@ -306,7 +306,7 @@ impl FeatureExtractor for LabelEncodingExtractor {
             .with_extractor_type(self.extractor_type()))
     }
     
-    async fn batch_extract(&self, inputs: Vec<InputData>, context: Option<ExtractorContext>) -> Result<FeatureBatch, ExtractorError> {
+    async fn batch_extract(&self, inputs: Vec<InputData>, context: Option<ExtractorContext>) -> std::result::Result<FeatureBatch, ExtractorError> {
         // 检查是否有训练数据需要拟合
         if let Some(ctx) = &context {
             if let Some(training_data_str) = ctx.get_param("training_data") {
@@ -436,7 +436,7 @@ impl FeatureExtractor for FrequencyEncodingExtractor {
         matches!(input, InputData::Text(_) | InputData::TextArray(_))
     }
     
-    async fn extract(&self, input: InputData, context: Option<ExtractorContext>) -> Result<FeatureVector, ExtractorError> {
+    async fn extract(&self, input: InputData, context: Option<ExtractorContext>) -> std::result::Result<FeatureVector, ExtractorError> {
         // 检查是否有训练数据需要拟合
         if let Some(ctx) = &context {
             if let Some(training_data_str) = ctx.get_param("training_data") {
@@ -453,7 +453,7 @@ impl FeatureExtractor for FrequencyEncodingExtractor {
             .with_extractor_type(self.extractor_type()))
     }
     
-    async fn batch_extract(&self, inputs: Vec<InputData>, context: Option<ExtractorContext>) -> Result<FeatureBatch, ExtractorError> {
+    async fn batch_extract(&self, inputs: Vec<InputData>, context: Option<ExtractorContext>) -> std::result::Result<FeatureBatch, ExtractorError> {
         // 检查是否有训练数据需要拟合
         if let Some(ctx) = &context {
             if let Some(training_data_str) = ctx.get_param("training_data") {

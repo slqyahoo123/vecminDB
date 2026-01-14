@@ -1,6 +1,8 @@
 use std::sync::{Arc, RwLock};
 use std::time::Instant;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
+#[cfg(feature = "memcached")]
+use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 
 use chrono::Utc;

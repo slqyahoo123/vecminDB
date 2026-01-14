@@ -78,6 +78,31 @@ impl Error {
     pub fn unsupported_file_type(file_type: impl Into<String>) -> Self {
         Error::InvalidInput(format!("Unsupported file type: {}", file_type.into()))
     }
+
+    /// Create a vector error
+    pub fn vector(msg: impl Into<String>) -> Self {
+        Error::Vector(msg.into())
+    }
+
+    /// Create a resource error
+    pub fn resource(msg: impl Into<String>) -> Self {
+        Error::Resource(msg.into())
+    }
+
+    /// Create an already exists error
+    pub fn already_exists(msg: impl Into<String>) -> Self {
+        Error::AlreadyExists(msg.into())
+    }
+
+    /// Create an other error
+    pub fn other(msg: impl Into<String>) -> Self {
+        Error::Other(msg.into())
+    }
+
+    /// Create a validation error
+    pub fn validation(msg: impl Into<String>) -> Self {
+        Error::Validation(msg.into())
+    }
 }
 
 /// Error context trait for adding context to errors
@@ -87,7 +112,8 @@ pub trait WithErrorContext {
 
 impl<T> WithErrorContext for Result<T> {
     fn with_context(self, context: impl Into<String>) -> Self {
-        // 简单实现：如果错误，添加上下文信息到错误消息
+        // Attach human‑readable context information to error variants so
+        // that logs and client responses carry richer diagnostic details.
         self.map_err(|e| {
             let context_str = context.into();
             match e {
@@ -103,6 +129,7 @@ impl<T> WithErrorContext for Result<T> {
                 Error::Vector(msg) => Error::Vector(format!("{}: {}", context_str, msg)),
                 Error::Resource(msg) => Error::Resource(format!("{}: {}", context_str, msg)),
                 Error::AlreadyExists(msg) => Error::AlreadyExists(format!("{}: {}", context_str, msg)),
+                Error::Validation(msg) => Error::Validation(format!("{}: {}", context_str, msg)),
                 Error::Other(msg) => Error::Other(format!("{}: {}", context_str, msg)),
             }
         })
@@ -167,63 +194,13 @@ pub enum Error {
     #[error("Lock error: {0}")]
     Lock(String),
 
+    /// Validation errors
+    #[error("Validation error: {0}")]
+    Validation(String),
+
     /// Other errors
     #[error("{0}")]
     Other(String),
-}
-
-impl Error {
-    pub fn vector(msg: impl Into<String>) -> Self {
-        Error::Vector(msg.into())
-    }
-
-    pub fn index(msg: impl Into<String>) -> Self {
-        Error::Index(msg.into())
-    }
-
-    pub fn storage(msg: impl Into<String>) -> Self {
-        Error::Storage(msg.into())
-    }
-
-    pub fn cache(msg: impl Into<String>) -> Self {
-        Error::Cache(msg.into())
-    }
-
-    pub fn resource(msg: impl Into<String>) -> Self {
-        Error::Resource(msg.into())
-    }
-
-    pub fn config(msg: impl Into<String>) -> Self {
-        Error::Config(msg.into())
-    }
-
-    pub fn serialization(msg: impl Into<String>) -> Self {
-        Error::Serialization(msg.into())
-    }
-
-    pub fn invalid_input(msg: impl Into<String>) -> Self {
-        Error::InvalidInput(msg.into())
-    }
-
-    pub fn not_found(msg: impl Into<String>) -> Self {
-        Error::NotFound(msg.into())
-    }
-
-    pub fn already_exists(msg: impl Into<String>) -> Self {
-        Error::AlreadyExists(msg.into())
-    }
-
-    pub fn internal(msg: impl Into<String>) -> Self {
-        Error::Internal(msg.into())
-    }
-
-    pub fn lock(msg: impl Into<String>) -> Self {
-        Error::Lock(msg.into())
-    }
-
-    pub fn other(msg: impl Into<String>) -> Self {
-        Error::Other(msg.into())
-    }
 }
 
 // Implement From for common error types

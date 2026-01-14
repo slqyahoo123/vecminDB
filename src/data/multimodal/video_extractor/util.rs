@@ -389,7 +389,7 @@ pub fn hash_str(s: &str) -> u64 {
 }
 
 /// 保存特征数据到文件
-pub fn save_features_to_file(features: &[f32], file_path: &str) -> Result<(), VideoExtractionError> {
+pub fn save_features_to_file(features: &[f32], file_path: &str) -> std::result::Result<(), VideoExtractionError> {
     // 确保目录存在
     if let Some(parent) = Path::new(file_path).parent() {
         if !parent.exists() {
@@ -415,7 +415,7 @@ pub fn save_features_to_file(features: &[f32], file_path: &str) -> Result<(), Vi
 }
 
 /// 从文件加载特征数据
-pub fn load_features_from_file(file_path: &str) -> Result<Vec<f32>, VideoExtractionError> {
+pub fn load_features_from_file(file_path: &str) -> std::result::Result<Vec<f32>, VideoExtractionError> {
     // 检查文件是否存在
     if !Path::new(file_path).exists() {
         return Err(VideoExtractionError::FileError(format!("特征文件不存在: {}", file_path)));
@@ -457,7 +457,7 @@ pub fn format_time(milliseconds: u64) -> String {
 }
 
 /// 解析时间字符串为毫秒
-pub fn parse_time(time_str: &str) -> Result<u64, VideoExtractionError> {
+pub fn parse_time(time_str: &str) -> std::result::Result<u64, VideoExtractionError> {
     // 支持多种格式:
     // - HH:MM:SS.mmm
     // - MM:SS.mmm

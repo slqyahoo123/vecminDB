@@ -633,7 +633,7 @@ impl crate::data::feature::extractor::FeatureExtractor for MultimodalFeatureExtr
                         crate::data::feature::extractor::InputData::MultiModal(_))
     }
 
-    async fn extract(&self, input: crate::data::feature::extractor::InputData, _context: Option<crate::data::feature::extractor::ExtractorContext>) -> Result<crate::data::feature::extractor::FeatureVector, crate::data::feature::extractor::ExtractorError> {
+    async fn extract(&self, input: crate::data::feature::extractor::InputData, _context: Option<crate::data::feature::extractor::ExtractorContext>) -> std::result::Result<crate::data::feature::extractor::FeatureVector, crate::data::feature::extractor::ExtractorError> {
         match input {
             crate::data::feature::extractor::InputData::Text(text) => {
                 let multimodal_input = MultimodalInput::new().with_text(text);
@@ -669,7 +669,7 @@ impl crate::data::feature::extractor::FeatureExtractor for MultimodalFeatureExtr
         }
     }
 
-    async fn batch_extract(&self, inputs: Vec<crate::data::feature::extractor::InputData>, _context: Option<crate::data::feature::extractor::ExtractorContext>) -> Result<crate::data::feature::extractor::FeatureBatch, crate::data::feature::extractor::ExtractorError> {
+    async fn batch_extract(&self, inputs: Vec<crate::data::feature::extractor::InputData>, _context: Option<crate::data::feature::extractor::ExtractorContext>) -> std::result::Result<crate::data::feature::extractor::FeatureBatch, crate::data::feature::extractor::ExtractorError> {
         let mut batch_features = Vec::new();
         
         for input in inputs {

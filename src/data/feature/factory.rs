@@ -391,7 +391,7 @@ impl GlobalFeatureExtractorFactory {
     }
     
     /// 初始化工厂并注册所有默认提取器
-    pub async fn init(&self) -> Result<(), ExtractorError> {
+    pub async fn init(&self) -> std::result::Result<(), ExtractorError> {
         info!("初始化全局特征提取器工厂");
         
         // 注册所有默认提取器
@@ -407,10 +407,10 @@ impl GlobalFeatureExtractorFactory {
 }
 
 pub trait FeatureExtractorFactoryTrait: Send + Sync {
-    async fn register(&self, creator: Box<dyn Fn(ExtractorConfig) -> Result<Box<dyn ExtractorFeatureExtractor>, ExtractorError> + Send + Sync>, 
-                extractor_type: ExtractorType) -> Result<(), ExtractorError>;
+    async fn register(&self, creator: Box<dyn Fn(ExtractorConfig) -> std::result::Result<Box<dyn ExtractorFeatureExtractor>, ExtractorError> + Send + Sync>, 
+                extractor_type: ExtractorType) -> std::result::Result<(), ExtractorError>;
     
-    async fn create(&self, config: ExtractorConfig) -> Result<Box<dyn ExtractorFeatureExtractor>, ExtractorError>;
+    async fn create(&self, config: ExtractorConfig) -> std::result::Result<Box<dyn ExtractorFeatureExtractor>, ExtractorError>;
     
     fn get_registered_types(&self) -> Vec<ExtractorType>;
     
@@ -418,8 +418,8 @@ pub trait FeatureExtractorFactoryTrait: Send + Sync {
 }
 
 impl FeatureExtractorFactoryTrait for GlobalFeatureExtractorFactory {
-    async fn register(&self, creator: Box<dyn Fn(ExtractorConfig) -> Result<Box<dyn ExtractorFeatureExtractor>, ExtractorError> + Send + Sync>, 
-                extractor_type: ExtractorType) -> Result<(), ExtractorError> {
+    async fn register(&self, creator: Box<dyn Fn(ExtractorConfig) -> std::result::Result<Box<dyn ExtractorFeatureExtractor>, ExtractorError> + Send + Sync>, 
+                extractor_type: ExtractorType) -> std::result::Result<(), ExtractorError> {
         // 将ExtractorError类型的creator转为Result<>类型
         let wrapper = Box::new(move |config: ExtractorConfig| -> Result<Box<dyn ExtractorFeatureExtractor>> {
             match creator(config) {
@@ -432,7 +432,7 @@ impl FeatureExtractorFactoryTrait for GlobalFeatureExtractorFactory {
             .map_err(|e| ExtractorError::Other(format!("注册提取器失败: {}", e)))
     }
     
-    async fn create(&self, config: ExtractorConfig) -> Result<Box<dyn ExtractorFeatureExtractor>, ExtractorError> {
+    async fn create(&self, config: ExtractorConfig) -> std::result::Result<Box<dyn ExtractorFeatureExtractor>, ExtractorError> {
         self.inner.create(config)
             .map_err(|e| ExtractorError::Other(format!("创建提取器失败: {}", e)))
     }
@@ -472,7 +472,7 @@ impl ExtractorConfigBuilder {
     }
     
     /// 添加参数
-    pub fn param<T: serde::Serialize>(mut self, key: impl Into<String>, value: T) -> Result<Self, ExtractorError> {
+    pub fn param<T: serde::Serialize>(mut self, key: impl Into<String>, value: T) -> std::result::Result<Self, ExtractorError> {
         // 将值序列化为JSON字符串
         let value_str = serde_json::to_string(&value)
             .map_err(|e| ExtractorError::Config(format!("序列化参数失败: {}", e)))?;
@@ -487,15 +487,15 @@ impl ExtractorConfigBuilder {
 }
 
 /// 工厂辅助方法（简化特征提取器创建）
-pub async fn create_extractor_from_type(extractor_type: ExtractorType) -> Result<Box<dyn ExtractorFeatureExtractor>, ExtractorError> {
+pub async fn create_extractor_from_type(extractor_type: ExtractorType) -> std::result::Result<Box<dyn ExtractorFeatureExtractor>, ExtractorError> {
     let config = ExtractorConfig::new(extractor_type);
     GlobalFeatureExtractorFactory::global().create(config).await
 }
 
 /// 工厂辅助方法（使用构建器简化特征提取器创建）
-pub async fn create_extractor_with_builder<F>(extractor_type: ExtractorType, builder_fn: F) -> Result<Box<dyn ExtractorFeatureExtractor>, ExtractorError>
+pub async fn create_extractor_with_builder<F>(extractor_type: ExtractorType, builder_fn: F) -> std::result::Result<Box<dyn ExtractorFeatureExtractor>, ExtractorError>
 where
-    F: FnOnce(ExtractorConfigBuilder) -> Result<ExtractorConfigBuilder, ExtractorError>,
+    F: FnOnce(ExtractorConfigBuilder) -> std::result::Result<ExtractorConfigBuilder, ExtractorError>,
 {
     let builder = ExtractorConfigBuilder::new(extractor_type);
     let builder = builder_fn(builder)?;
@@ -507,9 +507,9 @@ where
 pub async fn register_custom_extractor<F>(
     name: &str,
     creator: F,
-) -> Result<(), ExtractorError>
+) -> std::result::Result<(), ExtractorError>
 where
-    F: Fn(ExtractorConfig) -> Result<Box<dyn ExtractorFeatureExtractor>, ExtractorError> + Send + Sync + 'static,
+    F: Fn(ExtractorConfig) -> std::result::Result<Box<dyn ExtractorFeatureExtractor>, ExtractorError> + Send + Sync + 'static,
 {
     let extractor_type = ExtractorType::Custom(name.to_string());
     GlobalFeatureExtractorFactory::global()
@@ -517,7 +517,7 @@ where
         .await
 }
 
-pub async fn create_extractor_async_by_type(extractor_type: ExtractorType) -> Result<Box<dyn ExtractorFeatureExtractor>, ExtractorError> {
+pub async fn create_extractor_async_by_type(extractor_type: ExtractorType) -> std::result::Result<Box<dyn ExtractorFeatureExtractor>, ExtractorError> {
     let config = ExtractorConfig::new(extractor_type);
     GlobalFeatureExtractorFactory::global().create(config).await
 }
@@ -602,7 +602,7 @@ impl FeatureFactory {
     }
     
     /// 创建特征
-    pub async fn create_feature(&self, config: &FeatureConfig, data: &[u8]) -> Result<Feature, ExtractorError> {
+    pub async fn create_feature(&self, config: &FeatureConfig, data: &[u8]) -> std::result::Result<Feature, ExtractorError> {
         let extractors = self.get_extractors(config.feature_type.clone());
         
         if extractors.is_empty() {

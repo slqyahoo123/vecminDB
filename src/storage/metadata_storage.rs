@@ -75,7 +75,7 @@ impl CollectionMetadata {
 /// 元数据存储接口
 pub struct MetadataStorage {
     /// 底层KV存储引擎
-    storage: Arc<KeyValueStorageEngine>,
+    storage: Arc<dyn KeyValueStorageEngine>,
     /// 键前缀
     key_prefix: String,
 }

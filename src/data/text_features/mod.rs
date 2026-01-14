@@ -145,7 +145,7 @@ pub trait TextFeatureExtractor: Send + Sync {
     /// 
     /// # 返回
     /// 返回提取的特征向量，如果提取失败则返回错误
-    fn extract_features(&self, text: &str, options: Option<&TextProcessingOptions>) -> Result<Vec<f32>, Box<dyn StdError>>;
+    fn extract_features(&self, text: &str, options: Option<&TextProcessingOptions>) -> std::result::Result<Vec<f32>, Box<dyn StdError>>;
     
     /// 批量提取文本特征向量
     /// 
@@ -155,7 +155,7 @@ pub trait TextFeatureExtractor: Send + Sync {
     /// 
     /// # 返回
     /// 返回提取的特征向量列表，如果提取失败则返回错误
-    fn batch_extract_features(&self, texts: &[&str], options: Option<&TextProcessingOptions>) -> Result<Vec<Vec<f32>>, Box<dyn StdError>> {
+    fn batch_extract_features(&self, texts: &[&str], options: Option<&TextProcessingOptions>) -> std::result::Result<Vec<Vec<f32>>, Box<dyn StdError>> {
         let mut results = Vec::with_capacity(texts.len());
         for text in texts {
             let features = self.extract_features(text, options)?;
@@ -173,7 +173,7 @@ pub trait TextFeatureExtractor: Send + Sync {
     /// 
     /// # 返回
     /// 返回两个文本之间的相似度（0-1之间的值），如果计算失败则返回错误
-    fn compute_similarity(&self, text1: &str, text2: &str, options: Option<&TextProcessingOptions>) -> Result<f32, Box<dyn StdError>>;
+    fn compute_similarity(&self, text1: &str, text2: &str, options: Option<&TextProcessingOptions>) -> std::result::Result<f32, Box<dyn StdError>>;
     
     /// 批量计算文本相似度
     /// 
@@ -184,7 +184,7 @@ pub trait TextFeatureExtractor: Send + Sync {
     /// 
     /// # 返回
     /// 返回查询文本与每个文本的相似度列表，如果计算失败则返回错误
-    fn batch_compute_similarity(&self, texts: &[&str], query: &str, options: Option<&TextProcessingOptions>) -> Result<Vec<f32>, Box<dyn StdError>> {
+    fn batch_compute_similarity(&self, texts: &[&str], query: &str, options: Option<&TextProcessingOptions>) -> std::result::Result<Vec<f32>, Box<dyn StdError>> {
         let mut similarities = Vec::with_capacity(texts.len());
         for text in texts {
             let similarity = self.compute_similarity(text, query, options)?;

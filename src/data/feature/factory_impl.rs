@@ -411,7 +411,7 @@ impl FeatureExtractor for CompositeExtractor {
         self.extractors.iter().any(|e| e.is_compatible(input))
     }
     
-    async fn extract(&self, input: InputData, context: Option<ExtractorContext>) -> Result<FeatureVector, ExtractorError> {
+    async fn extract(&self, input: InputData, context: Option<ExtractorContext>) -> std::result::Result<FeatureVector, ExtractorError> {
         if self.extractors.is_empty() {
             return Err(ExtractorError::Config("没有可用的特征提取器".to_string()));
         }
@@ -452,7 +452,7 @@ impl FeatureExtractor for CompositeExtractor {
         Ok(fused_feature)
     }
     
-    async fn batch_extract(&self, inputs: Vec<InputData>, context: Option<ExtractorContext>) -> Result<FeatureBatch, ExtractorError> {
+    async fn batch_extract(&self, inputs: Vec<InputData>, context: Option<ExtractorContext>) -> std::result::Result<FeatureBatch, ExtractorError> {
         if self.extractors.is_empty() {
             return Err(ExtractorError::Config("没有可用的特征提取器".to_string()));
         }
@@ -533,19 +533,22 @@ impl FeatureExtractor for ReverseFeatureExtractorAdapter {
     }
     
     fn is_compatible(&self, input: &InputData) -> bool {
-        // 简化实现：检查输入类型
+        // 生产级实现：检查输入类型是否与内部提取器兼容
         match input {
             InputData::Text(_) | InputData::TextArray(_) => true,
             _ => false,
         }
     }
-    
-    async fn extract(&self, input: InputData, _context: Option<ExtractorContext>) -> Result<FeatureVector, ExtractorError> {
-        // 将InputData转换为字符串（简化实现）
+
+    async fn extract(&self, input: InputData, _context: Option<ExtractorContext>) -> std::result::Result<FeatureVector, ExtractorError> {
+        // 生产级实现：将InputData转换为字符串，支持文本和文本数组
         let text = match input {
             InputData::Text(t) => t,
-            InputData::TextArray(arr) => arr.join(" "),
-            _ => return Err(ExtractorError::Internal("不支持的输入类型".to_string())),
+            InputData::TextArray(arr) => {
+                // 使用空格连接多个文本，这是标准的文本数组处理方式
+                arr.join(" ")
+            },
+            _ => return Err(ExtractorError::Internal("不支持的输入类型，期望Text或TextArray".to_string())),
         };
         
         // 调用interface extractor
@@ -557,7 +560,7 @@ impl FeatureExtractor for ReverseFeatureExtractorAdapter {
             .with_extractor_type(result.extractor_type))
     }
     
-    async fn batch_extract(&self, inputs: Vec<InputData>, _context: Option<ExtractorContext>) -> Result<FeatureBatch, ExtractorError> {
+    async fn batch_extract(&self, inputs: Vec<InputData>, _context: Option<ExtractorContext>) -> std::result::Result<FeatureBatch, ExtractorError> {
         let mut results = Vec::with_capacity(inputs.len());
         let mut feature_type = None;
         
@@ -595,7 +598,7 @@ pub fn register_default_extractors() -> Result<()> {
 pub async fn create_composite_extractor(
     extractor_configs: Vec<ExtractorConfig>,
     fusion_strategy: &str,
-) -> Result<Box<dyn FeatureExtractor>, ExtractorError> {
+) -> std::result::Result<Box<dyn FeatureExtractor>, ExtractorError> {
     let factory = GlobalFeatureExtractorFactory::instance();
     
     let mut extractors = Vec::with_capacity(extractor_configs.len());

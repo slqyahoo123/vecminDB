@@ -319,7 +319,7 @@ impl ExtractorContext {
     }
     
     /// 设置参数
-    pub fn set_param(&mut self, key: impl Into<String>, value: impl Into<String>) -> Result<(), ExtractorError> {
+    pub fn set_param(&mut self, key: impl Into<String>, value: impl Into<String>) -> std::result::Result<(), ExtractorError> {
         self.params.insert(key.into(), value.into());
         Ok(())
     }
@@ -330,7 +330,7 @@ impl ExtractorContext {
     }
     
     /// 获取参数并解析为指定类型
-    pub fn get_param_as<T: std::str::FromStr>(&self, key: &str) -> Option<Result<T, ()>> {
+    pub fn get_param_as<T: std::str::FromStr>(&self, key: &str) -> Option<std::result::Result<T, ()>> {
         self.params.get(key).map(|s| s.parse().map_err(|_| ()))
     }
     
@@ -434,7 +434,7 @@ impl ExtractorConfig {
     }
     
     /// 添加序列化参数
-    pub fn with_serialized_param<T: Serialize>(mut self, key: impl Into<String>, value: T) -> Result<Self, ExtractorError> {
+    pub fn with_serialized_param<T: Serialize>(mut self, key: impl Into<String>, value: T) -> std::result::Result<Self, ExtractorError> {
         match serde_json::to_value(value) {
             Ok(json_value) => {
                 self.dict_params.insert(key.into(), json_value);
@@ -445,7 +445,7 @@ impl ExtractorConfig {
     }
     
     /// 获取参数
-    pub fn get_param<T: std::str::FromStr>(&self, key: &str) -> Option<Result<T, ExtractorError>> {
+    pub fn get_param<T: std::str::FromStr>(&self, key: &str) -> Option<std::result::Result<T, ExtractorError>> {
         self.params.get(key).map(|value| {
             value.parse::<T>().map_err(|_| {
                 ExtractorError::Config(format!("无法将参数 {} 转换为请求的类型", key))
@@ -454,7 +454,7 @@ impl ExtractorConfig {
     }
     
     /// 获取序列化参数
-    pub fn get_serialized_param<T: for<'a> Deserialize<'a>>(&self, key: &str) -> Option<Result<T, ExtractorError>> {
+    pub fn get_serialized_param<T: for<'a> Deserialize<'a>>(&self, key: &str) -> Option<std::result::Result<T, ExtractorError>> {
         self.dict_params.get(key).map(|value| {
             serde_json::from_value(value.clone()).map_err(|e| {
                 ExtractorError::Config(format!("反序列化参数 {} 失败: {}", key, e))
@@ -559,10 +559,10 @@ pub trait FeatureExtractor: Send + Sync + Debug {
     fn is_compatible(&self, input: &InputData) -> bool;
     
     /// 提取特征
-    async fn extract(&self, input: InputData, context: Option<ExtractorContext>) -> Result<FeatureVector, ExtractorError>;
+    async fn extract(&self, input: InputData, context: Option<ExtractorContext>) -> std::result::Result<FeatureVector, ExtractorError>;
     
     /// 批量提取特征
-    async fn batch_extract(&self, inputs: Vec<InputData>, context: Option<ExtractorContext>) -> Result<FeatureBatch, ExtractorError>;
+    async fn batch_extract(&self, inputs: Vec<InputData>, context: Option<ExtractorContext>) -> std::result::Result<FeatureBatch, ExtractorError>;
     
     /// 获取输出特征类型
     fn output_feature_type(&self) -> FeatureType;
@@ -648,12 +648,12 @@ impl FeatureExtractor for DummyExtractor {
         true // 虚拟提取器兼容所有输入
     }
     
-    async fn extract(&self, _input: InputData, _context: Option<ExtractorContext>) -> Result<FeatureVector, ExtractorError> {
+    async fn extract(&self, _input: InputData, _context: Option<ExtractorContext>) -> std::result::Result<FeatureVector, ExtractorError> {
         Ok(FeatureVector::new(self.feature_type.clone(), self.test_values.clone())
             .with_extractor_type(self.config.extractor_type.clone()))
     }
     
-    async fn batch_extract(&self, inputs: Vec<InputData>, _context: Option<ExtractorContext>) -> Result<FeatureBatch, ExtractorError> {
+    async fn batch_extract(&self, inputs: Vec<InputData>, _context: Option<ExtractorContext>) -> std::result::Result<FeatureBatch, ExtractorError> {
         let batch_size = inputs.len();
         let values = vec![self.test_values.clone(); batch_size];
         

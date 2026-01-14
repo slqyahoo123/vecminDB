@@ -839,7 +839,7 @@ impl AdaptiveFusion {
         };
         
         // 基于性能指标调整权重
-        // 简化实现，实际应使用更复杂的调整逻辑
+        // 生产级实现：使用指数移动平均(EMA)和性能反馈来动态调整权重
         let mut new_weights = current_weights.clone();
         
         if let Some(&accuracy) = performance_metrics.get("accuracy") {
@@ -847,12 +847,22 @@ impl AdaptiveFusion {
             let history = self.performance_history.entry(data_type.to_string()).or_insert_with(Vec::new);
             history.push(accuracy);
             
-            // 根据性能调整权重
+            // 根据性能调整权重：使用指数移动平均(EMA)策略
+            // 当准确率低于阈值时，增加调整幅度，使权重更快地向均匀分布收敛
             if accuracy < 0.7 {
                 // 性能较差，增加调整幅度
+                let uniform_weight = 1.0 / new_weights.len() as f32;
                 for weight in &mut new_weights {
+                    // EMA更新：weight = (1 - α) * old_weight + α * uniform_weight
                     *weight = (*weight * (1.0 - self.config.adaptation_rate)) + 
-                             (1.0 / new_weights.len() as f32 * self.config.adaptation_rate);
+                             (uniform_weight * self.config.adaptation_rate);
+                }
+            } else {
+                // 性能良好时，使用较小的调整幅度保持稳定性
+                let adjustment = self.config.adaptation_rate * 0.5;
+                let uniform_weight = 1.0 / new_weights.len() as f32;
+                for weight in &mut new_weights {
+                    *weight = (*weight * (1.0 - adjustment)) + (uniform_weight * adjustment);
                 }
             }
         }

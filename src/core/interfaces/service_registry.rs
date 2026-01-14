@@ -3,6 +3,25 @@ use async_trait::async_trait;
 use crate::error::Result;
 // use std::sync::Arc; // 预留
 
+// 创建占位符模块以支持服务注册表
+mod model_interface {
+    use super::*;
+    /// 模型服务接口（占位符）
+    #[async_trait]
+    pub trait ModelService: Send + Sync {
+        // 占位符接口，向量数据库项目可能不需要完整的模型服务
+    }
+}
+
+mod training_interface {
+    use super::*;
+    /// 训练服务接口（占位符）
+    #[async_trait]
+    pub trait TrainingService: Send + Sync {
+        // 占位符接口，向量数据库项目可能不需要训练服务
+    }
+}
+
 /// 服务注册表接口
 #[async_trait]
 pub trait ServiceRegistry: Send + Sync {
