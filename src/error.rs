@@ -305,6 +305,12 @@ impl From<sled::Error> for Error {
     }
 }
 
+impl From<rocksdb::Error> for Error {
+    fn from(err: rocksdb::Error) -> Self {
+        Error::Storage(err.to_string())
+    }
+}
+
 impl From<Box<dyn std::error::Error>> for Error {
     fn from(err: Box<dyn std::error::Error>) -> Self {
         Error::Other(err.to_string())
@@ -320,6 +326,12 @@ impl<T> From<std::sync::PoisonError<T>> for Error {
 impl From<std::string::FromUtf8Error> for Error {
     fn from(err: std::string::FromUtf8Error) -> Self {
         Error::InvalidInput(format!("UTF-8转换错误: {}", err))
+    }
+}
+
+impl From<tokio::task::JoinError> for Error {
+    fn from(err: tokio::task::JoinError) -> Self {
+        Error::ExecutionError(format!("任务执行失败: {}", err))
     }
 }
 

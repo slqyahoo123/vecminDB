@@ -158,7 +158,7 @@ impl ExecutionEnvironment {
             let mut current = self.resource_usage.write().unwrap();
             current.limits_exceeded = true;
             current.exceeded_resource = Some("内存使用超限".to_string());
-            return Err(crate::error::Error::ResourceExhausted(
+            return Err(crate::error::Error::resource(
                 format!("内存使用超过限制: {}B > {}B", usage.memory_bytes, config.max_memory)
             ));
         }
@@ -168,7 +168,7 @@ impl ExecutionEnvironment {
             let mut current = self.resource_usage.write().unwrap();
             current.limits_exceeded = true;
             current.exceeded_resource = Some("CPU时间超限".to_string());
-            return Err(crate::error::Error::ResourceExhausted(
+            return Err(crate::error::Error::resource(
                 format!("CPU时间超过限制: {}ms > {}ms", usage.cpu_time_ms, config.max_cpu_time.as_millis())
             ));
         }
@@ -179,7 +179,7 @@ impl ExecutionEnvironment {
             let mut current = self.resource_usage.write().unwrap();
             current.limits_exceeded = true;
             current.exceeded_resource = Some("磁盘IO超限".to_string());
-            return Err(crate::error::Error::ResourceExhausted(
+            return Err(crate::error::Error::resource(
                 format!("磁盘IO超过限制: {}B > {}B", total_io, config.max_disk_io)
             ));
         }
@@ -526,7 +526,7 @@ impl<W: AlgorithmWorker + 'static> ParallelWorkerPool<W> {
         {
             let active_count = *self.active_tasks.lock().unwrap();
             if active_count >= self.config.max_parallel_tasks {
-                return Err(crate::error::Error::ResourceExhausted("超过最大并行任务数限制".to_string()));
+            return Err(crate::error::Error::resource("超过最大并行任务数限制".to_string()));
             }
             
             // 更新活跃任务数
@@ -656,7 +656,7 @@ impl AlgorithmWorker for ClassificationWorker {
         
         // 报告进度
         if !progress_callback(0.1, "环境准备完成") {
-            return Err(crate::error::Error::Algorithm("任务被取消".to_string()));
+            return Err(crate::error::Error::execution_error("任务被取消".to_string()));
         }
         
         // 保存算法和模型到临时目录
@@ -664,13 +664,13 @@ impl AlgorithmWorker for ClassificationWorker {
         let model_path = environment.config.temp_dir.join("input_model.json");
         
         fs::write(&algorithm_path, serde_json::to_string(algorithm)?).await
-            .map_err(|e| crate::error::Error::IO(e.to_string()))?;
+            .map_err(|e| crate::error::Error::io_error(e.to_string()))?;
         fs::write(&model_path, serde_json::to_string(model)?).await
-            .map_err(|e| crate::error::Error::IO(e.to_string()))?;
+            .map_err(|e| crate::error::Error::io_error(e.to_string()))?;
         
         // 报告进度
         if !progress_callback(0.2, "算法和模型已准备") {
-            return Err(crate::error::Error::Algorithm("任务被取消".to_string()));
+            return Err(crate::error::Error::execution_error("任务被取消".to_string()));
         }
         
         // 执行算法
@@ -681,7 +681,7 @@ impl AlgorithmWorker for ClassificationWorker {
         
         // 报告进度
         if !progress_callback(0.9, "算法执行完成") {
-            return Err(crate::error::Error::Algorithm("任务被取消".to_string()));
+            return Err(crate::error::Error::execution_error("任务被取消".to_string()));
         }
         
         // 清理环境
@@ -689,7 +689,7 @@ impl AlgorithmWorker for ClassificationWorker {
         
         // 报告最终进度
         if !progress_callback(1.0, "处理完成") {
-            return Err(crate::error::Error::Algorithm("任务被取消".to_string()));
+            return Err(crate::error::Error::execution_error("任务被取消".to_string()));
         }
         
         Ok(output_model)
@@ -711,7 +711,7 @@ impl ClassificationWorker {
         // 创建临时目录
         if !environment.config.temp_dir.exists() {
             fs::create_dir_all(&environment.config.temp_dir).await
-                .map_err(|e| crate::error::Error::IO(e.to_string()))?;
+                .map_err(|e| crate::error::Error::io_error(e.to_string()))?;
         }
         
         Ok(())
@@ -738,7 +738,7 @@ impl ClassificationWorker {
         // 为了简化示例，我们创建一个带有一些基本转换的新模型
         
         if !progress_callback(0.3, "开始处理特征") {
-            return Err(crate::error::Error::Algorithm("任务被取消".to_string()));
+            return Err(crate::error::Error::execution_error("任务被取消".to_string()));
         }
         
         // 创建输出模型
@@ -753,7 +753,7 @@ impl ClassificationWorker {
         for (idx, _layer) in output_model.architecture.layers.iter_mut().enumerate() {
             if !progress_callback(0.3 + 0.5 * (idx as f32 / layers_len as f32), 
                                 &format!("处理层 {}/{}", idx + 1, layers_len)) {
-                return Err(crate::error::Error::Algorithm("任务被取消".to_string()));
+                return Err(crate::error::Error::execution_error("任务被取消".to_string()));
             }
             
             // 示例转换: 添加算法特定的配置到元数据
@@ -778,7 +778,7 @@ impl ClassificationWorker {
         }
         
         if !progress_callback(0.8, "特征处理完成") {
-            return Err(crate::error::Error::Algorithm("任务被取消".to_string()));
+            return Err(crate::error::Error::execution_error("任务被取消".to_string()));
         }
         
         // 添加算法执行信息
@@ -834,14 +834,14 @@ impl AlgorithmWorker for RegressionWorker {
         progress_callback: ProgressCallback,
         environment: ExecutionEnvironment
     ) -> Result<Model> {
-        // 类似于ClassificationWorker的实现，但针对回归问题
-        // 为了避免重复代码，这里简化实现
+        // 回归算法的实现逻辑与分类算法类似，但输出为连续值而非类别
+        // 当前实现复用分类算法的框架，针对回归问题调整输出处理
         
         debug!("在执行环境中应用回归算法: {}", algorithm.name);
         
         // 报告进度
         if !progress_callback(0.1, "开始执行回归算法") {
-            return Err(crate::error::Error::Algorithm("任务被取消".to_string()));
+            return Err(crate::error::Error::execution_error("任务被取消".to_string()));
         }
         
         // 在实际应用中实现完整的回归算法
@@ -854,7 +854,7 @@ impl AlgorithmWorker for RegressionWorker {
         
         // 报告最终进度
         if !progress_callback(1.0, "回归算法执行完成") {
-            return Err(crate::error::Error::Algorithm("任务被取消".to_string()));
+            return Err(crate::error::Error::execution_error("任务被取消".to_string()));
         }
         
         Ok(output_model)

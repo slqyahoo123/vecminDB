@@ -96,7 +96,8 @@ impl VectorStorage {
     pub async fn insert(&self, record: &VectorRecord) -> Result<()> {
         let key = self.make_key(&record.id);
         let value = self.serialize_record(record)?;
-        self.storage.put(&key, &value).await
+        // KeyValueStorageEngine 是同步接口，这里直接调用同步方法
+        self.storage.set(&key, &value)
     }
 
     /// 批量插入向量
@@ -112,7 +113,7 @@ impl VectorStorage {
     /// 获取向量
     pub async fn get(&self, id: &str) -> Result<Option<VectorRecord>> {
         let key = self.make_key(id);
-        match self.storage.get(&key).await? {
+        match self.storage.get(&key)? {
             Some(value) => Ok(Some(self.deserialize_record(&value)?)),
             None => Ok(None),
         }
@@ -121,30 +122,26 @@ impl VectorStorage {
     /// 删除向量
     pub async fn delete(&self, id: &str) -> Result<()> {
         let key = self.make_key(id);
-        self.storage.delete(&key).await
+        self.storage.delete(&key)
     }
 
     /// 检查向量是否存在
     pub async fn exists(&self, id: &str) -> Result<bool> {
         let key = self.make_key(id);
-        self.storage.exists(&key).await
+        self.storage.exists(&key)
     }
 
     /// 列出所有向量ID
     pub async fn list_ids(&self) -> Result<Vec<String>> {
-        let prefix = self.key_prefix.as_bytes();
         let mut ids = Vec::new();
-        
-        // 使用前缀扫描
-        let keys = self.storage.scan_prefix(prefix).await?;
+        // 使用模式匹配获取所有以 key_prefix 开头的键
+        let pattern = format!("{}*", self.key_prefix);
+        let keys = self.storage.get_keys_with_pattern(&pattern)?;
         for key in keys {
-            if let Ok(key_str) = String::from_utf8(key) {
-                if let Some(id) = key_str.strip_prefix(&self.key_prefix) {
-                    ids.push(id.to_string());
-                }
+            if let Some(id) = key.strip_prefix(&self.key_prefix) {
+                ids.push(id.to_string());
             }
         }
-        
         Ok(ids)
     }
 
@@ -164,8 +161,8 @@ impl VectorStorage {
 
     // 内部辅助方法
 
-    fn make_key(&self, id: &str) -> Vec<u8> {
-        format!("{}{}", self.key_prefix, id).into_bytes()
+    fn make_key(&self, id: &str) -> String {
+        format!("{}{}", self.key_prefix, id)
     }
 
     fn serialize_record(&self, record: &VectorRecord) -> Result<Vec<u8>> {

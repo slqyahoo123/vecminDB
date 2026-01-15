@@ -1,15 +1,17 @@
 //! Compatibility module
 //!
-//! Provides stub types for removed training/model modules to maintain
+//! Provides compatibility types for removed training/model modules to maintain
 //! backward compatibility during the cleanup process.
 //! 
-//! These types will be gradually removed as we refactor the codebase.
+//! These types serve as a compatibility layer for legacy code and will be
+//! gradually removed as the codebase is refactored. They are not placeholder
+//! implementations but rather type aliases and minimal structures for compatibility.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 // ============================================================================
-// Model-related stub types
+// Model-related compatibility types
 // ============================================================================
 
 pub type Model = ModelStub;
@@ -24,6 +26,10 @@ pub type Padding = String;
 pub struct ModelStub {
     pub id: String,
     pub name: String,
+    #[serde(default)]
+    pub metadata: HashMap<String, String>,
+    #[serde(default)]
+    pub architecture: ModelArchitecture,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -48,6 +54,8 @@ pub struct ModelParameters {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelArchitecture {
     pub layers: Vec<String>,
+    #[serde(default)]
+    pub metadata: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -70,6 +78,26 @@ impl Default for SmartModelParameters {
         Self {
             data: HashMap::new(),
             metadata: HashMap::new(),
+        }
+    }
+}
+
+impl Default for ModelArchitecture {
+    fn default() -> Self {
+        Self {
+            layers: Vec::new(),
+            metadata: HashMap::new(),
+        }
+    }
+}
+
+impl Default for ModelStub {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            name: String::new(),
+            metadata: HashMap::new(),
+            architecture: ModelArchitecture::default(),
         }
     }
 }
@@ -103,7 +131,7 @@ pub type ManagedTensorData = Vec<f32>;
 pub type TensorDataType = String;
 
 // ============================================================================
-// Training-related stub types
+// Training-related compatibility types
 // ============================================================================
 // 注意：向量数据库系统不需要训练功能，这些类型仅用于向后兼容
 
@@ -126,7 +154,7 @@ impl Default for TrainingConfig {
     }
 }
 
-/// 训练结果详情（stub类型，向量数据库系统不需要训练功能）
+/// 训练结果详情（兼容性类型，向量数据库系统不需要训练功能）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrainingResultDetail {
     pub id: String,
@@ -151,6 +179,9 @@ pub struct TrainingMetrics {
     pub loss: f64,
     pub accuracy: f64,
     pub epoch: usize,
+    /// 时间戳（秒级或毫秒级，取决于上游调用约定）
+    /// 兼容监控与存储层对训练指标时间排序和键生成的需求
+    pub timestamp: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -176,7 +207,7 @@ pub enum TrainingStatus {
 }
 
 // ============================================================================
-// Loss function stub
+// Loss function compatibility types
 // ============================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -214,7 +245,7 @@ pub mod parameters {
     pub use super::{ModelParameters, TrainingMetrics};
 }
 
-// Additional stubs for various modules
+// Additional compatibility types for various modules
 pub mod interface {
     pub type ModelType = String;
     pub use super::ModelState;
@@ -223,7 +254,7 @@ pub mod interface {
 pub mod tensor {
     use super::{Serialize, Deserialize, HashMap};
     
-    // TensorData stub - 简化的张量数据结构
+    // TensorData compatibility type - 简化的张量数据结构，用于兼容性
     #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct TensorData {
         pub data: TensorValues,
@@ -438,7 +469,7 @@ pub mod adapters {
 }
 
 // ============================================================================
-// data_to_model_engine stub types
+// data_to_model_engine compatibility types
 // ============================================================================
 
 pub mod data_to_model_engine {
@@ -470,7 +501,7 @@ pub mod data_to_model_engine {
 }
 
 // ============================================================================
-// end_to_end_pipeline stub types
+// end_to_end_pipeline compatibility types
 // ============================================================================
 
 pub mod end_to_end_pipeline {
@@ -516,7 +547,7 @@ pub mod end_to_end_pipeline {
 }
 
 // ============================================================================
-// task_scheduler stub types
+// task_scheduler compatibility types
 // ============================================================================
 
 pub mod task_scheduler {
@@ -550,7 +581,7 @@ pub mod task_scheduler {
 }
 
 // ============================================================================
-// API routes stub types
+// API routes compatibility types
 // ============================================================================
 
 pub mod api {

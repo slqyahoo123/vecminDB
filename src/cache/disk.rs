@@ -209,7 +209,7 @@ impl DiskCache {
         // 确保缓存目录存在
         if !root_dir.exists() {
             fs::create_dir_all(&root_dir)
-                .map_err(|e| Error::io(format!("创建缓存目录失败: {}", e)))?;
+                .map_err(|e| Error::io_error(format!("创建缓存目录失败: {}", e)))?;
         }
         
         // 尝试加载现有清单
@@ -345,13 +345,13 @@ impl DiskCache {
         if let Some(parent) = full_path.parent() {
             if !parent.exists() {
                 fs::create_dir_all(parent)
-                    .map_err(|e| Error::io(format!("创建缓存目录失败: {}", e)))?;
+                    .map_err(|e| Error::io_error(format!("创建缓存目录失败: {}", e)))?;
             }
         }
         
         // 写入文件
         fs::write(&full_path, value)
-            .map_err(|e| Error::io(format!("写入缓存文件失败: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("写入缓存文件失败: {}", e)))?;
         
         // 更新清单
         let mut manifest = self.manifest.write().map_err(|_| Error::locks_poison("磁盘缓存清单锁被污染"))?;
@@ -761,7 +761,7 @@ impl DiskCache {
         if manifest_path.exists() {
             match fs::read_to_string(&manifest_path) {
                 Ok(json) => DiskCacheManifest::from_json(&json),
-                Err(e) => Err(Error::io(format!("读取缓存清单失败: {}", e))),
+                Err(e) => Err(Error::io_error(format!("读取缓存清单失败: {}", e))),
             }
         } else {
             Err(Error::not_found("缓存清单文件不存在"))
@@ -781,11 +781,11 @@ impl DiskCache {
         let json = manifest.to_json()?;
         
         fs::write(&temp_path, json)
-            .map_err(|e| Error::io(format!("写入临时缓存清单失败: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("写入临时缓存清单失败: {}", e)))?;
         
         // 重命名为正式文件
         fs::rename(&temp_path, &manifest_path)
-            .map_err(|e| Error::io(format!("重命名缓存清单失败: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("重命名缓存清单失败: {}", e)))?;
         
         Ok(())
     }

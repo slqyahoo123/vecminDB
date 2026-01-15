@@ -71,7 +71,7 @@ impl ProductionEventSystem {
             })?;
             
             if *is_running {
-                return Err(Error::InvalidOperation("事件系统已在运行".to_string()));
+                return Err(Error::invalid_state("事件系统已在运行".to_string()));
             }
             *is_running = true;
         }
@@ -160,7 +160,7 @@ impl ProductionEventSystem {
             
             // 检查订阅者数量限制
             if type_subscribers.len() >= self.config.max_subscribers {
-                return Err(Error::resource_exhausted("订阅者数量已达上限"));
+                return Err(Error::resource("订阅者数量已达上限"));
             }
             
             type_subscribers.push(subscriber);
@@ -198,7 +198,7 @@ impl ProductionEventSystem {
             
             // 检查订阅者数量限制
             if global_subscribers.len() >= self.config.max_subscribers {
-                return Err(Error::resource_exhausted("全局订阅者数量已达上限"));
+                return Err(Error::resource("全局订阅者数量已达上限"));
             }
             
             global_subscribers.push(subscriber);

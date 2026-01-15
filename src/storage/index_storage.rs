@@ -97,13 +97,14 @@ impl IndexStorage {
     pub async fn save_metadata(&self, metadata: &IndexMetadata) -> Result<()> {
         let key = self.make_metadata_key(&metadata.name);
         let value = self.serialize(metadata)?;
-        self.storage.put(&key, &value).await
+        // KeyValueStorageEngine 是同步接口，这里直接调用同步方法
+        self.storage.set(&key, &value)
     }
 
     /// 获取索引元数据
     pub async fn get_metadata(&self, name: &str) -> Result<Option<IndexMetadata>> {
         let key = self.make_metadata_key(name);
-        match self.storage.get(&key).await? {
+        match self.storage.get(&key)? {
             Some(value) => Ok(Some(self.deserialize(&value)?)),
             None => Ok(None),
         }
@@ -117,13 +118,13 @@ impl IndexStorage {
         } else {
             data.to_vec()
         };
-        self.storage.put(&key, &value).await
+        self.storage.set(&key, &value)
     }
 
     /// 获取索引数据
     pub async fn get_index_data(&self, index_name: &str) -> Result<Option<Vec<u8>>> {
         let key = self.make_data_key(index_name);
-        match self.storage.get(&key).await? {
+        match self.storage.get(&key)? {
             Some(value) => {
                 let data = if self.config.enable_compression {
                     super::compression::decompress(&value)?
@@ -140,11 +141,11 @@ impl IndexStorage {
     pub async fn delete_index(&self, index_name: &str) -> Result<()> {
         // 删除元数据
         let metadata_key = self.make_metadata_key(index_name);
-        self.storage.delete(&metadata_key).await?;
+        self.storage.delete(&metadata_key)?;
         
         // 删除索引数据
         let data_key = self.make_data_key(index_name);
-        self.storage.delete(&data_key).await?;
+        self.storage.delete(&data_key)?;
         
         Ok(())
     }
@@ -152,15 +153,13 @@ impl IndexStorage {
     /// 列出所有索引
     pub async fn list_indexes(&self) -> Result<Vec<String>> {
         let prefix = format!("{}metadata:", self.key_prefix);
-        let prefix_bytes = prefix.as_bytes();
         let mut names = Vec::new();
         
-        let keys = self.storage.scan_prefix(prefix_bytes).await?;
+        let pattern = format!("{}*", prefix);
+        let keys = self.storage.get_keys_with_pattern(&pattern)?;
         for key in keys {
-            if let Ok(key_str) = String::from_utf8(key) {
-                if let Some(name) = key_str.strip_prefix(&prefix) {
-                    names.push(name.to_string());
-                }
+            if let Some(name) = key.strip_prefix(&prefix) {
+                names.push(name.to_string());
             }
         }
         
@@ -169,12 +168,12 @@ impl IndexStorage {
 
     // 内部辅助方法
 
-    fn make_metadata_key(&self, index_name: &str) -> Vec<u8> {
-        format!("{}metadata:{}", self.key_prefix, index_name).into_bytes()
+    fn make_metadata_key(&self, index_name: &str) -> String {
+        format!("{}metadata:{}", self.key_prefix, index_name)
     }
 
-    fn make_data_key(&self, index_name: &str) -> Vec<u8> {
-        format!("{}data:{}", self.key_prefix, index_name).into_bytes()
+    fn make_data_key(&self, index_name: &str) -> String {
+        format!("{}data:{}", self.key_prefix, index_name)
     }
 
     fn serialize<T: Serialize>(&self, data: &T) -> Result<Vec<u8>> {

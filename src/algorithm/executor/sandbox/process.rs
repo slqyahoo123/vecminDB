@@ -387,14 +387,14 @@ impl ProcessSandbox {
         // 创建工作目录
         if !self.config.working_dir.exists() {
             std::fs::create_dir_all(&self.config.working_dir)
-                .map_err(|e| Error::IoError(format!("Failed to create working directory: {}", e)))?;
+                .map_err(|e| Error::io_error(format!("Failed to create working directory: {}", e)))?;
         }
         
         // 创建临时目录
         if let Some(ref temp_dir) = self.config.security_config.filesystem_access.temp_dir {
             if !temp_dir.exists() {
                 std::fs::create_dir_all(temp_dir)
-                    .map_err(|e| Error::IoError(format!("Failed to create temp directory: {}", e)))?;
+                    .map_err(|e| Error::io_error(format!("Failed to create temp directory: {}", e)))?;
             }
         }
         
@@ -418,7 +418,7 @@ impl ProcessSandbox {
         for path in &self.config.security_config.filesystem_access.writable_paths {
             if !path.exists() {
                 std::fs::create_dir_all(path)
-                    .map_err(|e| Error::IoError(format!("Failed to create writable path: {}", e)))?;
+                    .map_err(|e| Error::io_error(format!("Failed to create writable path: {}", e)))?;
             }
             debug!("Setting writable permission for path: {:?}", path);
         }

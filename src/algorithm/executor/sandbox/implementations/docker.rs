@@ -95,8 +95,6 @@ impl DockerSandbox {
         let id = format!("docker-sandbox-{}", Uuid::new_v4());
         #[cfg(feature = "tempfile")]
         let temp_dir = TempDir::new().ok();
-        #[cfg(not(feature = "tempfile"))]
-        let temp_dir = None;
         
         // 验证Docker是否可用
         Self::verify_docker_available().await?;
@@ -168,7 +166,7 @@ impl DockerSandbox {
             },
             Err(e) => {
                 error!("Docker命令执行失败: {}", e);
-                Err(Error::failed_precondition(format!("Docker命令执行失败: {}", e)))
+                Err(Error::invalid_state(format!("Docker命令执行失败: {}", e)))
             }
         }
     }
@@ -178,109 +176,115 @@ impl DockerSandbox {
         debug!("【DockerSandbox】创建容器: {}", self.id);
         
         // 准备临时目录
-        let temp_dir = self.temp_dir.as_ref().ok_or_else(|| {
-            Error::failed_precondition("临时目录未初始化")
-        })?;
+        #[cfg(not(feature = "tempfile"))]
+        return Err(Error::invalid_state("tempfile feature未启用，无法创建临时目录"));
         
-        // 创建Dockerfile
-        let dockerfile_path = temp_dir.path().join("Dockerfile");
-        let dockerfile_content = self.generate_dockerfile()?;
-        tokio::fs::write(&dockerfile_path, dockerfile_content).await?;
-        
-        // 创建执行脚本
-        let script_path = temp_dir.path().join("script.py");
-        tokio::fs::write(&script_path, code).await?;
-        
-        // 创建工作目录
-        let work_dir = temp_dir.path().join("workdir");
-        tokio::fs::create_dir_all(&work_dir).await?;
-        
-        // 创建输入、输出目录
-        let input_dir = temp_dir.path().join("input");
-        let output_dir = temp_dir.path().join("output");
-        tokio::fs::create_dir_all(&input_dir).await?;
-        tokio::fs::create_dir_all(&output_dir).await?;
-        
-        // 构建镜像
-        let image_name = format!("vecmind-sandbox-{}", self.id);
-        let build_output = Command::new("docker")
-            .arg("build")
-            .arg("-t")
-            .arg(&image_name)
-            .arg("-f")
-            .arg(&dockerfile_path)
-            .arg(temp_dir.path())
-            .output()
-            .await?;
+        #[cfg(feature = "tempfile")]
+        {
+            let temp_dir = self.temp_dir.as_ref().ok_or_else(|| {
+                Error::invalid_state("临时目录未初始化")
+            })?;
             
-        if !build_output.status.success() {
-            let error = String::from_utf8_lossy(&build_output.stderr);
-            error!("Docker镜像构建失败: {}", error);
-            return Err(Error::internal(format!("Docker镜像构建失败: {}", error)));
-        }
-        
-        // 创建容器
-        let memory_limit = format!("{}m", self.config.resource_limits.max_memory_usage / (1024 * 1024));
-        let cpu_limit = format!("{}", self.config.resource_limits.max_execution_time_ms / 1000);
-        
-        let mut cmd = Command::new("docker");
-        cmd.arg("create")
-            .arg("--name")
-            .arg(&self.id)
-            .arg("--memory")
-            .arg(&memory_limit)
-            .arg("--memory-swap")
-            .arg(&memory_limit) // 禁用交换
-            .arg("--cpus")
-            .arg(&cpu_limit)
-            .arg("--pids-limit")
-            .arg("256") // 临时设置一个合理的默认值
-            .arg("--network")
-            .arg(if matches!(self.config.sandbox_config.network_policy, NetworkPolicy::Denied) { "none" } else { "bridge" })
-            .arg("-v")
-            .arg(format!("{}:/app/input:ro", input_dir.to_str().unwrap()))
-            .arg("-v")
-            .arg(format!("{}:/app/output:rw", output_dir.to_str().unwrap()))
+            // 创建Dockerfile
+            let dockerfile_path = temp_dir.path().join("Dockerfile");
+            let dockerfile_content = self.generate_dockerfile()?;
+            tokio::fs::write(&dockerfile_path, dockerfile_content).await?;
+            
+            // 创建执行脚本
+            let script_path = temp_dir.path().join("script.py");
+            tokio::fs::write(&script_path, code).await?;
+            
+            // 创建工作目录
+            let work_dir = temp_dir.path().join("workdir");
+            tokio::fs::create_dir_all(&work_dir).await?;
+            
+            // 创建输入、输出目录
+            let input_dir = temp_dir.path().join("input");
+            let output_dir = temp_dir.path().join("output");
+            tokio::fs::create_dir_all(&input_dir).await?;
+            tokio::fs::create_dir_all(&output_dir).await?;
+            
+            // 构建镜像
+            let image_name = format!("vecmind-sandbox-{}", self.id);
+            let build_output = Command::new("docker")
+                .arg("build")
+                .arg("-t")
+                .arg(&image_name)
+                .arg("-f")
+                .arg(&dockerfile_path)
+                .arg(temp_dir.path())
+                .output()
+                .await?;
+            
+            if !build_output.status.success() {
+                let error = String::from_utf8_lossy(&build_output.stderr);
+                error!("Docker镜像构建失败: {}", error);
+                return Err(Error::internal(format!("Docker镜像构建失败: {}", error)));
+            }
+            
+            // 创建容器
+            let memory_limit = format!("{}m", self.config.resource_limits.max_memory_usage / (1024 * 1024));
+            let cpu_limit = format!("{}", self.config.resource_limits.max_execution_time_ms / 1000);
+            
+            let mut cmd = Command::new("docker");
+            cmd.arg("create")
+                .arg("--name")
+                .arg(&self.id)
+                .arg("--memory")
+                .arg(&memory_limit)
+                .arg("--memory-swap")
+                .arg(&memory_limit) // 禁用交换
+                .arg("--cpus")
+                .arg(&cpu_limit)
+                .arg("--pids-limit")
+                .arg("256") // 临时设置一个合理的默认值
+                .arg("--network")
+                .arg(if matches!(self.config.sandbox_config.network_policy, NetworkPolicy::Denied) { "none" } else { "bridge" })
+                .arg("-v")
+                .arg(format!("{}:/app/input:ro", input_dir.to_str().unwrap()))
+                .arg("-v")
+                .arg(format!("{}:/app/output:rw", output_dir.to_str().unwrap()))
             .arg("-w")
             .arg("/app")
-            .arg("--cap-drop=ALL"); // 移除所有能力
-        
-        // 根据安全级别设置额外限制
-        match self.config.sandbox_config.security_level {
-            SandboxSecurityLevel::Strict | SandboxSecurityLevel::High => {
-                cmd.arg("--security-opt=no-new-privileges")
-                   .arg("--read-only")
-                   .arg("--tmpfs")
-                   .arg("/tmp:rw,noexec,nosuid,size=64m");
-            },
-            _ => {}
+                .arg("--cap-drop=ALL"); // 移除所有能力
+            
+            // 根据安全级别设置额外限制
+            match self.config.sandbox_config.security_level {
+                SandboxSecurityLevel::Strict | SandboxSecurityLevel::High => {
+                    cmd.arg("--security-opt=no-new-privileges")
+                       .arg("--read-only")
+                       .arg("--tmpfs")
+                       .arg("/tmp:rw,noexec,nosuid,size=64m");
+                },
+                _ => {}
+            }
+            
+            // 完成容器创建命令
+            cmd.arg(&image_name)
+               .arg("python3")
+               .arg("/app/script.py");
+            
+            let output = cmd.output().await?;
+            
+            if !output.status.success() {
+                let error = String::from_utf8_lossy(&output.stderr);
+                error!("Docker容器创建失败: {}", error);
+                return Err(Error::internal(format!("Docker容器创建失败: {}", error)));
+            }
+            
+            let container_id = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            debug!("容器创建成功, ID: {}", container_id);
+            
+            self.container_id = Some(container_id.clone());
+            
+            // 初始化资源监控器
+            {
+                let mut monitor = self.resource_monitor.lock().unwrap();
+                monitor.container_id = Some(container_id.clone());
+            }
+            
+            Ok(container_id)
         }
-        
-        // 完成容器创建命令
-        cmd.arg(&image_name)
-           .arg("python3")
-           .arg("/app/script.py");
-        
-        let output = cmd.output().await?;
-        
-        if !output.status.success() {
-            let error = String::from_utf8_lossy(&output.stderr);
-            error!("Docker容器创建失败: {}", error);
-            return Err(Error::internal(format!("Docker容器创建失败: {}", error)));
-        }
-        
-        let container_id = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        debug!("容器创建成功, ID: {}", container_id);
-        
-        self.container_id = Some(container_id.clone());
-        
-        // 初始化资源监控器
-        {
-            let mut monitor = self.resource_monitor.lock().unwrap();
-            monitor.container_id = Some(container_id.clone());
-        }
-        
-        Ok(container_id)
     }
     
     /// 生成Dockerfile
@@ -346,7 +350,7 @@ impl DockerSandbox {
     async fn start_resource_monitoring(&self) -> Result<()> {
         let container_id = match &self.container_id {
             Some(id) => id.clone(),
-            None => return Err(Error::failed_precondition("容器未创建")),
+            None => return Err(Error::invalid_state("容器未创建")),
         };
         
         let monitor_arc = self.resource_monitor.clone();
@@ -543,15 +547,21 @@ impl DockerSandbox {
     /// 创建工作目录并返回路径
     async fn create_work_directory(&self) -> Result<PathBuf> {
         debug!("【DockerSandbox】创建工作目录");
-        let temp_dir = self.temp_dir.as_ref().ok_or_else(|| {
-            Error::failed_precondition("临时目录未初始化")
-        })?;
+        #[cfg(not(feature = "tempfile"))]
+        return Err(Error::invalid_state("tempfile feature未启用，无法创建工作目录"));
         
-        let work_dir = temp_dir.path().join("workdir");
-        tokio::fs::create_dir_all(&work_dir).await?;
-        
-        info!("【DockerSandbox】工作目录已创建: {:?}", work_dir);
-        Ok(work_dir)
+        #[cfg(feature = "tempfile")]
+        {
+            let temp_dir = self.temp_dir.as_ref().ok_or_else(|| {
+                Error::invalid_state("临时目录未初始化")
+            })?;
+            
+            let work_dir = temp_dir.path().join("workdir");
+            tokio::fs::create_dir_all(&work_dir).await?;
+            
+            info!("【DockerSandbox】工作目录已创建: {:?}", work_dir);
+            Ok(work_dir)
+        }
     }
     
     /// 执行命令并设置超时
@@ -574,7 +584,7 @@ impl DockerSandbox {
             },
             Err(_) => {
                 error!("命令执行超时: {:?}", timeout_duration);
-                Err(Error::deadline_exceeded(format!(
+                Err(Error::timeout(format!(
                     "命令执行超时，超过了设定的 {:?}", timeout_duration
                 )))
             }
@@ -584,7 +594,7 @@ impl DockerSandbox {
     /// 复制文件到指定沙箱路径
     async fn copy_file_to_sandbox(&self, src_path: &Path, dest_path: &str) -> Result<()> {
         let container_id = self.container_id.as_ref().ok_or_else(|| {
-            Error::failed_precondition("容器尚未创建")
+            Error::invalid_state("容器尚未创建")
         })?;
         
         // 确保源文件存在
@@ -681,17 +691,26 @@ impl Sandbox for DockerSandbox {
         };
         
         // 准备临时目录
-        let temp_dir = match &self.temp_dir {
-            Some(dir) => dir,
-            None => {
-                self.set_status(SandboxStatus::Failed)?;
-                return Err(Error::failed_precondition("临时目录未初始化"));
-            }
-        };
+        #[cfg(not(feature = "tempfile"))]
+        {
+            self.set_status(SandboxStatus::Failed)?;
+            return Err(Error::invalid_state("tempfile feature未启用，无法创建临时目录"));
+        }
         
-        // 写入输入数据
-        let input_path = temp_dir.path().join("input/input.dat");
-        tokio::fs::write(&input_path, input).await?;
+        #[cfg(feature = "tempfile")]
+        {
+            let temp_dir = match &self.temp_dir {
+                Some(dir) => dir,
+                None => {
+                    self.set_status(SandboxStatus::Failed)?;
+                    return Err(Error::invalid_state("临时目录未初始化"));
+                }
+            };
+            
+            // 写入输入数据
+            let input_path = temp_dir.path().join("input/input.dat");
+            tokio::fs::write(&input_path, input).await?;
+        }
         
         // 启动资源监控
         self.start_resource_monitoring().await?;
@@ -716,17 +735,30 @@ impl Sandbox for DockerSandbox {
         let stderr = String::from_utf8_lossy(&start_output.stderr).to_string();
         
         // 读取输出文件
-        let output_path = temp_dir.path().join("output/output.dat");
-        let output_data = if output_path.exists() {
-            match tokio::fs::read(&output_path).await {
-                Ok(data) => data,
-                Err(e) => {
-                    warn!("读取输出文件失败: {}", e);
-                    Vec::new()
+        #[cfg(not(feature = "tempfile"))]
+        {
+            self.set_status(SandboxStatus::Failed)?;
+            return Err(Error::invalid_state("tempfile feature未启用，无法读取输出文件"));
+        }
+        
+        #[cfg(feature = "tempfile")]
+        let output_data = {
+            let temp_dir = self.temp_dir.as_ref().ok_or_else(|| {
+                Error::invalid_state("临时目录未初始化")
+            })?;
+            let output_path = temp_dir.path().join("output/output.dat");
+            
+            if output_path.exists() {
+                match tokio::fs::read(&output_path).await {
+                    Ok(data) => data,
+                    Err(e) => {
+                        warn!("读取输出文件失败: {}", e);
+                        Vec::new()
+                    }
                 }
+            } else {
+                Vec::new()
             }
-        } else {
-            Vec::new()
         };
         
         // 获取资源使用情况
@@ -749,22 +781,25 @@ impl Sandbox for DockerSandbox {
         }
         
         // 创建执行结果
-        let result = SandboxResult {
-            success,
-            output: output_data,
-            stdout,
-            stderr,
-            resource_usage,
-            error: if !success {
-                Some(SandboxError::ExecutionFailed(
-                    format!("容器执行失败: {}", stderr)
-                ))
-            } else {
-                None
-            },
-        };
-        
-        Ok(result)
+        #[cfg(feature = "tempfile")]
+        {
+            let result = SandboxResult {
+                success,
+                output: output_data,
+                stdout,
+                stderr,
+                resource_usage,
+                error: if !success {
+                    Some(SandboxError::ExecutionFailed(
+                        format!("容器执行失败: {}", stderr)
+                    ))
+                } else {
+                    None
+                },
+            };
+            
+            Ok(result)
+        }
     }
     
     async fn cleanup(&self) -> Result<()> {
@@ -790,6 +825,10 @@ impl Sandbox for DockerSandbox {
     }
     
     async fn load_file(&self, src_path: &Path, sandbox_path: &str) -> Result<()> {
+        #[cfg(not(feature = "tempfile"))]
+        return Err(Error::invalid_state("tempfile feature未启用，无法加载文件"));
+        
+        #[cfg(feature = "tempfile")]
         if let Some(temp_dir) = &self.temp_dir {
             let dest_path = temp_dir.path().join("input").join(sandbox_path);
             
@@ -802,11 +841,15 @@ impl Sandbox for DockerSandbox {
             tokio::fs::copy(src_path, dest_path).await?;
             Ok(())
         } else {
-            Err(Error::failed_precondition("临时目录未初始化"))
+            Err(Error::invalid_state("临时目录未初始化"))
         }
     }
     
     async fn save_file(&self, sandbox_path: &str, dest_path: &Path) -> Result<()> {
+        #[cfg(not(feature = "tempfile"))]
+        return Err(Error::invalid_state("tempfile feature未启用，无法保存文件"));
+        
+        #[cfg(feature = "tempfile")]
         if let Some(temp_dir) = &self.temp_dir {
             let src_path = temp_dir.path().join("output").join(sandbox_path);
             
@@ -823,7 +866,7 @@ impl Sandbox for DockerSandbox {
                 Err(Error::not_found(format!("沙箱中文件不存在: {}", sandbox_path)))
             }
         } else {
-            Err(Error::failed_precondition("临时目录未初始化"))
+            Err(Error::invalid_state("临时目录未初始化"))
         }
     }
     
@@ -940,6 +983,7 @@ impl Clone for DockerSandbox {
             id: self.id.clone(),
             container_id: self.container_id.clone(),
             config: self.config.clone(),
+            #[cfg(feature = "tempfile")]
             temp_dir: None, // 不克隆临时目录
             status: RwLock::new(*self.status.read().unwrap()),
             cancel_tx: None, // 不克隆取消通道

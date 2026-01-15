@@ -211,7 +211,7 @@ impl HttpRemoteCache {
             }
         }
         
-        Err(last_error.unwrap_or_else(|| Error::NetworkError("远程缓存请求失败".to_string())))
+        Err(last_error.unwrap_or_else(|| Error::network("远程缓存请求失败".to_string())))
     }
 }
 

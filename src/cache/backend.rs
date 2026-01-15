@@ -419,7 +419,7 @@ impl CacheBackend for DiskBackend {
         match tokio::fs::read(&file_path).await {
             Ok(data) => Ok(Some(data)),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
-            Err(e) => Err(crate::error::Error::io(format!("读取缓存文件失败: {}", e))),
+            Err(e) => Err(crate::error::Error::io_error(format!("读取缓存文件失败: {}", e))),
         }
     }
     
@@ -429,12 +429,12 @@ impl CacheBackend for DiskBackend {
         // 确保目录存在
         if let Some(parent) = file_path.parent() {
             tokio::fs::create_dir_all(parent).await
-                .map_err(|e| crate::error::Error::io(format!("创建缓存目录失败: {}", e)))?;
+                .map_err(|e| crate::error::Error::io_error(format!("创建缓存目录失败: {}", e)))?;
         }
 
         // 写入数据
         tokio::fs::write(&file_path, value).await
-            .map_err(|e| crate::error::Error::io(format!("写入缓存文件失败: {}", e)))?;
+            .map_err(|e| crate::error::Error::io_error(format!("写入缓存文件失败: {}", e)))?;
 
         // 设置TTL
         if let Some(duration) = ttl {
@@ -452,7 +452,7 @@ impl CacheBackend for DiskBackend {
                 Ok(true)
             },
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
-            Err(e) => Err(crate::error::Error::io(format!("删除缓存文件失败: {}", e))),
+            Err(e) => Err(crate::error::Error::io_error(format!("删除缓存文件失败: {}", e))),
         }
     }
     
@@ -474,9 +474,9 @@ impl CacheBackend for DiskBackend {
         let cache_dir = &self.config.cache_dir;
         if cache_dir.exists() {
             tokio::fs::remove_dir_all(cache_dir).await
-                .map_err(|e| crate::error::Error::io(format!("清空缓存目录失败: {}", e)))?;
+                .map_err(|e| crate::error::Error::io_error(format!("清空缓存目录失败: {}", e)))?;
             tokio::fs::create_dir_all(cache_dir).await
-                .map_err(|e| crate::error::Error::io(format!("重建缓存目录失败: {}", e)))?;
+                .map_err(|e| crate::error::Error::io_error(format!("重建缓存目录失败: {}", e)))?;
         }
         
         // 清理TTL数据
@@ -490,10 +490,10 @@ impl CacheBackend for DiskBackend {
         
         if cache_dir.exists() {
             let mut entries = tokio::fs::read_dir(cache_dir).await
-                .map_err(|e| crate::error::Error::io(format!("读取缓存目录失败: {}", e)))?;
+                .map_err(|e| crate::error::Error::io_error(format!("读取缓存目录失败: {}", e)))?;
             
             while let Some(_entry) = entries.next_entry().await
-                .map_err(|e| crate::error::Error::io(format!("读取目录条目失败: {}", e)))? {
+                .map_err(|e| crate::error::Error::io_error(format!("读取目录条目失败: {}", e)))? {
                 count += 1;
             }
         }
@@ -507,10 +507,10 @@ impl CacheBackend for DiskBackend {
         
         if cache_dir.exists() {
             let mut entries = tokio::fs::read_dir(cache_dir).await
-                .map_err(|e| crate::error::Error::io(format!("读取缓存目录失败: {}", e)))?;
+                .map_err(|e| crate::error::Error::io_error(format!("读取缓存目录失败: {}", e)))?;
             
             while let Some(entry) = entries.next_entry().await
-                .map_err(|e| crate::error::Error::io(format!("读取目录条目失败: {}", e)))? {
+                .map_err(|e| crate::error::Error::io_error(format!("读取目录条目失败: {}", e)))? {
                 
                 if let Some(file_name) = entry.file_name().to_str() {
                     let key = self.decode_key_from_filename(file_name);
@@ -580,10 +580,10 @@ impl CacheBackend for DiskBackend {
         let mut total_size = 0u64;
         if cache_dir.exists() {
             let mut entries = tokio::fs::read_dir(cache_dir).await
-                .map_err(|e| crate::error::Error::io(format!("读取缓存目录失败: {}", e)))?;
+                .map_err(|e| crate::error::Error::io_error(format!("读取缓存目录失败: {}", e)))?;
             
             while let Some(entry) = entries.next_entry().await
-                .map_err(|e| crate::error::Error::io(format!("读取目录条目失败: {}", e)))? {
+                .map_err(|e| crate::error::Error::io_error(format!("读取目录条目失败: {}", e)))? {
                 
                 if let Ok(metadata) = entry.metadata().await {
                     total_size += metadata.len();
@@ -655,11 +655,11 @@ impl DiskBackend {
         let ttl_file = self.get_ttl_file_path(key);
         let expiry_time = std::time::SystemTime::now() + ttl;
         let timestamp = expiry_time.duration_since(std::time::UNIX_EPOCH)
-            .map_err(|e| crate::error::Error::io(format!("计算过期时间失败: {}", e)))?
+            .map_err(|e| crate::error::Error::io_error(format!("计算过期时间失败: {}", e)))?
             .as_secs();
         
         tokio::fs::write(&ttl_file, timestamp.to_string()).await
-            .map_err(|e| crate::error::Error::io(format!("写入TTL文件失败: {}", e)))?;
+            .map_err(|e| crate::error::Error::io_error(format!("写入TTL文件失败: {}", e)))?;
         
         Ok(())
     }
@@ -672,10 +672,10 @@ impl DiskBackend {
         }
         
         let content = tokio::fs::read_to_string(&ttl_file).await
-            .map_err(|e| crate::error::Error::io(format!("读取TTL文件失败: {}", e)))?;
+            .map_err(|e| crate::error::Error::io_error(format!("读取TTL文件失败: {}", e)))?;
         
         let timestamp: u64 = content.trim().parse()
-            .map_err(|e| crate::error::Error::io(format!("解析TTL时间戳失败: {}", e)))?;
+            .map_err(|e| crate::error::Error::io_error(format!("解析TTL时间戳失败: {}", e)))?;
         
         let expiry_time = std::time::UNIX_EPOCH + Duration::from_secs(timestamp);
         let now = std::time::SystemTime::now();
@@ -692,7 +692,7 @@ impl DiskBackend {
         let ttl_file = self.get_ttl_file_path(key);
         if ttl_file.exists() {
             tokio::fs::remove_file(&ttl_file).await
-                .map_err(|e| crate::error::Error::io(format!("删除TTL文件失败: {}", e)))?;
+                .map_err(|e| crate::error::Error::io_error(format!("删除TTL文件失败: {}", e)))?;
         }
         Ok(())
     }
@@ -702,7 +702,7 @@ impl DiskBackend {
         let ttl_dir = self.get_ttl_dir();
         if ttl_dir.exists() {
             tokio::fs::remove_dir_all(&ttl_dir).await
-                .map_err(|e| crate::error::Error::io(format!("清空TTL目录失败: {}", e)))?;
+                .map_err(|e| crate::error::Error::io_error(format!("清空TTL目录失败: {}", e)))?;
         }
         Ok(())
     }

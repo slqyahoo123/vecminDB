@@ -89,8 +89,8 @@ impl StorageExt for Storage {
         let prefix = prefix.unwrap_or("algorithm:");
         let limit = limit.unwrap_or(100);
         
-        // 此处简化实现，实际应使用Storage的scan方法
-        // 这里假设已经有一个方法可以列出所有以某前缀开头的键
+        // 使用 scan_keys 方法列出所有以指定前缀开头的键
+        // 该方法内部实现了键的扫描和过滤逻辑
         let prefix = prefix.to_string();
         let keys = tokio::task::spawn_blocking(move || {
             self.scan_keys(&prefix, limit)

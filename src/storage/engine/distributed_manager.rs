@@ -141,10 +141,10 @@ impl DistributedManager {
                 self.delete_raw(test_key.as_bytes()).await?;
                 Ok(())
             } else {
-                Err(Error::StorageError("Connection test failed".to_string()))
+                Err(Error::storage("Connection test failed".to_string()))
             }
         } else {
-            Err(Error::StorageError("Connection test failed".to_string()))
+            Err(Error::storage("Connection test failed".to_string()))
         }
     }
 

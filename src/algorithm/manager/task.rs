@@ -209,7 +209,7 @@ impl TaskManager {
                     None
                 )?;
                 
-                Err(Error::deadline_exceeded(format!("任务执行超时: {}", task_id)))
+                Err(Error::timeout(format!("任务执行超时: {}", task_id)))
             }
         }
     }

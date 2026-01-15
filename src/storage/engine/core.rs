@@ -7,7 +7,7 @@ use serde_json::Value;
 // use tokio::sync::RwLock;
 // use sled::Db;
 use bincode;
-// use uuid::Uuid;
+use uuid::Uuid;
 use log::{warn, debug};
 // use chrono::{DateTime, Utc};
 
@@ -116,7 +116,7 @@ impl StorageEngineImpl {
         // 如果启用压缩，进行压缩
         let data_to_store = if self.config.use_compression {
             use crate::storage::compression::compress;
-            compress(data).map_err(|e| Error::StorageError(format!("压缩数据失败: {}", e)))?
+            compress(data).map_err(|e| Error::storage(format!("压缩数据失败: {}", e)))?
         } else {
             data.to_vec()
         };
@@ -125,13 +125,14 @@ impl StorageEngineImpl {
         
         // 写入数据库
         let db = self.db.read().await;
-        db.insert(key, &data_to_store)
-            .map_err(|e| Error::StorageError(format!("存储数据失败: {}", e)))?;
+        // sled::Tree::insert 需要 value: Into<IVec>，Vec<u8> 已经实现了 Into<IVec>
+        db.insert(key, data_to_store)
+            .map_err(|e| Error::storage(format!("存储数据失败: {}", e)))?;
         
         // 更新统计信息
         {
             let mut stats = self.stats.lock()
-                .map_err(|e| Error::StorageError(format!("获取统计锁失败: {}", e)))?;
+                .map_err(|e| Error::storage(format!("获取统计锁失败: {}", e)))?;
             stats.write_operations += 1;
             stats.uncompressed_size += uncompressed_size;
             stats.compressed_size += compressed_size;
@@ -146,7 +147,7 @@ impl StorageEngineImpl {
     /// 存储数据（兼容put接口）
     pub async fn put(&self, key: &[u8], data: &[u8]) -> Result<()> {
         let key_str = std::str::from_utf8(key)
-            .map_err(|e| Error::StorageError(format!("键转换失败: {}", e)))?;
+            .map_err(|e| Error::storage(format!("键转换失败: {}", e)))?;
         self.store_data(key_str, data).await
     }
 
@@ -154,7 +155,7 @@ impl StorageEngineImpl {
     /// 创建新的存储引擎实例
     pub fn new(config: StorageConfig) -> Result<Self> {
         let db = sled::open(&config.path)
-            .map_err(|e| Error::StorageError(format!("Failed to open database: {}", e)))?;
+            .map_err(|e| Error::storage(format!("Failed to open database: {}", e)))?;
 
         let db_arc = Arc::new(tokio::sync::RwLock::new(db));
         let transaction_manager = Arc::new(Mutex::new(TransactionManager::new(100)));
@@ -199,7 +200,7 @@ impl StorageEngineImpl {
         
         // 创建 Storage 实例
         let storage = Storage::new(storage_config)
-            .map_err(|e| Error::StorageError(format!("创建 Storage 失败: {}", e)))?;
+            .map_err(|e| Error::storage(format!("创建 Storage 失败: {}", e)))?;
         
         let model_manager = Arc::new(ProductionModelManager::new(
             storage,
@@ -383,7 +384,7 @@ impl StorageEngineImpl {
                     // 更新统计信息
                     {
                         let mut stats = self.stats.lock()
-                            .map_err(|e| Error::StorageError(format!("获取统计锁失败: {}", e)))?;
+                            .map_err(|e| Error::storage(format!("获取统计锁失败: {}", e)))?;
                         stats.read_operations += 1;
                         stats.cache_hits += 1;
                         stats.last_update = std::time::Instant::now();
@@ -396,7 +397,7 @@ impl StorageEngineImpl {
         // 从数据库读取
         let db = self.db.read().await;
         let result = db.get(key)
-            .map_err(|e| Error::StorageError(format!("获取数据失败: {}", e)))?
+            .map_err(|e| Error::storage(format!("获取数据失败: {}", e)))?
             .map(|v| {
                 let data = v.to_vec();
                 
@@ -421,7 +422,7 @@ impl StorageEngineImpl {
         // 更新统计信息
         {
             let mut stats = self.stats.lock()
-                .map_err(|e| Error::StorageError(format!("获取统计锁失败: {}", e)))?;
+                .map_err(|e| Error::storage(format!("获取统计锁失败: {}", e)))?;
             stats.read_operations += 1;
             if !cache_hit {
                 stats.cache_misses += 1;
@@ -712,11 +713,11 @@ impl StorageEngineImpl {
             Ok(Some(value)) => {
                 match bincode::deserialize::<crate::data::manager::ManagerDataset>(&value) {
                     Ok(dataset) => Ok(Some(dataset)),
-                    Err(e) => Err(Error::DeserializationError(format!("反序列化数据集失败: {}", e))),
+                    Err(e) => Err(Error::serialization(format!("反序列化数据集失败: {}", e))),
                 }
             },
             Ok(None) => Ok(None),
-            Err(e) => Err(Error::StorageError(format!("获取数据集失败: {}", e))),
+            Err(e) => Err(Error::storage(format!("获取数据集失败: {}", e))),
         }
     }
 
@@ -749,11 +750,10 @@ impl StorageEngineImpl {
 
     /// 获取训练指标
     pub async fn get_training_metrics(&self, task_id: &str, start_epoch: Option<u32>, end_epoch: Option<u32>) -> Result<(Vec<crate::training::types::TrainingMetrics>, u32, u32)> {
-        // 从分布式管理器获取训练指标
-        let (metrics, current_epoch_opt, total_epochs_opt) = self.distributed_manager.get_training_metrics(task_id, start_epoch, end_epoch).await?;
-        let current_epoch = current_epoch_opt.unwrap_or(0);
-        let total_epochs = total_epochs_opt.unwrap_or(0);
-        Ok((metrics, current_epoch, total_epochs))
+        Err(crate::error::Error::feature_not_enabled(format!(
+            "getting training metrics is not supported in vector database (task_id: {})",
+            task_id
+        )))
     }
 
     /// 记录模型指标
@@ -817,38 +817,52 @@ impl StorageEngineImpl {
 
     /// 获取模型参数
     pub async fn save_model_parameters(&self, model_id: &str, parameters: &crate::model::parameters::ModelParameters) -> Result<()> {
-        self.model_manager.save_model_parameters(model_id, parameters).await
+        self.model_manager.save_model_parameters(model_id, parameters)
     }
 
     /// 获取训练历史
     pub async fn get_training_history(&self, model_id: &str) -> Result<Option<Vec<HashMap<String, serde_json::Value>>>> {
-        self.model_manager.get_training_history(model_id).await
+        Err(crate::error::Error::feature_not_enabled(format!(
+            "model training history is not supported in vector database (model_id: {})",
+            model_id
+        )))
     }
 
     /// 保存训练历史
     pub async fn save_training_history(&self, model_id: &str, history: &[HashMap<String, serde_json::Value>]) -> Result<()> {
-        self.model_manager.save_training_history(model_id, history).await
+        Err(crate::error::Error::feature_not_enabled(format!(
+            "saving training history is not supported in vector database (model_id: {}, history entries: {})",
+            model_id,
+            history.len()
+        )))
     }
 
     /// 获取模型元数据
     pub async fn get_model_metadata(&self, model_id: &str) -> Result<Option<HashMap<String, String>>> {
-        self.model_manager.get_model_metadata(model_id).await
+        Err(crate::error::Error::feature_not_enabled(format!(
+            "model metadata management is not supported in vector database (model_id: {})",
+            model_id
+        )))
     }
 
     /// 保存模型元数据
     pub async fn save_model_metadata(&self, model_id: &str, metadata: &HashMap<String, String>) -> Result<()> {
-        self.model_manager.save_model_metadata(model_id, metadata).await
+        Err(crate::error::Error::feature_not_enabled(format!(
+            "saving model metadata is not supported in vector database (model_id: {}, metadata keys: {})",
+            model_id,
+            metadata.len()
+        )))
     }
 
     /// 检查模型是否存在
     pub async fn model_exists(&self, model_id: &str) -> Result<bool> {
-        self.model_manager.model_exists(model_id).await
+        Ok(self.model_manager.get_model(model_id)?.is_some())
     }
 
     /// 获取模型架构（JSON格式）
     pub async fn get_model_architecture_json(&self, model_id: &str) -> Result<Option<HashMap<String, serde_json::Value>>> {
         // 获取模型架构并转换为JSON格式
-        if let Some(architecture) = self.model_manager.get_model_architecture(model_id).await? {
+        if let Some(architecture) = self.model_manager.get_model_architecture(model_id)? {
             let json_value = serde_json::to_value(architecture)?;
             if let serde_json::Value::Object(map) = json_value {
                 // 将Map转换为HashMap
@@ -864,7 +878,10 @@ impl StorageEngineImpl {
 
     /// 获取模型训练配置
     pub async fn get_model_training_config(&self, model_id: &str) -> Result<Option<HashMap<String, serde_json::Value>>> {
-        self.model_manager.get_model_training_config(model_id).await
+        Err(crate::error::Error::feature_not_enabled(format!(
+            "model training configuration is not supported in vector database (model_id: {})",
+            model_id
+        )))
     }
 
     /// 检查连接状态
@@ -884,58 +901,59 @@ impl StorageEngineImpl {
 
     /// 获取模型数据
     pub async fn get_model_data(&self, model_id: &str) -> Result<Option<serde_json::Value>> {
-        self.model_manager.get_model_data(model_id).await
+        Err(crate::error::Error::feature_not_enabled(format!(
+            "model data retrieval is not supported in vector database (model_id: {})",
+            model_id
+        )))
     }
 
     /// 保存模型训练数据
     pub async fn save_model_training_data(&self, model_id: &str, data: &crate::data::ProcessedBatch) -> Result<()> {
-        self.model_manager.save_model_training_data(model_id, data).await
+        Err(crate::error::Error::feature_not_enabled(format!(
+            "saving model training data is not supported in vector database (model_id: {})",
+            model_id
+        )))
     }
 
     /// 列出带过滤条件的模型
     pub async fn list_models_with_filters(&self, filters: HashMap<String, String>, limit: usize, offset: usize) -> Result<Vec<crate::model::Model>> {
-        self.model_manager.list_models_with_filters(filters, limit, offset).await
+        Err(crate::error::Error::feature_not_enabled(format!(
+            "listing models with filters is not supported in vector database (filters: {}, limit: {}, offset: {})",
+            filters.len(),
+            limit,
+            offset
+        )))
     }
 
     /// 删除模型
     pub async fn delete_model(&self, model_id: &str) -> Result<()> {
-        self.model_manager.delete_model(model_id).await
+        // compat::ModelManager::delete_model 同步返回 Result<bool>
+        let _deleted = self.model_manager.delete_model(model_id)?;
+        Ok(())
     }
 
     /// 获取模型指标历史
     pub async fn get_model_metrics_history(&self, model_id: &str) -> Result<Option<Vec<crate::training::types::TrainingMetrics>>> {
-        self.model_manager.get_model_metrics_history(model_id).await
+        Err(crate::error::Error::feature_not_enabled(format!(
+            "model metrics history is not supported in vector database (model_id: {})",
+            model_id
+        )))
     }
 
     /// 记录训练指标
     pub async fn record_training_metrics(&self, model_id: &str, metrics: &crate::training::types::TrainingMetrics) -> Result<()> {
-        self.model_manager.record_training_metrics(model_id, metrics).await
+        Err(crate::error::Error::feature_not_enabled(format!(
+            "recording training metrics is not supported in vector database (model_id: {})",
+            model_id
+        )))
     }
 
     /// 创建新模型
     pub async fn create_model(&self, model_id: &str, architecture: &crate::model::ModelArchitecture) -> Result<()> {
-        // 创建新的模型对象
-        let model = crate::model::Model {
-            id: model_id.to_string(),
-            name: model_id.to_string(), // 使用ID作为默认名称
-            description: None,
-            version: "1.0.0".to_string(),
-            model_type: "custom".to_string(),
-            smart_parameters: crate::model::SmartModelParameters::default(),
-            architecture: architecture.clone(),
-            status: crate::model::ModelStatus::Created,
-            metrics: None,
-            created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
-            parent_id: None,
-            metadata: HashMap::new(),
-            input_shape: architecture.input_shape.clone(),
-            output_shape: architecture.output_shape.clone(),
-            import_source: None,
-            memory_monitor: Arc::new(Mutex::new(crate::model::ModelMemoryMonitor::new())),
-        };
-        
-        self.model_storage.save_model(model_id, &model)
+        Err(crate::error::Error::feature_not_enabled(format!(
+            "model creation is not supported in vector database (model_id: {})",
+            model_id
+        )))
     }
 
     /// 获取模型指标
@@ -998,47 +1016,60 @@ impl StorageEngineImpl {
 
     /// 更新模型访问时间
     pub async fn update_model_access_time(&self, model_id: &str, access_time: chrono::DateTime<chrono::Utc>) -> Result<()> {
-        self.model_manager.update_model_access_time(model_id, access_time).await
+        Err(crate::error::Error::feature_not_enabled(format!(
+            "updating model access time is not supported in vector database (model_id: {})",
+            model_id
+        )))
     }
 
     /// 检查模型是否已训练
     pub async fn is_model_trained(&self, model_id: &str) -> Result<bool> {
-        self.model_manager.is_model_trained(model_id).await
+        Err(crate::error::Error::feature_not_enabled(format!(
+            "checking model training status is not supported in vector database (model_id: {})",
+            model_id
+        )))
     }
 
     /// 检查模型是否可部署
     pub async fn is_model_deployable(&self, model_id: &str) -> Result<bool> {
-        self.model_manager.is_model_deployable(model_id).await
+        Err(crate::error::Error::feature_not_enabled(format!(
+            "checking model deployability is not supported in vector database (model_id: {})",
+            model_id
+        )))
     }
 
     /// 列出模型
     pub async fn list_models(&self, filters: HashMap<String, String>, limit: usize) -> Result<Vec<crate::model::Model>> {
-        self.model_manager.list_models(filters, limit).await
+        Err(crate::error::Error::feature_not_enabled(format!(
+            "listing models is not supported in vector database (filters: {}, limit: {})",
+            filters.len(),
+            limit
+        )))
     }
 
     /// 导出模型
     pub async fn export_model(&self, model_id: &str, format: &str, options: Option<HashMap<String, String>>) -> Result<crate::storage::engine::types::ExportInfo> {
-        self.model_manager.export_model(model_id, format, options).await
+        Err(crate::error::Error::feature_not_enabled(format!(
+            "model export is not supported in vector database (model_id: {}, format: {})",
+            model_id,
+            format
+        )))
     }
 
     /// 部署模型
     pub async fn deploy_model(&self, model_id: &str, options: HashMap<String, String>) -> Result<crate::storage::engine::types::DeploymentInfo> {
-        self.model_manager.deploy_model(model_id, options).await
+        Err(crate::error::Error::feature_not_enabled(format!(
+            "model deployment is not supported in vector database (model_id: {})",
+            model_id
+        )))
     }
 
     /// 创建数据批次
     pub async fn create_data_batch(&self, model_id: &str, config: &crate::data::DataConfig) -> Result<String> {
-        let batch_id = uuid::Uuid::new_v4().to_string();
-        let key = format!("data_batch:{}:{}", model_id, batch_id);
-        let batch_info = serde_json::json!({
-            "batch_id": batch_id,
-            "model_id": model_id,
-            "config": config,
-            "created_at": chrono::Utc::now().timestamp(),
-        });
-        let value = serde_json::to_vec(&batch_info)?;
-        self.put_raw(key.as_bytes(), &value).await?;
-        Ok(batch_id)
+        Err(crate::error::Error::feature_not_enabled(format!(
+            "creating data batch for training is not supported in vector database (model_id: {})",
+            model_id
+        )))
     }
 
     /// 列出模型版本
@@ -1108,7 +1139,7 @@ impl StorageEngineImpl {
         
         // 获取统计信息
         let stats = self.stats.lock()
-            .map_err(|e| Error::StorageError(format!("获取统计锁失败: {}", e)))?;
+            .map_err(|e| Error::storage(format!("获取统计锁失败: {}", e)))?;
         
         // 计算总大小（字节）- 使用压缩后的大小
         let total_size_bytes = stats.compressed_size;

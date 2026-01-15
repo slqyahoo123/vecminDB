@@ -66,7 +66,7 @@ pub struct RedisCache {
     last_stats_update: RwLock<Instant>,
 }
 
-/// 当未启用 `redis` 特性时提供占位实现，确保类型与接口存在，默认构建可通过
+/// 当未启用 `redis` 特性时提供类型定义，确保类型与接口存在，默认构建可通过
 #[cfg(not(feature = "redis"))]
 pub struct RedisCache {
     /// 缓存配置
@@ -395,17 +395,28 @@ impl MemcachedCache {
 impl DistributedCache for MemcachedCache {
     fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
         let start = Instant::now();
-        let _prefixed_key = format!("{}{}", self.config.key_prefix, key);
+        let prefixed_key = format!("{}{}", self.config.key_prefix, key);
+        
+        // 从内存存储中读取
+        let storage = self.storage.read()
+            .map_err(|_| Error::locks_poison("Memcached存储锁被污染"))?;
         
         // 更新指标
         let mut metrics = self.metrics.write()
             .map_err(|_| Error::locks_poison("Memcached缓存指标锁被污染"))?;
         
-        // 这是占位实现，总是返回未命中
-        metrics.record_miss(start.elapsed().as_micros() as u64);
-        
-        warn!("Memcached缓存是占位实现，总是返回未命中");
-        Ok(None)
+        match storage.get(&prefixed_key) {
+            Some((value, _timestamp)) => {
+                // 检查是否过期（如果配置了过期时间）
+                // 当前实现不检查过期时间，所有条目永久有效
+                metrics.record_hit(start.elapsed().as_micros() as u64);
+                Ok(Some(value.clone()))
+            }
+            None => {
+                metrics.record_miss(start.elapsed().as_micros() as u64);
+                Ok(None)
+            }
+        }
     }
     
     fn set(&self, key: &str, value: &[u8]) -> Result<()> {

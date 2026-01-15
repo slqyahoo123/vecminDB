@@ -38,8 +38,6 @@ impl WasmSandbox {
         let id = format!("wasm-sandbox-{}", Uuid::new_v4());
         #[cfg(feature = "tempfile")]
         let temp_dir = TempDir::new().ok();
-        #[cfg(not(feature = "tempfile"))]
-        let temp_dir = None;
         
         // 创建WASM引擎
         #[cfg(feature = "wasmtime")]
@@ -226,7 +224,7 @@ impl Sandbox for WasmSandbox {
               self.id, input.len(), timeout);
         
         if self.environment.is_none() {
-            return Err(Error::failed_precondition("沙箱环境未准备"));
+            return Err(Error::invalid_state("沙箱环境未准备"));
         }
         
         self.set_status(SandboxStatus::Running)?;
@@ -459,7 +457,7 @@ impl Sandbox for WasmSandbox {
             // 计算目标路径
             let target_path = match &env_guard.temp_dir {
                 Some(dir) => dir.path().join(sandbox_path),
-                None => return Err(Error::failed_precondition("临时目录未初始化")),
+                None => return Err(Error::invalid_state("临时目录未初始化")),
             };
             
             // 创建父目录
@@ -478,7 +476,7 @@ impl Sandbox for WasmSandbox {
             
             Ok(())
         } else {
-            Err(Error::failed_precondition("沙箱环境未初始化"))
+            Err(Error::invalid_state("沙箱环境未初始化"))
         }
     }
     
@@ -499,7 +497,7 @@ impl Sandbox for WasmSandbox {
             // 计算源路径
             let source_path = match &env_guard.temp_dir {
                 Some(dir) => dir.path().join(sandbox_path),
-                None => return Err(Error::failed_precondition("临时目录未初始化")),
+                None => return Err(Error::invalid_state("临时目录未初始化")),
             };
             
             // 检查源文件是否存在
@@ -523,7 +521,7 @@ impl Sandbox for WasmSandbox {
             
             Ok(())
         } else {
-            Err(Error::failed_precondition("沙箱环境未初始化"))
+            Err(Error::invalid_state("沙箱环境未初始化"))
         }
     }
     
@@ -546,7 +544,7 @@ impl Sandbox for WasmSandbox {
             let env_guard = env.read().await;
             env_guard.get_resource_usage().await
         } else {
-            Err(Error::failed_precondition("沙箱环境未初始化"))
+            Err(Error::invalid_state("沙箱环境未初始化"))
         }
     }
     
@@ -582,7 +580,7 @@ impl Sandbox for WasmSandbox {
             debug!("【WasmSandbox】设置环境变量: {}={}", name, value);
             Ok(())
         } else {
-            Err(Error::failed_precondition("沙箱环境未初始化"))
+            Err(Error::invalid_state("沙箱环境未初始化"))
         }
     }
     

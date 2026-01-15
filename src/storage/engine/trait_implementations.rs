@@ -324,7 +324,7 @@ impl StorageEngine for StorageEngineImpl {
         let db = self.get_db_clone();
         let db = db.blocking_read();
         let iter = db.scan_prefix(prefix).map(|result| {
-            result.map(|(k, v)| (k.to_vec(), v.to_vec())).map_err(|e| crate::Error::StorageError(e.to_string()))
+            result.map(|(k, v)| (k.to_vec(), v.to_vec())).map_err(|e| crate::Error::storage(e.to_string()))
         });
         Box::new(iter)
     }
@@ -404,7 +404,7 @@ impl StorageEngine for StorageEngineImpl {
         
         Box::pin(async move {
             let mut db = db.write().await;
-            db.insert(key.as_bytes(), data.as_slice()).map_err(|e| Error::StorageError(e.to_string()))?;
+            db.insert(key.as_bytes(), data.as_slice()).map_err(|e| Error::storage(e.to_string()))?;
             Ok(())
         })
     }
@@ -419,7 +419,7 @@ impl StorageEngine for StorageEngineImpl {
                 .map_err(|e| Error::Serialization(format!("序列化元数据失败: {}", e)))?;
             let db = db.read().await;
             db.insert(key.as_bytes(), data.as_slice())
-                .map_err(|e| Error::StorageError(format!("存储元数据失败: {}", e)))?;
+                .map_err(|e| Error::storage(format!("存储元数据失败: {}", e)))?;
             Ok(())
         })
     }
@@ -442,13 +442,13 @@ impl StorageEngine for StorageEngineImpl {
         let key = format!("dataset:{}:schema", dataset_id);
         let data = match serde_json::to_vec(schema) {
             Ok(data) => data,
-            Err(e) => return Box::pin(async move { Err(Error::SerializationError(e.to_string())) }),
+            Err(e) => return Box::pin(async move { Err(Error::serialization(e.to_string())) }),
         };
         let db = self.get_db_clone();
         
         Box::pin(async move {
             let mut db = db.write().await;
-            db.insert(key.as_bytes(), data.as_slice()).map_err(|e| Error::StorageError(e.to_string()))?;
+            db.insert(key.as_bytes(), data.as_slice()).map_err(|e| Error::storage(e.to_string()))?;
             Ok(())
         })
     }
@@ -643,7 +643,7 @@ impl StorageEngine for StorageEngineImpl {
                 .map_err(|e| Error::Serialization(format!("序列化批次失败: {}", e)))?;
             let db = db.read().await;
             db.insert(key.as_bytes(), data.as_slice())
-                .map_err(|e| Error::StorageError(format!("存储批次失败: {}", e)))?;
+                .map_err(|e| Error::storage(format!("存储批次失败: {}", e)))?;
             Ok(())
         })
     }
@@ -684,7 +684,7 @@ impl StorageEngine for StorageEngineImpl {
                 .map_err(|e| Error::Serialization(format!("序列化指标失败: {}", e)))?;
             let db = db.read().await;
             db.insert(key.as_bytes(), data.as_slice())
-                .map_err(|e| Error::StorageError(format!("存储指标失败: {}", e)))?;
+                .map_err(|e| Error::storage(format!("存储指标失败: {}", e)))?;
             Ok(())
         })
     }
@@ -807,7 +807,7 @@ impl StorageEngine for StorageEngineImpl {
         let event_data = serde_json::to_vec(&close_event)
             .map_err(|e| Error::Serialization(format!("序列化事件失败: {}", e)))?;
         db.insert(event_key.as_bytes(), event_data.as_slice())
-            .map_err(|e| Error::StorageError(format!("存储事件失败: {}", e)))?;
+            .map_err(|e| Error::storage(format!("存储事件失败: {}", e)))?;
         
         Ok(())
     }
@@ -826,7 +826,7 @@ impl StorageEngine for StorageEngineImpl {
                 .map_err(|e| Error::Serialization(format!("序列化数据失败: {}", e)))?;
             let db = db.read().await;
             db.insert(key.as_bytes(), data.as_slice())
-                .map_err(|e| Error::StorageError(format!("存储数据失败: {}", e)))?;
+                .map_err(|e| Error::storage(format!("存储数据失败: {}", e)))?;
             Ok(())
         })
     }
@@ -865,7 +865,7 @@ impl StorageTransaction for EngineStorageTransaction {
                 EngineTxOp::Put(k, v) => { 
                     let engine = self.engine.clone();
                     let key_str = std::str::from_utf8(&k)
-                        .map_err(|e| Error::StorageError(format!("键转换失败: {}", e)))?;
+                        .map_err(|e| Error::storage(format!("键转换失败: {}", e)))?;
                     tokio::runtime::Handle::current().block_on(async move {
                         engine.put(key_str.as_bytes(), &v).await
                     })?;
@@ -873,7 +873,7 @@ impl StorageTransaction for EngineStorageTransaction {
                 EngineTxOp::Delete(k) => { 
                     let engine = self.engine.clone();
                     let key_str = std::str::from_utf8(&k)
-                        .map_err(|e| Error::StorageError(format!("键转换失败: {}", e)))?;
+                        .map_err(|e| Error::storage(format!("键转换失败: {}", e)))?;
                     tokio::runtime::Handle::current().block_on(async move {
                         engine.delete(key_str).await
                     })?;
@@ -966,7 +966,7 @@ impl DatasetStorageInterface for StorageEngineImpl {
         
         Box::pin(async move {
             let db = db.write().await;
-            db.insert(key.as_bytes(), data).map_err(|e| Error::StorageError(e.to_string()))?;
+            db.insert(key.as_bytes(), data).map_err(|e| Error::storage(e.to_string()))?;
             Ok(())
         })
     }
@@ -977,9 +977,9 @@ impl DatasetStorageInterface for StorageEngineImpl {
         let db = self.get_db_clone();
         
         Box::pin(async move {
-            let data = data_result.map_err(|e| Error::SerializationError(e.to_string()))?;
+            let data = data_result.map_err(|e| Error::serialization(e.to_string()))?;
             let db = db.write().await;
-            db.insert(key.as_bytes(), data.as_slice()).map_err(|e| Error::StorageError(e.to_string()))?;
+            db.insert(key.as_bytes(), data.as_slice()).map_err(|e| Error::storage(e.to_string()))?;
             Ok(())
         })
     }
@@ -990,7 +990,7 @@ impl DatasetStorageInterface for StorageEngineImpl {
         
         Box::pin(async move {
             let db = db.read().await;
-            if let Some(data) = db.get(key.as_bytes()).map_err(|e| Error::StorageError(e.to_string()))? {
+            if let Some(data) = db.get(key.as_bytes()).map_err(|e| Error::storage(e.to_string()))? {
                 Ok(serde_json::from_slice(&data)?)
             } else {
                 Err(Error::NotFound(format!("Dataset schema {} not found", dataset_id)))
@@ -1004,9 +1004,9 @@ impl DatasetStorageInterface for StorageEngineImpl {
         let db = self.get_db_clone();
         
         Box::pin(async move {
-            let data = data_result.map_err(|e| Error::SerializationError(e.to_string()))?;
+            let data = data_result.map_err(|e| Error::serialization(e.to_string()))?;
             let db = db.write().await;
-            db.insert(key.as_bytes(), data.as_slice()).map_err(|e| Error::StorageError(e.to_string()))?;
+            db.insert(key.as_bytes(), data.as_slice()).map_err(|e| Error::storage(e.to_string()))?;
             Ok(())
         })
     }
@@ -1286,7 +1286,7 @@ impl MonitoringInterface for StorageEngineImpl {
         // 计算数据库大小（估算）
         let mut total_size = 0usize;
         for result in db_guard.scan_prefix(b"") {
-            let (key, value) = result.map_err(|e| crate::Error::StorageError(format!("扫描数据库失败: {}", e)))?;
+            let (key, value) = result.map_err(|e| crate::Error::storage(format!("扫描数据库失败: {}", e)))?;
             total_size += key.len() + value.len();
         }
         stats.insert("database_size_bytes".to_string(), total_size as f64);
@@ -1294,7 +1294,7 @@ impl MonitoringInterface for StorageEngineImpl {
             // 模型统计
             let mut model_count = 0;
             for result in db_guard.scan_prefix(b"model:") {
-                result.map_err(|e| crate::Error::StorageError(format!("扫描模型失败: {}", e)))?;
+                result.map_err(|e| crate::Error::storage(format!("扫描模型失败: {}", e)))?;
                 model_count += 1;
             }
             stats.insert("model_count".to_string(), model_count as f64);
@@ -1302,7 +1302,7 @@ impl MonitoringInterface for StorageEngineImpl {
             // 数据集统计
             let mut dataset_count = 0;
             for result in db_guard.scan_prefix(b"dataset:") {
-                result.map_err(|e| crate::Error::StorageError(format!("扫描数据集失败: {}", e)))?;
+                result.map_err(|e| crate::Error::storage(format!("扫描数据集失败: {}", e)))?;
                 dataset_count += 1;
             }
             stats.insert("dataset_count".to_string(), dataset_count as f64);
@@ -1315,7 +1315,7 @@ impl MonitoringInterface for StorageEngineImpl {
         let db = self.get_db_clone();
         let db_guard = db.read().await;
         
-        if let Some(data) = db_guard.get(key.as_bytes()).map_err(|e| crate::Error::StorageError(format!("获取计数器失败: {}", e)))? {
+        if let Some(data) = db_guard.get(key.as_bytes()).map_err(|e| crate::Error::storage(format!("获取计数器失败: {}", e)))? {
             Ok(bincode::deserialize(&data).map_err(|e| crate::Error::Serialization(format!("反序列化计数器失败: {}", e)))?)
         } else {
             Ok(0)
@@ -1327,7 +1327,7 @@ impl MonitoringInterface for StorageEngineImpl {
         let db = self.get_db_clone();
         let db_guard = db.read().await;
         
-        let current_value: u64 = if let Some(data) = db_guard.get(key.as_bytes()).map_err(|e| crate::Error::StorageError(format!("获取计数器失败: {}", e)))? {
+        let current_value: u64 = if let Some(data) = db_guard.get(key.as_bytes()).map_err(|e| crate::Error::storage(format!("获取计数器失败: {}", e)))? {
             bincode::deserialize(&data).unwrap_or(0)
         } else {
             0
@@ -1335,7 +1335,7 @@ impl MonitoringInterface for StorageEngineImpl {
         
         let new_value = current_value + value;
         let data = bincode::serialize(&new_value).map_err(|e| crate::Error::Serialization(format!("序列化计数器失败: {}", e)))?;
-        db_guard.insert(key.as_bytes(), data.as_slice()).map_err(|e| crate::Error::StorageError(format!("更新计数器失败: {}", e)))?;
+        db_guard.insert(key.as_bytes(), data.as_slice()).map_err(|e| crate::Error::storage(format!("更新计数器失败: {}", e)))?;
         
         Ok(())
     }
@@ -1346,7 +1346,7 @@ impl MonitoringInterface for StorageEngineImpl {
         let mut count = 0u64;
         
         for result in db_guard.scan_prefix(b"model:") {
-            result.map_err(|e| crate::Error::StorageError(format!("扫描模型失败: {}", e)))?;
+            result.map_err(|e| crate::Error::storage(format!("扫描模型失败: {}", e)))?;
             count += 1;
         }
         
@@ -1359,7 +1359,7 @@ impl MonitoringInterface for StorageEngineImpl {
         let mut count = 0u64;
         
         for result in db_guard.scan_prefix(b"model:") {
-            let (_, value) = result.map_err(|e| crate::Error::StorageError(format!("扫描模型失败: {}", e)))?;
+            let (_, value) = result.map_err(|e| crate::Error::storage(format!("扫描模型失败: {}", e)))?;
             if let Ok(model) = bincode::deserialize::<crate::model::Model>(&value) {
                 // 从模型架构中获取类型信息
                 let found_model_type = model.architecture.metadata.get("model_type")
@@ -1380,7 +1380,7 @@ impl MonitoringInterface for StorageEngineImpl {
         let mut models = Vec::new();
         
         for result in db_guard.scan_prefix(b"model:") {
-            let (key, _value) = result.map_err(|e| crate::Error::StorageError(format!("扫描模型失败: {}", e)))?;
+            let (key, _value) = result.map_err(|e| crate::Error::storage(format!("扫描模型失败: {}", e)))?;
             // 从 key 中提取模型ID（格式：model:{model_id}）
             if let Ok(key_str) = String::from_utf8(key.to_vec()) {
                 if let Some(model_id) = key_str.strip_prefix("model:") {
@@ -1401,7 +1401,7 @@ impl MonitoringInterface for StorageEngineImpl {
         let mut count = 0u64;
         
         for result in db_guard.scan_prefix(b"task:") {
-            result.map_err(|e| crate::Error::StorageError(format!("扫描任务失败: {}", e)))?;
+            result.map_err(|e| crate::Error::storage(format!("扫描任务失败: {}", e)))?;
             count += 1;
         }
         
@@ -1414,7 +1414,7 @@ impl MonitoringInterface for StorageEngineImpl {
         let mut count = 0u64;
         
         for result in db_guard.scan_prefix(b"task:") {
-            let (_, value) = result.map_err(|e| crate::Error::StorageError(format!("扫描任务失败: {}", e)))?;
+            let (_, value) = result.map_err(|e| crate::Error::storage(format!("扫描任务失败: {}", e)))?;
             if let Ok(task_info) = serde_json::from_slice::<serde_json::Value>(&value) {
                 if let Some(task_status) = task_info.get("status") {
                     if let Some(status_str) = task_status.as_str() {
@@ -1435,7 +1435,7 @@ impl MonitoringInterface for StorageEngineImpl {
         let mut tasks = Vec::new();
         
         for result in db_guard.scan_prefix(b"task:") {
-            let (key, _value) = result.map_err(|e| crate::Error::StorageError(format!("扫描任务失败: {}", e)))?;
+            let (key, _value) = result.map_err(|e| crate::Error::storage(format!("扫描任务失败: {}", e)))?;
             // 从 key 中提取任务ID（格式：task:{task_id}）
             if let Ok(key_str) = String::from_utf8(key.to_vec()) {
                 if let Some(task_id) = key_str.strip_prefix("task:") {
@@ -1457,7 +1457,7 @@ impl MonitoringInterface for StorageEngineImpl {
         let level_lower = level.to_lowercase();
         
         for result in db_guard.scan_prefix(b"log:") {
-            let (_, value) = result.map_err(|e| crate::Error::StorageError(format!("扫描日志失败: {}", e)))?;
+            let (_, value) = result.map_err(|e| crate::Error::storage(format!("扫描日志失败: {}", e)))?;
             if let Ok(log_entry) = serde_json::from_slice::<serde_json::Value>(&value) {
                 // 根据日志级别过滤
                 let should_include = if let Some(log_level) = log_entry.get("level") {
@@ -1491,7 +1491,7 @@ impl MonitoringInterface for StorageEngineImpl {
         let mut active_count = 0u64;
         
         for result in db_guard.scan_prefix(b"task:") {
-            let (_, value) = result.map_err(|e| crate::Error::StorageError(format!("扫描任务失败: {}", e)))?;
+            let (_, value) = result.map_err(|e| crate::Error::storage(format!("扫描任务失败: {}", e)))?;
             if let Ok(task_info) = serde_json::from_slice::<serde_json::Value>(&value) {
                 if let Some(status) = task_info.get("status") {
                     if let Some(status_str) = status.as_str() {
@@ -1523,7 +1523,7 @@ impl MonitoringInterface for StorageEngineImpl {
         let mut request_count = 0u64;
         
         for result in db_guard.scan_prefix(b"api_request:") {
-            let (_, value) = result.map_err(|e| crate::Error::StorageError(format!("扫描API请求失败: {}", e)))?;
+            let (_, value) = result.map_err(|e| crate::Error::storage(format!("扫描API请求失败: {}", e)))?;
             if let Ok(request_log) = serde_json::from_slice::<serde_json::Value>(&value) {
                 total_requests += 1;
                 
@@ -1589,7 +1589,7 @@ impl MonitoringInterface for StorageEngineImpl {
             "timestamp": chrono::Utc::now().timestamp()
         });
         let data = serde_json::to_vec(&metric_data).map_err(|e| crate::Error::Serialization(format!("序列化指标失败: {}", e)))?;
-        db_guard.insert(key.as_bytes(), data.as_slice()).map_err(|e| crate::Error::StorageError(format!("保存指标失败: {}", e)))?;
+        db_guard.insert(key.as_bytes(), data.as_slice()).map_err(|e| crate::Error::storage(format!("保存指标失败: {}", e)))?;
         Ok(())
     }
     
@@ -1600,7 +1600,7 @@ impl MonitoringInterface for StorageEngineImpl {
         let prefix = format!("metric:{}:", name);
         
         for result in db_guard.scan_prefix(prefix.as_bytes()) {
-            let (_, value) = result.map_err(|e| crate::Error::StorageError(format!("扫描指标失败: {}", e)))?;
+            let (_, value) = result.map_err(|e| crate::Error::storage(format!("扫描指标失败: {}", e)))?;
             if let Ok(metric_data) = serde_json::from_slice::<serde_json::Value>(&value) {
                 if let (Some(value), Some(timestamp)) = (metric_data.get("value"), metric_data.get("timestamp")) {
                     if let (Some(v), Some(ts)) = (value.as_f64(), timestamp.as_i64()) {
@@ -1628,7 +1628,7 @@ impl MonitoringInterface for StorageEngineImpl {
         let alert_id = uuid::Uuid::new_v4().to_string();
         let key = format!("alert:{}", alert_id);
         let alert_data = serde_json::to_vec(condition).map_err(|e| crate::Error::Serialization(format!("序列化告警条件失败: {}", e)))?;
-        db_guard.insert(key.as_bytes(), alert_data.as_slice()).map_err(|e| crate::Error::StorageError(format!("保存告警失败: {}", e)))?;
+        db_guard.insert(key.as_bytes(), alert_data.as_slice()).map_err(|e| crate::Error::storage(format!("保存告警失败: {}", e)))?;
         Ok(())
     }
     

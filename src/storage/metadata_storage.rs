@@ -93,13 +93,14 @@ impl MetadataStorage {
     pub async fn save_collection(&self, metadata: &CollectionMetadata) -> Result<()> {
         let key = self.make_key(&metadata.name);
         let value = self.serialize(metadata)?;
-        self.storage.put(&key, &value).await
+        // KeyValueStorageEngine 是同步接口，这里直接调用同步方法
+        self.storage.set(&key, &value)
     }
 
     /// 获取集合元数据
     pub async fn get_collection(&self, name: &str) -> Result<Option<CollectionMetadata>> {
         let key = self.make_key(name);
-        match self.storage.get(&key).await? {
+        match self.storage.get(&key)? {
             Some(value) => Ok(Some(self.deserialize(&value)?)),
             None => Ok(None),
         }
@@ -108,29 +109,25 @@ impl MetadataStorage {
     /// 删除集合元数据
     pub async fn delete_collection(&self, name: &str) -> Result<()> {
         let key = self.make_key(name);
-        self.storage.delete(&key).await
+        self.storage.delete(&key)
     }
 
     /// 检查集合是否存在
     pub async fn collection_exists(&self, name: &str) -> Result<bool> {
         let key = self.make_key(name);
-        self.storage.exists(&key).await
+        self.storage.exists(&key)
     }
 
     /// 列出所有集合
     pub async fn list_collections(&self) -> Result<Vec<String>> {
-        let prefix = self.key_prefix.as_bytes();
         let mut names = Vec::new();
-        
-        let keys = self.storage.scan_prefix(prefix).await?;
+        let pattern = format!("{}*", self.key_prefix);
+        let keys = self.storage.get_keys_with_pattern(&pattern)?;
         for key in keys {
-            if let Ok(key_str) = String::from_utf8(key) {
-                if let Some(name) = key_str.strip_prefix(&self.key_prefix) {
-                    names.push(name.to_string());
-                }
+            if let Some(name) = key.strip_prefix(&self.key_prefix) {
+                names.push(name.to_string());
             }
         }
-        
         Ok(names)
     }
 
@@ -145,8 +142,8 @@ impl MetadataStorage {
 
     // 内部辅助方法
 
-    fn make_key(&self, collection_name: &str) -> Vec<u8> {
-        format!("{}{}", self.key_prefix, collection_name).into_bytes()
+    fn make_key(&self, collection_name: &str) -> String {
+        format!("{}{}", self.key_prefix, collection_name)
     }
 
     fn serialize(&self, metadata: &CollectionMetadata) -> Result<Vec<u8>> {

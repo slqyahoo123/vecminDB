@@ -4,6 +4,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
+use std::str::FromStr;
 use log::{info, warn, error};
 use serde_json::Value;
 use chrono::{DateTime, Utc};
@@ -244,7 +245,7 @@ impl AlgorithmExecutor {
         info!("取消算法执行, 任务ID: {}", task_id);
         // 转换TaskId类型
         let scheduler_task_id = crate::task_scheduler::core::TaskId::from_str(&task_id.0)
-            .map_err(|e| Error::invalid_parameter(format!("无效的任务ID: {}", e)))?;
+            .map_err(|e| Error::invalid_argument(format!("无效的任务ID: {}", e)))?;
         self.executor.cancel_execution(&scheduler_task_id).await
     }
     
@@ -253,7 +254,7 @@ impl AlgorithmExecutor {
         info!("获取算法执行状态, 任务ID: {}", task_id);
         // 转换TaskId类型
         let scheduler_task_id = crate::task_scheduler::core::TaskId::from_str(&task_id.0)
-            .map_err(|e| Error::invalid_parameter(format!("无效的任务ID: {}", e)))?;
+            .map_err(|e| Error::invalid_argument(format!("无效的任务ID: {}", e)))?;
         let status = self.executor.get_execution_status(&scheduler_task_id).await?;
         Ok(convert_execution_status(status))
     }
@@ -261,7 +262,7 @@ impl AlgorithmExecutor {
     /// 验证执行结果
     async fn validate_execution_result(&self, result: &ExecutionResult) -> Result<()> {
         if matches!(result.status, ExecutionStatus::Failed(_)) {
-            return Err(Error::execution(format!(
+            return Err(Error::execution_error(format!(
                 "执行失败: {}",
                 result.error.as_deref().unwrap_or("未知错误")
             )));

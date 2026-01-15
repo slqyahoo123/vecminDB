@@ -40,8 +40,6 @@ impl ProcessSandbox {
         let id = format!("process-sandbox-{}", Uuid::new_v4());
         #[cfg(feature = "tempfile")]
         let temp_dir = TempDir::new().ok();
-        #[cfg(not(feature = "tempfile"))]
-        let temp_dir = None;
         
         // 子进程对象将在实际执行时创建
         let child_process = None;
@@ -381,7 +379,7 @@ impl Sandbox for ProcessSandbox {
         
         // 创建临时脚本文件
         let temp_dir = self.temp_dir.as_ref().ok_or_else(|| {
-            Error::failed_precondition("临时目录未初始化")
+            Error::invalid_state("临时目录未初始化")
         })?;
         
         // 验证代码安全性
@@ -551,7 +549,7 @@ impl Sandbox for ProcessSandbox {
         
         // 计算目标路径
         let temp_dir = self.temp_dir.as_ref().ok_or_else(|| {
-            Error::failed_precondition("临时目录未初始化")
+            Error::invalid_state("临时目录未初始化")
         })?;
         
         let target_path = temp_dir.path().join(sandbox_path);
@@ -575,7 +573,7 @@ impl Sandbox for ProcessSandbox {
         
         // 计算源路径
         let temp_dir = self.temp_dir.as_ref().ok_or_else(|| {
-            Error::failed_precondition("临时目录未初始化")
+            Error::invalid_state("临时目录未初始化")
         })?;
         
         let source_path = temp_dir.path().join(sandbox_path);

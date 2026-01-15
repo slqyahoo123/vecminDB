@@ -1423,9 +1423,10 @@ impl StorageEngine {
     }
     
     /// 获取存储指标
-    pub async fn get_metrics(&self) -> Result<StorageMetrics, String> {
-        let stats = self.stats.read().map_err(|e| e.to_string())?;
-        let store = self.data_store.read().map_err(|e| e.to_string())?;
+    pub async fn get_metrics(&self) -> Result<StorageMetrics> {
+        // 利用 Error 对 PoisonError 的 From 实现，直接使用 ? 传播为统一错误类型
+        let stats = self.stats.read()?;
+        let store = self.data_store.read()?;
         
         Ok(StorageMetrics {
             total_objects: store.len() as u64,

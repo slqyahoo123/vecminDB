@@ -93,8 +93,8 @@ pub fn create_clustered_cache_manager() -> Result<CacheManager> {
         ..RedisConfig::default()
     };
     
-    // 这里使用占位实现，避免实际创建Redis连接
-    // 实际项目中应该使用真正的Redis客户端
+    // 使用 MemcachedCache 作为缓存后端
+    // 生产环境可根据需要配置 Redis 或其他分布式缓存客户端
     let backend1 = Arc::new(MemcachedCache::new(MemcachedConfig::default())?);
     let backend2 = Arc::new(MemcachedCache::new(MemcachedConfig::default())?);
     

@@ -1753,7 +1753,7 @@ impl DiskCache {
     ) -> Result<Self> {
         // 确保缓存目录存在
         std::fs::create_dir_all(&cache_dir)
-            .map_err(|e| Error::io(format!("Failed to create cache directory: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("Failed to create cache directory: {}", e)))?;
 
         let cache = Self {
             cache_dir,
@@ -1809,7 +1809,7 @@ impl DiskCache {
             
             // 读取文件内容
             let data = std::fs::read(&entry.file_path)
-                .map_err(|e| Error::io(format!("Failed to read cache file: {}", e)))?;
+                .map_err(|e| Error::io_error(format!("Failed to read cache file: {}", e)))?;
             
             // 更新访问信息
             entry.update_access();
@@ -1832,7 +1832,7 @@ impl DiskCache {
 
         // 写入文件
         std::fs::write(&file_path, value)
-            .map_err(|e| Error::io(format!("Failed to write cache file: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("Failed to write cache file: {}", e)))?;
 
         let mut index = self.index.write()
             .map_err(|_| Error::internal("Failed to acquire write lock"))?;
@@ -1870,7 +1870,7 @@ impl DiskCache {
             // 删除文件
             if entry.file_path.exists() {
                 std::fs::remove_file(&entry.file_path)
-                    .map_err(|e| Error::io(format!("Failed to remove cache file: {}", e)))?;
+                    .map_err(|e| Error::io_error(format!("Failed to remove cache file: {}", e)))?;
             }
             
             self.update_size_after_removal(entry.size_bytes)?;
@@ -2126,7 +2126,7 @@ impl DiskCache {
         }
 
         let index_data = std::fs::read_to_string(&index_path)
-            .map_err(|e| Error::io(format!("Failed to read index file: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("Failed to read index file: {}", e)))?;
         
         let disk_index: HashMap<String, DiskCacheEntry> = serde_json::from_str(&index_data)
             .map_err(|e| Error::serialization(format!("Failed to deserialize index: {}", e)))?;
@@ -2169,7 +2169,7 @@ impl DiskCache {
             .map_err(|e| Error::serialization(format!("Failed to serialize index: {}", e)))?;
         
         std::fs::write(&index_path, index_data)
-            .map_err(|e| Error::io(format!("Failed to write index file: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("Failed to write index file: {}", e)))?;
 
         Ok(())
     }

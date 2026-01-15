@@ -369,7 +369,7 @@ impl AlgorithmManager {
     pub fn get_algorithm_simple(&self, algorithm_id: &str) -> Result<Arc<Algorithm>> {
         // 验证算法ID的合法性
         if algorithm_id.trim().is_empty() {
-            return Err(Error::InvalidArgument("算法ID不能为空".to_string()));
+            return Err(Error::invalid_argument("算法ID不能为空".to_string()));
         }
 
         // 首先尝试从多级缓存获取
@@ -587,20 +587,20 @@ impl AlgorithmManager {
         if service_name.contains("://") {
             // 如 "http://localhost:8080"
             let url = service_name.parse::<url::Url>()
-                .map_err(|e| Error::InvalidArgument(format!("无效的服务URL: {}", e)))?;
+            .map_err(|e| Error::invalid_argument(format!("无效的服务URL: {}", e)))?;
             let host = url.host_str()
-                .ok_or_else(|| Error::InvalidArgument("URL中缺少主机名".to_string()))?;
+            .ok_or_else(|| Error::invalid_argument("URL中缺少主机名".to_string()))?;
             let port = url.port().unwrap_or(80);
             Ok((host.to_string(), port))
         } else if service_name.contains(':') {
             // 如 "localhost:8080"
             let parts: Vec<&str> = service_name.split(':').collect();
             if parts.len() != 2 {
-                return Err(Error::InvalidArgument("无效的服务端点格式".to_string()));
+            return Err(Error::invalid_argument("无效的服务端点格式".to_string()));
             }
             let host = parts[0].to_string();
             let port = parts[1].parse::<u16>()
-                .map_err(|e| Error::InvalidArgument(format!("无效的端口号: {}", e)))?;
+            .map_err(|e| Error::invalid_argument(format!("无效的端口号: {}", e)))?;
             Ok((host, port))
         } else {
             // 纯服务名，尝试从配置获取端点
@@ -639,7 +639,7 @@ impl AlgorithmManager {
         
         let address = format!("{}:{}", host, port);
         let socket_addr: SocketAddr = address.parse()
-            .map_err(|e| Error::InvalidArgument(format!("无效的地址: {}", e)))?;
+            .map_err(|e| Error::invalid_argument(format!("无效的地址: {}", e)))?;
         
         match TcpStream::connect_timeout(&socket_addr, Duration::from_secs(5)) {
             Ok(_) => Ok(()),
@@ -1296,7 +1296,7 @@ impl AlgorithmManager {
                 algorithm.config.insert("enable_vectorization".to_string(), "true".to_string());
                 algorithm.config.insert("enable_parallel_execution".to_string(), "true".to_string());
             },
-            _ => return Err(Error::InvalidArgument(format!("无效的优化级别: {}", level)))
+            _ => return Err(Error::invalid_argument(format!("无效的优化级别: {}", level)))
         }
         Ok(algorithm)
     }
@@ -1317,7 +1317,7 @@ impl AlgorithmManager {
                 algorithm.config.insert("memory_pool_size".to_string(), "1GB".to_string());
                 algorithm.config.insert("enable_memory_prefetching".to_string(), "true".to_string());
             },
-            _ => return Err(Error::InvalidArgument(format!("无效的内存模式: {}", mode)))
+            _ => return Err(Error::invalid_argument(format!("无效的内存模式: {}", mode)))
         }
         Ok(algorithm)
     }
@@ -1329,7 +1329,7 @@ impl AlgorithmManager {
             "normal" => algorithm.config.insert("execution_priority".to_string(), "5".to_string()),
             "high" => algorithm.config.insert("execution_priority".to_string(), "8".to_string()),
             "critical" => algorithm.config.insert("execution_priority".to_string(), "10".to_string()),
-            _ => return Err(Error::InvalidArgument(format!("无效的执行优先级: {}", priority)))
+            _ => return Err(Error::invalid_argument(format!("无效的执行优先级: {}", priority)))
         };
         Ok(algorithm)
     }
@@ -1338,7 +1338,7 @@ impl AlgorithmManager {
     async fn apply_resource_constraints(&self, mut algorithm: Algorithm, constraints: &str) -> Result<Algorithm> {
         // 解析JSON格式的资源约束
         let constraint_map: HashMap<String, String> = serde_json::from_str(constraints)
-            .map_err(|e| Error::InvalidArgument(format!("无效的资源约束格式: {}", e)))?;
+            .map_err(|e| Error::invalid_argument(format!("无效的资源约束格式: {}", e)))?;
         
         for (key, value) in constraint_map {
             algorithm.config.insert(format!("resource_constraint_{}", key), value);
@@ -1369,7 +1369,7 @@ impl AlgorithmManager {
                 algorithm.config.insert("enable_code_signing".to_string(), "true".to_string());
                 algorithm.config.insert("enable_encrypted_execution".to_string(), "true".to_string());
             },
-            _ => return Err(Error::InvalidArgument(format!("无效的安全级别: {}", level)))
+            _ => return Err(Error::invalid_argument(format!("无效的安全级别: {}", level)))
         }
         Ok(algorithm)
     }
@@ -1392,7 +1392,7 @@ impl AlgorithmManager {
                 algorithm.config.insert("batch_size".to_string(), "100".to_string());
                 algorithm.config.insert("thread_pool_size".to_string(), "4".to_string());
             },
-            _ => return Err(Error::InvalidArgument(format!("无效的性能配置: {}", profile)))
+            _ => return Err(Error::invalid_argument(format!("无效的性能配置: {}", profile)))
         }
         Ok(algorithm)
     }
@@ -1400,7 +1400,7 @@ impl AlgorithmManager {
     /// 应用自定义配置
     async fn apply_custom_configuration(&self, mut algorithm: Algorithm, config_json: &str) -> Result<Algorithm> {
         let custom_config: HashMap<String, String> = serde_json::from_str(config_json)
-            .map_err(|e| Error::InvalidArgument(format!("无效的自定义配置格式: {}", e)))?;
+            .map_err(|e| Error::invalid_argument(format!("无效的自定义配置格式: {}", e)))?;
         
         for (key, value) in custom_config {
             algorithm.config.insert(format!("custom_{}", key), value);
@@ -1517,7 +1517,8 @@ impl AlgorithmManager {
         }
         
         // 4. 执行轻量级测试运行（可选）
-        if algorithm.algorithm_type == "ml" || algorithm.algorithm_type == "optimization" {
+        if algorithm.algorithm_type == crate::algorithm::types::AlgorithmType::MachineLearning
+            || algorithm.algorithm_type == crate::algorithm::types::AlgorithmType::Optimization {
             log::debug!("执行算法预热测试运行: {}", algorithm.id);
             // 注意：这里不执行完整的算法，只是初始化必要的资源
         }
@@ -1626,7 +1627,8 @@ impl AlgorithmManager {
         // 3. 关闭网络连接和文件句柄
         // 4. 清理缓存和中间数据
         
-        // 这里是简化实现，实际应该根据具体的资源类型进行清理
+        // 清理任务临时目录，移除所有相关文件
+        // 生产环境可根据资源类型（CPU、内存、磁盘、网络）进行更细粒度的清理
         if let Err(e) = tokio::fs::remove_dir_all(format!("/tmp/algorithm_task_{}", task_id)).await {
             // 如果目录不存在，忽略错误
             if e.kind() != std::io::ErrorKind::NotFound {

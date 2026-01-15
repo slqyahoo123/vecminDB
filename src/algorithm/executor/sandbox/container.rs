@@ -394,14 +394,14 @@ impl ContainerSandbox {
         // 创建工作目录
         if !self.config.working_dir.exists() {
             std::fs::create_dir_all(&self.config.working_dir)
-                .map_err(|e| Error::IoError(format!("Failed to create working directory: {}", e)))?;
+                .map_err(|e| Error::io_error(format!("Failed to create working directory: {}", e)))?;
         }
         
         // 准备挂载点
         for mount in &self.config.mounts {
             if !mount.host_path.exists() {
                 std::fs::create_dir_all(&mount.host_path)
-                    .map_err(|e| Error::IoError(format!("Failed to create mount point: {}", e)))?;
+                    .map_err(|e| Error::io_error(format!("Failed to create mount point: {}", e)))?;
             }
         }
         

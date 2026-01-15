@@ -594,11 +594,11 @@ impl ResourceManager {
                                 status_tracker.update_status(event).await?;
                             }
                         }
-                        return Err(Error::ResourceUnavailable(format!(
+                        return Err(Error::resource(format!(
                             "资源不足，请求已加入等待队列: {:?}", resource_type
                         )));
                     } else {
-                        return Err(Error::ResourceUnavailable(format!(
+                        return Err(Error::resource(format!(
                             "资源不足: {:?}", resource_type
                         )));
                     }

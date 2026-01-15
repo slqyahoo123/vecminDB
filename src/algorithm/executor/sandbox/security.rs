@@ -839,9 +839,11 @@ impl AnomalyDetector {
                 },
                 AnomalyPolicy::Terminate => {
                     error!("{} - 进程将被终止", message);
-                    return Err(Error::security_violation(
-                        "anomaly_detected",
-                        &format!("检测到异常行为，安全策略要求终止: 分数={:.2}", anomaly_score)
+                    return Err(crate::algorithm::executor::sandbox::error::security_violation(
+                        &format!(
+                            "anomaly_detected: 检测到异常行为，安全策略要求终止: 分数={:.2}",
+                            anomaly_score
+                        ),
                     ));
                 },
             }
@@ -1037,9 +1039,8 @@ impl EnhancedSecurityContext {
                     
                     // 如果策略要求，可能会返回错误
                     if self.anomaly_detector.anomaly_policy == AnomalyPolicy::Terminate {
-                        return Err(Error::security_violation(
-                            "anomaly_detected",
-                            &format!("异常行为导致操作终止: {}", message)
+                        return Err(crate::algorithm::executor::sandbox::error::security_violation(
+                            &format!("anomaly_detected: 异常行为导致操作终止: {}", message),
                         ));
                     }
                 }

@@ -232,7 +232,8 @@ impl ProductionExecutor {
         }
     }
 
-    /// 在沙箱中执行算法
+    /// 在沙箱中执行算法（启用 tempfile 特性时）
+    #[cfg(feature = "tempfile")]
     async fn execute_in_sandbox(
         algorithm: &crate::algorithm::types::Algorithm,
         input_data: serde_json::Value,
@@ -359,6 +360,16 @@ impl ProductionExecutor {
                 Err(crate::error::Error::Internal(format!("算法执行超时 ({}秒)", config.execution_timeout_secs)))
             }
         }
+    }
+
+    /// 在沙箱中执行算法（未启用 tempfile 特性时的降级实现）
+    #[cfg(not(feature = "tempfile"))]
+    async fn execute_in_sandbox(
+        _algorithm: &crate::algorithm::types::Algorithm,
+        _input_data: serde_json::Value,
+        _config: &ProductionExecutorConfig,
+    ) -> Result<serde_json::Value> {
+        Err(crate::error::Error::feature_not_enabled("tempfile sandbox"))
     }
 
     /// 直接执行算法

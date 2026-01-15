@@ -381,17 +381,17 @@ impl WasmSecurityExecutor {
         
         // 1. 基本格式验证
         if wasm_binary.len() < 8 {
-            return Err(Error::validation_error("WASM二进制文件太小"));
+            return Err(Error::validation("WASM二进制文件太小"));
         }
         
         // 检查魔数
         if &wasm_binary[0..4] != &[0x00, 0x61, 0x73, 0x6D] {
-            return Err(Error::validation_error("无效的WASM魔数"));
+            return Err(Error::validation("无效的WASM魔数"));
         }
         
         // 检查版本
         if &wasm_binary[4..8] != &[0x01, 0x00, 0x00, 0x00] {
-            return Err(Error::validation_error("不支持的WASM版本"));
+            return Err(Error::validation("不支持的WASM版本"));
         }
         
         // 2. 模块结构分析
@@ -453,7 +453,7 @@ impl WasmSecurityExecutor {
             
             // 检查段大小是否合理
             if section_size > wasm_binary.len() - offset {
-                return Err(Error::validation_error("WASM段大小无效"));
+                return Err(Error::validation("WASM段大小无效"));
             }
             
             offset += section_size;
@@ -487,7 +487,9 @@ impl WasmSecurityExecutor {
                     severity: WasmSecuritySeverity::Error,
                 });
                 
-                return Err(Error::security_violation(format!("禁止的导入函数: {}", forbidden_func)));
+                return Err(crate::algorithm::executor::sandbox::error::security_violation(
+                    &format!("禁止的导入函数: {}", forbidden_func),
+                ));
             }
         }
         
@@ -508,7 +510,7 @@ impl WasmSecurityExecutor {
         // 检查文件大小作为简单的资源限制
         let max_size = context.config.max_memory_pages as usize * 64 * 1024; // 每页64KB
         if wasm_binary.len() > max_size {
-            return Err(Error::validation_error(format!(
+            return Err(Error::validation(format!(
                 "WASM模块过大: {} > {}", 
                 wasm_binary.len(), 
                 max_size

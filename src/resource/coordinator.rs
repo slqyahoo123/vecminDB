@@ -154,7 +154,7 @@ impl ResourceCoordinator {
             self.publish_event("resource_waiting", &format!("资源请求等待中: {:?} 数量 {}", resource_type, amount))?;
             
             // 等待分配结果
-            receiver.await.map_err(|_| Error::ResourceUnavailable("等待资源分配超时".into()))?
+            receiver.await.map_err(|_| Error::resource("等待资源分配超时".into()))?
         }
     }
     

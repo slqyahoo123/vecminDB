@@ -378,7 +378,7 @@ impl SecureAlgorithmExecutor {
         
         // 检查并发限制
         if self.get_active_execution_count() >= config.max_concurrent_executions {
-            return Err(Error::resource_exhausted("并发执行数已达上限"));
+            return Err(Error::resource("并发执行数已达上限"));
         }
         
         // 确定执行超时
@@ -416,7 +416,7 @@ impl SecureAlgorithmExecutor {
         // 这里假设WASM二进制数据存储在algorithm的code字段中
         let wasm_binary = algorithm.get_code().as_bytes();
         if wasm_binary.is_empty() {
-            return Err(Error::validation_error("WASM算法缺少二进制数据"));
+            return Err(Error::validation("WASM算法缺少二进制数据"));
         }
         
         // 执行WASM
@@ -492,44 +492,28 @@ impl SecureAlgorithmExecutor {
             peak_memory_bytes: engine_result.resource_usage.peak_memory_bytes as usize,
             security_events: vec![], // 原生算法没有详细的安全事件
             performance_metrics: {
-                // 从resource_usage中提取性能指标
-                let mut metrics = HashMap::new();
-                metrics.insert("cpu_usage_percent".to_string(), serde_json::Value::Number(
-                    serde_json::Number::from_f64(engine_result.resource_usage.cpu_usage)
-                        .unwrap_or_else(|| serde_json::Number::from(0))
-                ));
-                metrics.insert("memory_usage_bytes".to_string(), serde_json::Value::Number(
-                    serde_json::Number::from(engine_result.resource_usage.memory_usage)
-                ));
-                metrics.insert("peak_memory_bytes".to_string(), serde_json::Value::Number(
-                    serde_json::Number::from(engine_result.resource_usage.peak_memory_usage)
-                ));
-                metrics.insert("execution_time_ms".to_string(), serde_json::Value::Number(
-                    serde_json::Number::from(engine_result.resource_usage.execution_time_ms)
-                ));
-                if let Some(gpu_usage) = engine_result.resource_usage.gpu_usage {
-                    metrics.insert("gpu_usage_percent".to_string(), serde_json::Value::Number(
-                        serde_json::Number::from_f64(gpu_usage)
-                            .unwrap_or_else(|| serde_json::Number::from(0))
-                    ));
-                }
-                if let Some(gpu_memory) = engine_result.resource_usage.gpu_memory_usage {
-                    metrics.insert("gpu_memory_bytes".to_string(), serde_json::Value::Number(
-                        serde_json::Number::from(gpu_memory)
-                    ));
-                }
-                metrics.insert("disk_read_bytes".to_string(), serde_json::Value::Number(
-                    serde_json::Number::from(engine_result.resource_usage.disk_read)
-                ));
-                metrics.insert("disk_write_bytes".to_string(), serde_json::Value::Number(
-                    serde_json::Number::from(engine_result.resource_usage.disk_write)
-                ));
-                metrics.insert("network_received_bytes".to_string(), serde_json::Value::Number(
-                    serde_json::Number::from(engine_result.resource_usage.network_received)
-                ));
-                metrics.insert("network_sent_bytes".to_string(), serde_json::Value::Number(
-                    serde_json::Number::from(engine_result.resource_usage.network_sent)
-                ));
+                // 从resource_usage中提取可用的性能指标（统一为 f64）
+                let mut metrics: HashMap<String, f64> = HashMap::new();
+                metrics.insert(
+                    "cpu_time_ms".to_string(),
+                    engine_result.resource_usage.cpu_time_ms as f64,
+                );
+                metrics.insert(
+                    "disk_read_bytes".to_string(),
+                    engine_result.resource_usage.disk_read_bytes as f64,
+                );
+                metrics.insert(
+                    "disk_write_bytes".to_string(),
+                    engine_result.resource_usage.disk_write_bytes as f64,
+                );
+                metrics.insert(
+                    "network_received_bytes".to_string(),
+                    engine_result.resource_usage.network_received_bytes as f64,
+                );
+                metrics.insert(
+                    "network_sent_bytes".to_string(),
+                    engine_result.resource_usage.network_sent_bytes as f64,
+                );
                 metrics
             },
             error_message: if !engine_result.success {

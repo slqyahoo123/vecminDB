@@ -207,7 +207,7 @@ impl AlgorithmManager {
         // 从存储中加载
         if let Some(algorithm_json) = self.storage.load_algorithm(algorithm_id).await? {
             let algorithm: Algorithm = serde_json::from_str(&algorithm_json)
-                .map_err(|e| Error::Deserialization(format!("Failed to deserialize algorithm: {}", e)))?;
+                .map_err(|e| Error::serialization(format!("Failed to deserialize algorithm: {}", e)))?;
             // 缓存算法
             {
                 let mut algorithms = self.algorithms.lock().map_err(|e| {

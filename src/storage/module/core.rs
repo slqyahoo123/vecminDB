@@ -1231,7 +1231,6 @@ impl Storage {
             data_files_count: data_entries.len() as u64,
             model_files_count: model_entries.len() as u64,
             algorithm_files_count: algorithm_entries.len() as u64,
-            other_files_count: (all_entries.len() - data_entries.len() - model_entries.len() - algorithm_entries.len()) as u64,
             total_size_bytes,
             usage_by_type,
         })
@@ -1380,12 +1379,11 @@ impl Default for Storage {
             ..Default::default()
         };
         
-        // 如果创建失败，返回一个错误状态（通过panic提示）
-        // 但根据生产级标准，我们应该避免panic
-        // 由于Default trait的限制，这里使用log记录警告
+        // Default trait 必须返回 Self，无法返回 Result
+        // 因此当创建失败时只能 panic，这是 Rust trait 系统的限制
+        // 生产环境应避免使用 Default，改用 Storage::new() 或 Storage::new_in_memory()
         log::warn!("Storage::default() 被调用，这不是推荐的使用方式。请使用 Storage::new() 或 Storage::new_in_memory() 代替。");
         
-        // 尝试创建存储实例，如果失败则panic（因为Default trait无法返回Result）
         match Self::open(config) {
             Ok(storage) => storage,
             Err(e) => {

@@ -95,7 +95,7 @@ impl Storage {
         let task_id = task_id.to_string(); // 用于过滤特定任务的指标
         tokio::task::spawn_blocking(move || {
             // 从训练历史中获取指标
-            let mut all_metrics = Vec::new();
+            let mut all_metrics: Vec<crate::training::types::TrainingMetrics> = Vec::new();
             let mut current_epoch = 0u32;
             let mut total_epochs = 0u32;
             
@@ -134,7 +134,9 @@ impl Storage {
                             // 尝试从历史记录中获取
                             if key_str.ends_with(":history") {
                                 if let Ok(history) = serde_json::from_slice::<Vec<crate::training::types::TrainingMetrics>>(&value) {
-                                    for metrics in history {
+                                    for metrics_raw in history {
+                                        // 显式类型转换，确保使用正确的类型
+                                        let metrics: crate::training::types::TrainingMetrics = metrics_raw;
                                         // 应用epoch过滤
                                         let epoch = metrics.epoch as u32;
                                         let include = match (start_epoch, end_epoch) {
@@ -149,13 +151,16 @@ impl Storage {
                                             if epoch > current_epoch {
                                                 current_epoch = epoch;
                                             }
-                                            if metrics.total_epochs > total_epochs as usize {
-                                                total_epochs = metrics.total_epochs as u32;
+                                            // 使用 epoch 更新 total_epochs（取最大轮数）
+                                            if epoch as u32 > total_epochs {
+                                                total_epochs = epoch as u32;
                                             }
                                         }
                                     }
                                 }
-                            } else if let Ok(metrics) = bincode::deserialize::<crate::training::types::TrainingMetrics>(&value) {
+                            } else if let Ok(metrics_raw) = bincode::deserialize::<crate::training::types::TrainingMetrics>(&value) {
+                                // 显式类型转换，确保使用正确的类型
+                                let metrics: crate::training::types::TrainingMetrics = metrics_raw;
                                 // 应用epoch过滤
                                 let epoch = metrics.epoch as u32;
                                 let include = match (start_epoch, end_epoch) {
@@ -170,8 +175,9 @@ impl Storage {
                                     if epoch > current_epoch {
                                         current_epoch = epoch;
                                     }
-                                    if metrics.total_epochs > total_epochs as usize {
-                                        total_epochs = metrics.total_epochs as u32;
+                                    // 使用 epoch 更新 total_epochs（取最大轮数）
+                                    if epoch as u32 > total_epochs {
+                                        total_epochs = epoch as u32;
                                     }
                                 }
                             }

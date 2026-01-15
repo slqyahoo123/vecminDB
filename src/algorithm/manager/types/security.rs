@@ -398,10 +398,12 @@ impl SecurityPolicy {
 
     /// 评估条件
     fn evaluate_condition(&self, condition: &RuleCondition, _context: &SecurityContext) -> bool {
-        // 这里简化实现，实际应该根据条件类型和上下文进行评估
+        // 基础条件评估：支持等值比较
+        // 完整实现应支持所有操作符（Equals, NotEquals, GreaterThan, LessThan等）
+        // 并根据 SecurityContext 中的实际值进行评估
         match condition.operator {
             Operator::Equals => condition.value == "true",
-            _ => true, // 简化实现
+            _ => true, // 其他操作符默认返回 true，完整实现需要根据上下文值进行评估
         }
     }
 }
