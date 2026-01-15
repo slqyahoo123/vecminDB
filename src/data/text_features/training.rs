@@ -3,8 +3,7 @@
 // Transformer 训练模块
 
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
-use log::info;
+// NOTE: Training functionality is disabled in vecminDB. Keep imports minimal.
 use super::error::TransformerError;
 use super::config::TransformerConfig;
 use super::model::{TransformerModel, TrainingExample, TrainingResult};
@@ -115,83 +114,16 @@ impl Trainer {
     }
     
     /// 训练模型
-    /// 
-    /// 注意：vecminDB是一个向量数据库，不提供模型训练功能。
+    ///
+    /// 注意：vecminDB 是一个向量数据库，不提供模型训练功能。
     /// 训练功能已被禁用，调用此方法将返回错误。
     pub fn train(&mut self, training_data: Vec<TrainingExample>) -> Result<TrainingResult, TransformerError> {
-        // Training is not supported in vecminDB - this is a vector database, not a training platform
-        Err(TransformerError::Internal(format!(
+        // Training is not supported in vecminDB - this is a vector database, not a training platform.
+        // We return an explicit error here and intentionally do NOT execute any training loop logic.
+        Err(TransformerError::ComputationError(format!(
             "model training is not supported in vecminDB (attempted to train with {} examples)",
             training_data.len()
         )))
-        
-        // 分割训练和验证数据
-        let (train_data, val_data) = self.split_data(training_data)?;
-        
-        let start_time = Instant::now();
-        let mut best_val_loss = f32::INFINITY;
-        let mut patience_counter = 0;
-        
-        for epoch in 0..self.config.epochs {
-            // 训练阶段
-            let train_metrics = self.train_epoch(&train_data)?;
-            
-            // 验证阶段
-            let val_metrics = self.validate_epoch(&val_data)?;
-            
-            // 更新学习率
-            if let Some(scheduler) = &mut self.scheduler {
-                scheduler.step();
-            }
-            
-            // 记录历史
-            self.history.add_epoch(epoch, train_metrics.clone(), val_metrics.clone());
-            
-            // 早停检查
-            if val_metrics.loss < best_val_loss {
-                best_val_loss = val_metrics.loss;
-                patience_counter = 0;
-                
-                // 保存最佳模型
-                self.save_best_model()?;
-            } else {
-                patience_counter += 1;
-            }
-            
-            // 打印进度
-            if epoch % 10 == 0 || epoch == self.config.epochs - 1 {
-                info!(
-                    "Epoch {}/{} - Train Loss: {:.4}, Val Loss: {:.4}, Val Acc: {:.4}",
-                    epoch + 1,
-                    self.config.epochs,
-                    train_metrics.loss,
-                    val_metrics.loss,
-                    val_metrics.accuracy
-                );
-            }
-            
-            // 早停
-            if patience_counter >= self.config.early_stopping_patience {
-                info!("早停触发，在epoch {} 停止训练", epoch + 1);
-                break;
-            }
-        }
-        
-        let training_time = start_time.elapsed();
-        info!("训练完成，总时间: {:?}", training_time);
-        
-        // 加载最佳模型
-        self.load_best_model()?;
-        
-        // 最终验证
-        let final_val_metrics = self.validate_epoch(&val_data)?;
-        
-        Ok(TrainingResult {
-            epochs: self.history.epochs.len(),
-            final_loss: final_val_metrics.loss,
-            accuracy: final_val_metrics.accuracy,
-            training_steps: self.history.total_steps,
-        })
     }
     
     /// 训练单个epoch
@@ -217,14 +149,14 @@ impl Trainer {
         
         Ok(EpochMetrics {
             loss: avg_loss,
-            accuracy: 0.0, // Training not supported - placeholder value
+            accuracy: 0.0, // Training not supported in vector database - always 0.0
             steps: total_steps,
         })
     }
     
     /// 训练单个批次
     fn train_batch(&mut self, batch: &[TrainingExample]) -> Result<f32, TransformerError> {
-        let mut model = self.model.lock().unwrap();
+        let _model = self.model.lock().unwrap();
         
         // 前向传播
         let mut batch_loss = 0.0;
@@ -270,7 +202,7 @@ impl Trainer {
         
         for batch in data.chunks(self.config.batch_size) {
             for example in batch {
-                let mut model = self.model.lock().unwrap();
+                let model = self.model.lock().unwrap();
                 let processed = model.process_text(&example.input)?;
                 let prediction = self.forward_pass(&processed.encoded)?;
                 
@@ -547,7 +479,7 @@ impl Optimizer for Adam {
             let m_hat = self.m[i] / (1.0 - self.beta1.powi(self.t as i32));
             let v_hat = self.v[i] / (1.0 - self.beta2.powi(self.t as i32));
             
-            // 参数更新（简化实现）
+            // 参数更新计算（不实际应用，因为训练功能已禁用）
             let _update = self.learning_rate * m_hat / (v_hat.sqrt() + self.epsilon);
         }
         

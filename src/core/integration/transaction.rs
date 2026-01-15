@@ -179,7 +179,7 @@ impl TransactionCoordinator {
                 .expect("参与者列表读取锁获取失败：无法读取参与者");
             for participant_id in transaction.participants.keys() {
                 if !participants.contains_key(participant_id) {
-                    return Err(crate::Error::Transaction(format!(
+                    return Err(crate::Error::transaction(format!(
                         "事务参与者不存在: {}", 
                         participant_id
                     )));
@@ -313,7 +313,7 @@ impl TransactionCoordinator {
                         }
                         debug!("参与者准备成功: {}", participant_id_clone);
                     } else {
-                        return Err(crate::Error::Transaction(format!(
+                        return Err(crate::Error::transaction(format!(
                             "参与者拒绝准备: {}", 
                             participant_id_clone
                         )));
@@ -570,7 +570,10 @@ impl TransactionCoordinator {
         info!("事务清理任务已启动，间隔: {:?}", cleanup_interval);
     }
     
-    /// 创建引用副本（简化实现）
+    /// 创建引用副本
+    ///
+    /// 克隆所有 Arc 包装的共享状态，创建一个新的 TransactionManager 实例
+    /// 指向相同的底层数据。这是一个轻量级操作，不会复制实际的事务数据。
     fn clone_ref(&self) -> Self {
         Self {
             active_transactions: self.active_transactions.clone(),

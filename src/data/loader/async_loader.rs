@@ -753,9 +753,9 @@ impl AsyncStreamLoader {
         &self,
         stream: S,
         parser: impl Fn(Vec<u8>) -> Result<T> + Send + 'static,
-    ) -> impl Stream<Item = Result<Vec<T>, Error>>
+    ) -> impl Stream<Item = Result<Vec<T>>>
     where
-        S: Stream<Item = Result<Vec<u8>, E>> + Send + 'static,
+        S: Stream<Item = std::result::Result<Vec<u8>, E>> + Send + 'static,
         T: Send + 'static,
         E: Into<Box<dyn std::error::Error + Send + Sync>> + 'static,
     {
@@ -790,7 +790,7 @@ impl AsyncStreamLoader {
     ) -> Result<()>
     where
         F: Fn(Vec<T>) -> Result<()> + Send + Clone + 'static,
-        S: Stream<Item = Result<Vec<u8>, E>> + Send + 'static,
+        S: Stream<Item = std::result::Result<Vec<u8>, E>> + Send + 'static,
         T: Send + 'static,
         E: Into<Box<dyn std::error::Error + Send + Sync>> + 'static,
     {

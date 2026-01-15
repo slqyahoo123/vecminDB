@@ -33,6 +33,11 @@ impl Error {
     pub fn lock(msg: impl Into<String>) -> Self {
         Error::Lock(msg.into())
     }
+
+    /// Create a lock‑poison error (wrapper around `Lock`)
+    pub fn locks_poison(msg: impl Into<String>) -> Self {
+        Error::Lock(format!("Lock poisoned: {}", msg.into()))
+    }
     
     /// Create a config error
     pub fn config(msg: impl Into<String>) -> Self {
@@ -48,6 +53,11 @@ impl Error {
     pub fn cache(msg: impl Into<String>) -> Self {
         Error::Cache(msg.into())
     }
+
+    /// Create a processing error for data/stream pipelines
+    pub fn processing(msg: impl Into<String>) -> Self {
+        Error::Processing(msg.into())
+    }
     
     /// Create a system error
     pub fn system(msg: impl Into<String>) -> Self {
@@ -56,7 +66,10 @@ impl Error {
     
     /// Create an IO error
     pub fn io_error(msg: impl Into<String>) -> Self {
-        Error::Internal(format!("IO error: {}", msg.into()))
+        Error::Io(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("{}", msg.into()),
+        ))
     }
     
     /// Create an invalid data error
@@ -69,6 +82,11 @@ impl Error {
         Error::InvalidInput(msg.into())
     }
     
+    /// Create an invalid state error (for inconsistent or unsupported runtime states)
+    pub fn invalid_state(msg: impl Into<String>) -> Self {
+        Error::InvalidState(msg.into())
+    }
+    
     /// Create a feature not enabled error
     pub fn feature_not_enabled(feature: impl Into<String>) -> Self {
         Error::Config(format!("Feature '{}' is not enabled", feature.into()))
@@ -77,6 +95,16 @@ impl Error {
     /// Create an unsupported file type error
     pub fn unsupported_file_type(file_type: impl Into<String>) -> Self {
         Error::InvalidInput(format!("Unsupported file type: {}", file_type.into()))
+    }
+
+    /// Create a database operation error
+    pub fn database_operation(msg: impl Into<String>) -> Self {
+        Error::Database(msg.into())
+    }
+
+    /// Create a network error
+    pub fn network(msg: impl Into<String>) -> Self {
+        Error::Network(msg.into())
     }
 
     /// Create a vector error
@@ -99,9 +127,29 @@ impl Error {
         Error::Other(msg.into())
     }
 
+    /// Create a transaction error
+    pub fn transaction(msg: impl Into<String>) -> Self {
+        Error::Transaction(msg.into())
+    }
+
     /// Create a validation error
     pub fn validation(msg: impl Into<String>) -> Self {
         Error::Validation(msg.into())
+    }
+
+    /// Create an execution error (for automation / workflow failures)
+    pub fn execution_error(msg: impl Into<String>) -> Self {
+        Error::ExecutionError(msg.into())
+    }
+
+    /// Create a not‑implemented error for optional subsystems
+    pub fn not_implemented(msg: impl Into<String>) -> Self {
+        Error::NotImplemented(msg.into())
+    }
+
+    /// Create a timeout error (for long‑running operations)
+    pub fn timeout(msg: impl Into<String>) -> Self {
+        Error::Timeout(msg.into())
     }
 }
 
@@ -122,6 +170,7 @@ impl<T> WithErrorContext for Result<T> {
                 Error::NotFound(msg) => Error::NotFound(format!("{}: {}", context_str, msg)),
                 Error::Config(msg) => Error::Config(format!("{}: {}", context_str, msg)),
                 Error::Storage(msg) => Error::Storage(format!("{}: {}", context_str, msg)),
+                Error::Database(msg) => Error::Database(format!("{}: {}", context_str, msg)),
                 Error::Serialization(msg) => Error::Serialization(format!("{}: {}", context_str, msg)),
                 Error::Index(msg) => Error::Index(format!("{}: {}", context_str, msg)),
                 Error::Cache(msg) => Error::Cache(format!("{}: {}", context_str, msg)),
@@ -130,6 +179,8 @@ impl<T> WithErrorContext for Result<T> {
                 Error::Resource(msg) => Error::Resource(format!("{}: {}", context_str, msg)),
                 Error::AlreadyExists(msg) => Error::AlreadyExists(format!("{}: {}", context_str, msg)),
                 Error::Validation(msg) => Error::Validation(format!("{}: {}", context_str, msg)),
+                Error::Network(msg) => Error::Network(format!("{}: {}", context_str, msg)),
+                Error::Processing(msg) => Error::Processing(format!("{}: {}", context_str, msg)),
                 Error::Other(msg) => Error::Other(format!("{}: {}", context_str, msg)),
             }
         })
@@ -154,6 +205,10 @@ pub enum Error {
     #[error("Storage error: {0}")]
     Storage(String),
 
+    /// Database operation errors
+    #[error("Database error: {0}")]
+    Database(String),
+
     /// Cache-related errors
     #[error("Cache error: {0}")]
     Cache(String),
@@ -169,6 +224,10 @@ pub enum Error {
     /// Serialization/Deserialization errors
     #[error("Serialization error: {0}")]
     Serialization(String),
+
+    /// Generic processing errors (data pipelines, async loaders, etc.)
+    #[error("Processing error: {0}")]
+    Processing(String),
 
     /// I/O errors
     #[error("I/O error: {0}")]
@@ -198,6 +257,30 @@ pub enum Error {
     #[error("Validation error: {0}")]
     Validation(String),
 
+    /// Transaction coordination / 2PC errors
+    #[error("Transaction error: {0}")]
+    Transaction(String),
+
+    /// Invalid state errors (e.g. cycle dependencies, inconsistent container state)
+    #[error("Invalid state: {0}")]
+    InvalidState(String),
+
+    /// Automation / execution errors
+    #[error("Execution error: {0}")]
+    ExecutionError(String),
+
+    /// Not implemented errors for optional features
+    #[error("Not implemented: {0}")]
+    NotImplemented(String),
+
+    /// Network / transport layer errors
+    #[error("Network error: {0}")]
+    Network(String),
+
+    /// Timeout errors
+    #[error("Timeout: {0}")]
+    Timeout(String),
+
     /// Other errors
     #[error("{0}")]
     Other(String),
@@ -219,6 +302,12 @@ impl From<bincode::Error> for Error {
 impl From<sled::Error> for Error {
     fn from(err: sled::Error) -> Self {
         Error::Storage(err.to_string())
+    }
+}
+
+impl From<Box<dyn std::error::Error>> for Error {
+    fn from(err: Box<dyn std::error::Error>) -> Self {
+        Error::Other(err.to_string())
     }
 }
 

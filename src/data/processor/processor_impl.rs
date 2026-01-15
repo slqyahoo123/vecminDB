@@ -22,6 +22,7 @@ use crate::data::processor::{
 };
 use crate::data::processor::config::ProcessorConfig as ImportedProcessorConfig;
 use crate::data::value::DataValue;
+use crate::compat::tensor::TensorValues;
 use crate::data::record::{Record, Value as RecordFieldValue};
 use base64::Engine as _;
 use crate::data::processor::types::Schema;
@@ -292,7 +293,7 @@ impl DataProcessor {
         // 3. 保存到目标位置
         utils::ensure_dir_exists(&Path::new(destination).parent().unwrap().to_string_lossy())?;
         fs::write(destination, exported_data).await
-            .map_err(|e| Error::io(&format!("写入文件失败: {}", e)))?;
+            .map_err(|e| Error::io_error(&format!("写入文件失败: {}", e)))?;
         
         stats.exported_count = records.len();
         stats.export_size = utils::get_file_size(destination)?;
@@ -445,10 +446,10 @@ impl DataProcessor {
                     if data.len() > max {
                         return Err(Error::invalid_argument("文件大小超过限制"));
                     }
-                }
-                Ok(data)
-            },
-            Err(e) => Err(Error::io(&format!("读取文件失败: {}", e)))
+        }
+        Ok(data)
+    },
+    Err(e) => Err(Error::io_error(&format!("读取文件失败: {}", e)))
         }
     }
 
@@ -458,7 +459,7 @@ impl DataProcessor {
         let dest_path = Path::new(destination);
         if let Some(parent) = dest_path.parent() {
             fs::create_dir_all(parent).await
-                .map_err(|e| Error::io(&format!("创建目录失败: {}", e)))?;
+                .map_err(|e| Error::io_error(&format!("创建目录失败: {}", e)))?;
         }
         
         // 保存元数据
@@ -474,14 +475,14 @@ impl DataProcessor {
         let metadata_file = dest_path.join("metadata.json");
         fs::write(&metadata_file, serde_json::to_string_pretty(&metadata)?)
             .await
-            .map_err(|e| Error::io(&format!("保存元数据失败: {}", e)))?;
+            .map_err(|e| Error::io_error(&format!("保存元数据失败: {}", e)))?;
         
         // 保存数据
         let data_file = dest_path.join("data.bin");
         let serialized_data = self.serialize_records(records)?;
         fs::write(&data_file, serialized_data)
             .await
-            .map_err(|e| Error::io(&format!("保存数据失败: {}", e)))?;
+            .map_err(|e| Error::io_error(&format!("保存数据失败: {}", e)))?;
         
         Ok(())
     }
@@ -494,7 +495,7 @@ impl DataProcessor {
         let metadata_file = source_path.join("metadata.json");
         let metadata_content = fs::read_to_string(&metadata_file)
             .await
-            .map_err(|e| Error::io(&format!("读取元数据失败: {}", e)))?;
+            .map_err(|e| Error::io_error(&format!("读取元数据失败: {}", e)))?;
         let metadata: Value = serde_json::from_str(&metadata_content)?;
         
         // 提取模式
@@ -504,7 +505,7 @@ impl DataProcessor {
         let data_file = source_path.join("data.bin");
         let data_content = fs::read(&data_file)
             .await
-            .map_err(|e| Error::io(&format!("读取数据失败: {}", e)))?;
+            .map_err(|e| Error::io_error(&format!("读取数据失败: {}", e)))?;
         let records = self.deserialize_records(&data_content)?;
         
         Ok((records, schema))
@@ -835,12 +836,12 @@ impl DataProcessor {
     }
 
     /// 提取特征
-    pub fn extract_features(&self, records: &[Record]) -> Result<crate::model::tensor::TensorData, Box<dyn StdError>> {
+    pub fn extract_features(&self, records: &[Record]) -> std::result::Result<crate::model::tensor::TensorData, Box<dyn StdError>> {
         self.feature_extractor.extract_features_from_records(records, &self.config)
     }
 
     /// 提取标签
-    pub fn extract_labels(&self, records: &[Record]) -> Result<Option<crate::model::tensor::TensorData>, Box<dyn StdError>> {
+    pub fn extract_labels(&self, records: &[Record]) -> std::result::Result<Option<crate::model::tensor::TensorData>, Box<dyn StdError>> {
         self.feature_extractor.extract_labels_from_records(records, &self.config)
     }
 
@@ -885,11 +886,19 @@ impl DataProcessor {
             }
         }
         
-        // 提取特征
-        let features = self.feature_extractor.extract_features_from_records(&processed_records, &self.config)?;
-        
-        // 转换为 ProcessedData
-        let features_vec = features.to_vec()?;
+        // 提取特征并转换为一维 f32 向量
+        let features_tensor = self
+            .feature_extractor
+            .extract_features_from_records(&processed_records, &self.config)
+            .map_err(|e| Error::processing(format!("特征提取失败: {}", e)))?;
+
+        let features_vec: Vec<f32> = match &features_tensor.data {
+            TensorValues::F32(v) => v.clone(),
+            TensorValues::F64(v) => v.iter().map(|x| *x as f32).collect(),
+            TensorValues::I32(v) => v.iter().map(|x| *x as f32).collect(),
+            TensorValues::I64(v) => v.iter().map(|x| *x as f32).collect(),
+            TensorValues::U8(v) => v.iter().map(|x| *x as f32).collect(),
+        };
         let processed_data = crate::core::interfaces::ProcessedData {
             id: uuid::Uuid::new_v4().to_string(),
             data: bincode::serialize(&features_vec)?,
@@ -897,7 +906,7 @@ impl DataProcessor {
             size: features_vec.len(),
             metadata: {
                 let mut meta = data.metadata.clone().unwrap_or_default();
-                meta.insert("shape".to_string(), format!("{:?}", features.shape));
+                meta.insert("shape".to_string(), format!("{:?}", features_tensor.shape));
                 meta.insert("data_type".to_string(), "float32".to_string());
                 meta.insert("processing_steps".to_string(), "data_cleaning,feature_extraction".to_string());
                 meta
@@ -1499,7 +1508,7 @@ impl crate::data::processor::types_core::StorageHealthCheck for DataProcessor {
 
 impl crate::data::pipeline::traits::DataProcessor for DataProcessor {
     /// 处理单个记录
-    fn process_record(&self, record: &mut crate::data::record::Record) -> Result<(), Box<dyn std::error::Error>> {
+    fn process_record(&self, record: &mut crate::data::record::Record) -> std::result::Result<(), Box<dyn std::error::Error>> {
         // 使用带配置的处理，并回写结果
         match self
             .record_processor
@@ -1515,7 +1524,7 @@ impl crate::data::pipeline::traits::DataProcessor for DataProcessor {
     }
 
     /// 处理批量记录
-    fn process_batch(&self, batch: &mut crate::data::pipeline::RecordBatch) -> Result<(), Box<dyn std::error::Error>> {
+    fn process_batch(&self, batch: &mut crate::data::pipeline::RecordBatch) -> std::result::Result<(), Box<dyn std::error::Error>> {
         for record in &mut batch.records {
             self.process_record(record)?;
         }
@@ -1528,7 +1537,7 @@ impl crate::data::pipeline::traits::DataProcessor for DataProcessor {
     }
 
     /// 初始化导入上下文
-    fn initialize_import(&self, source: &str, config: &crate::data::processor::ProcessorConfig) -> Result<crate::data::pipeline::traits::ImportContext, Box<dyn std::error::Error>> {
+    fn initialize_import(&self, source: &str, config: &crate::data::processor::ProcessorConfig) -> std::result::Result<crate::data::pipeline::traits::ImportContext, Box<dyn std::error::Error>> {
         let context = crate::data::pipeline::traits::ImportContext {
             source: source.to_string(),
             config: config.clone(),
@@ -1539,7 +1548,7 @@ impl crate::data::pipeline::traits::DataProcessor for DataProcessor {
     }
 
     /// 处理导入
-    fn process_import(&self, context: crate::data::pipeline::traits::ImportContext) -> Result<crate::data::pipeline::traits::ImportResult, Box<dyn std::error::Error>> {
+    fn process_import(&self, context: crate::data::pipeline::traits::ImportContext) -> std::result::Result<crate::data::pipeline::traits::ImportResult, Box<dyn std::error::Error>> {
         let source_data = self.read_source_data(&context.source)
             .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
         
@@ -1599,7 +1608,7 @@ impl crate::data::pipeline::traits::DataProcessor for DataProcessor {
     }
 
     /// 列出批次
-    fn list_batches(&self, data_type: Option<&str>, status: Option<&str>, limit: usize) -> Result<Vec<crate::data::DataBatch>, Box<dyn std::error::Error>> {
+    fn list_batches(&self, data_type: Option<&str>, status: Option<&str>, limit: usize) -> std::result::Result<Vec<crate::data::DataBatch>, Box<dyn std::error::Error>> {
         // 这里是一个基础实现，实际应该从存储中获取批次数据
         let mut batches = Vec::new();
         
@@ -1630,7 +1639,7 @@ impl crate::data::pipeline::traits::DataProcessor for DataProcessor {
     }
 
     /// 获取指定批次
-    fn get_batch(&self, id: &str) -> Result<crate::data::DataBatch, Box<dyn std::error::Error>> {
+    fn get_batch(&self, id: &str) -> std::result::Result<crate::data::DataBatch, Box<dyn std::error::Error>> {
         // 在生产环境中应该从实际存储中获取
         let mut batch = crate::data::DataBatch::default();
         batch.id = Some(id.to_string());
@@ -1641,14 +1650,14 @@ impl crate::data::pipeline::traits::DataProcessor for DataProcessor {
     }
 
     /// 删除批次
-    fn delete_batch(&self, id: &str) -> Result<(), Box<dyn std::error::Error>> {
+    fn delete_batch(&self, id: &str) -> std::result::Result<(), Box<dyn std::error::Error>> {
         log::info!("删除批次: {}", id);
         // 在生产环境中应该从实际存储中删除
         Ok(())
     }
 
     /// 获取批次样本
-    fn get_batch_samples(&self, id: &str, limit: usize, offset: usize, fields: Option<&[String]>) -> Result<(crate::data::DataBatch, Vec<HashMap<String, crate::data::pipeline::traits::RecordValue>>), Box<dyn std::error::Error>> {
+    fn get_batch_samples(&self, id: &str, limit: usize, offset: usize, fields: Option<&[String]>) -> std::result::Result<(crate::data::DataBatch, Vec<HashMap<String, crate::data::pipeline::traits::RecordValue>>), Box<dyn std::error::Error>> {
         let batch = self.get_batch(id)?;
         
         // 创建示例样本数据
@@ -1673,7 +1682,7 @@ impl crate::data::pipeline::traits::DataProcessor for DataProcessor {
     }
 
     /// 导出批次
-    fn export_batch(&self, id: &str, format: &str, config: Option<&crate::data::pipeline::traits::ExportConfig>) -> Result<(), Box<dyn std::error::Error>> {
+    fn export_batch(&self, id: &str, format: &str, config: Option<&crate::data::pipeline::traits::ExportConfig>) -> std::result::Result<(), Box<dyn std::error::Error>> {
         log::info!("导出批次 {} 为格式 {}", id, format);
         
         let batch = self.get_batch(id)?;
@@ -1686,7 +1695,7 @@ impl crate::data::pipeline::traits::DataProcessor for DataProcessor {
     }
 
     /// 列出数据集
-    fn list_datasets(&self) -> Result<Vec<crate::data::Dataset>, Box<dyn std::error::Error>> {
+    fn list_datasets(&self) -> std::result::Result<Vec<crate::data::Dataset>, Box<dyn std::error::Error>> {
         // 在生产环境中应该从实际存储中获取，这里返回一些示例数据集元信息
         let mut datasets = Vec::new();
         
@@ -1728,7 +1737,7 @@ impl crate::data::pipeline::traits::DataProcessor for DataProcessor {
     }
 
     /// 获取数据集
-    fn get_dataset(&self, id: &str) -> Result<crate::data::Dataset, Box<dyn std::error::Error>> {
+    fn get_dataset(&self, id: &str) -> std::result::Result<crate::data::Dataset, Box<dyn std::error::Error>> {
         // 在生产环境中应该从实际存储中获取，这里构造一个示例数据集
         let now = chrono::Utc::now();
         let dataset = crate::data::Dataset {
@@ -1765,14 +1774,14 @@ impl crate::data::pipeline::traits::DataProcessor for DataProcessor {
     }
 
     /// 删除数据集
-    fn delete_dataset(&self, id: &str) -> Result<(), Box<dyn std::error::Error>> {
+    fn delete_dataset(&self, id: &str) -> std::result::Result<(), Box<dyn std::error::Error>> {
         log::info!("删除数据集: {}", id);
         // 在生产环境中应该从实际存储中删除
         Ok(())
     }
 
     /// 存储文件
-    fn store_file(&self, id: &str, filename: &str, content_type: &str, data: Vec<u8>) -> Result<(), Box<dyn std::error::Error>> {
+    fn store_file(&self, id: &str, filename: &str, content_type: &str, data: Vec<u8>) -> std::result::Result<(), Box<dyn std::error::Error>> {
         log::info!("存储文件: {} (文件名: {}, 类型: {}, 大小: {} bytes)", id, filename, content_type, data.len());
         
         // 在生产环境中应该实际存储文件
@@ -1783,7 +1792,7 @@ impl crate::data::pipeline::traits::DataProcessor for DataProcessor {
     }
 
     /// 处理二进制数据
-    fn process_binary_data(&self, batch_id: &str, data_type: &str, _config: &crate::data::processor::ProcessorConfig, data: Vec<u8>) -> Result<crate::data::pipeline::traits::ImportResult, Box<dyn std::error::Error>> {
+    fn process_binary_data(&self, batch_id: &str, data_type: &str, _config: &crate::data::processor::ProcessorConfig, data: Vec<u8>) -> std::result::Result<crate::data::pipeline::traits::ImportResult, Box<dyn std::error::Error>> {
         log::info!("处理二进制数据: batch_id={}, data_type={}, size={} bytes", batch_id, data_type, data.len());
         
         let mut warnings = Vec::new();
@@ -1830,14 +1839,14 @@ impl crate::data::pipeline::traits::DataProcessor for DataProcessor {
     }
 
     /// 更新数据集
-    fn update_dataset(&self, dataset: &crate::data::Dataset) -> Result<(), Box<dyn std::error::Error>> {
+    fn update_dataset(&self, dataset: &crate::data::Dataset) -> std::result::Result<(), Box<dyn std::error::Error>> {
         log::info!("更新数据集: {}", dataset.id);
         // 在生产环境中应该实际更新存储中的数据集
         Ok(())
     }
 
     /// 初始化文件导入
-    fn initialize_file_import(&self, file_path: &str, config: &crate::data::processor::ProcessorConfig) -> Result<crate::data::pipeline::traits::ImportContext, Box<dyn std::error::Error>> {
+    fn initialize_file_import(&self, file_path: &str, config: &crate::data::processor::ProcessorConfig) -> std::result::Result<crate::data::pipeline::traits::ImportContext, Box<dyn std::error::Error>> {
         // 检查文件是否存在
         if !std::path::Path::new(file_path).exists() {
             return Err(format!("文件不存在: {}", file_path).into());
@@ -1854,7 +1863,7 @@ impl crate::data::pipeline::traits::DataProcessor for DataProcessor {
     }
 
     /// 处理数据批次
-    fn process_batch_with_config(&self, batch: &crate::data::DataBatch, config: &crate::data::processor::ProcessorConfig) -> Result<crate::data::processor::ProcessedBatch, Box<dyn std::error::Error>> {
+    fn process_batch_with_config(&self, batch: &crate::data::DataBatch, config: &crate::data::processor::ProcessorConfig) -> std::result::Result<crate::data::processor::ProcessedBatch, Box<dyn std::error::Error>> {
         use crate::data::record::{Record, Value as RecordValue};
         use crate::data::value::DataValue;
         use std::collections::HashMap;
@@ -1911,7 +1920,7 @@ impl crate::data::pipeline::traits::DataProcessor for DataProcessor {
     }
 
     /// 获取处理器状态
-    fn get_status(&self) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+    fn get_status(&self) -> std::result::Result<serde_json::Value, Box<dyn std::error::Error>> {
         let metrics = &self.metrics;
         let status = serde_json::json!({
             "id": self.id,
@@ -1937,14 +1946,14 @@ impl crate::data::pipeline::traits::DataProcessor for DataProcessor {
     }
 
     /// 获取活跃任务数量
-    fn get_active_tasks_count(&self) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<u64, Box<dyn std::error::Error>>> + Send + '_>> {
+    fn get_active_tasks_count(&self) -> std::pin::Pin<Box<dyn std::future::Future<Output = std::result::Result<u64, Box<dyn std::error::Error>>> + Send + '_>> {
         Box::pin(async move {
             Ok(self.tasks.len() as u64)
         })
     }
 
     /// 导出数据
-    fn export_data(&self, config: &crate::data::pipeline::traits::ExportConfig) -> Result<Vec<crate::data::pipeline::traits::RecordValue>, Box<dyn std::error::Error>> {
+    fn export_data(&self, config: &crate::data::pipeline::traits::ExportConfig) -> std::result::Result<Vec<crate::data::pipeline::traits::RecordValue>, Box<dyn std::error::Error>> {
         // 根据配置导出数据
         use crate::data::value::DataValue;
         use crate::data::pipeline::traits::RecordValue;

@@ -86,7 +86,8 @@ impl CommonDataLoader {
         
         let file_path = Path::new(path);
         if !file_path.exists() {
-            return Err(crate::error::Error::io(&format!("文件不存在: {}", path)));
+            // 文件不存在，使用通用 not_found 错误，更符合 Error 语义
+            return Err(crate::error::Error::not_found(format!("文件不存在: {}", path)));
         }
         
         // 根据文件格式选择加载方式
@@ -126,7 +127,7 @@ impl CommonDataLoader {
         
         // CSV数据加载实现
         let content = fs::read_to_string(path)
-            .map_err(|e| crate::error::Error::io(&format!("读取CSV文件失败: {}, error: {}", path, e)))?;
+            .map_err(|e| crate::error::Error::io_error(&format!("读取CSV文件失败: {}, error: {}", path, e)))?;
             
         let mut reader = csv::Reader::from_reader(content.as_bytes());
         let headers = reader.headers()
@@ -186,7 +187,7 @@ impl CommonDataLoader {
         debug!("加载JSON文件: {}", path);
         
         let content = fs::read_to_string(path)
-            .map_err(|e| crate::error::Error::io(&format!("读取JSON文件失败: {}, error: {}", path, e)))?;
+            .map_err(|e| crate::error::Error::io_error(&format!("读取JSON文件失败: {}, error: {}", path, e)))?;
             
         let value: Value = serde_json::from_str(&content)
             .map_err(|e| crate::error::Error::validation(&format!("解析JSON失败: {}", e)))?;
@@ -475,7 +476,7 @@ impl CommonDataLoader {
         
         // 读取文件内容
         let content = fs::read_to_string(path)
-            .map_err(|e| Error::io(format!("读取文件失败: {}, error: {}", path, e)))?;
+            .map_err(|e| Error::io_error(&format!("读取文件失败: {}, error: {}", path, e)))?;
             
         let mut features = Vec::new();
         let mut metadata = HashMap::new();
@@ -579,7 +580,7 @@ impl CommonDataLoader {
         
         // 读取二进制文件
         let file_data = fs::read(path)
-            .map_err(|e| Error::io(&format!("读取二进制文件失败: {}, error: {}", path, e)))?;
+            .map_err(|e| Error::io_error(&format!("读取二进制文件失败: {}, error: {}", path, e)))?;
             
         let mut features = Vec::new();
         let mut metadata = HashMap::new();
@@ -700,7 +701,7 @@ impl CommonDataLoader {
                 trace!("开始从数据库加载数据: {:?}", db_config.db_type);
                 
                 // 建立数据库连接
-                let connection = db_manager.get_connection(&db_config.connection_string).await
+                let _connection = db_manager.get_connection(&db_config.connection_string).await
                     .map_err(|e| Error::database_operation(&format!("数据库连接失败: {}", e)))?;
                 
                 // 执行查询
@@ -880,7 +881,7 @@ impl CommonDataLoader {
             // #[cfg(feature = "tokio")]
             {
                 let content = tokio::fs::read(file_path).await
-                    .map_err(|e| Error::io(&format!("读取文件失败: {}, error: {}", file_path, e)))?;
+                    .map_err(|e| Error::io_error(&format!("读取文件失败: {}, error: {}", file_path, e)))?;
                     
                 self.parse_binary_stream(&content, &mut features)?;
                 metadata.insert("file_path".to_string(), file_path.to_string());
@@ -889,7 +890,7 @@ impl CommonDataLoader {
             // #[cfg(not(feature = "tokio"))]
             {
                 let content = std::fs::read(file_path)
-                    .map_err(|e| Error::io(&format!("读取文件失败: {}, error: {}", file_path, e)))?;
+                    .map_err(|e| Error::io_error(&format!("读取文件失败: {}, error: {}", file_path, e)))?;
                     
                 self.parse_binary_stream(&content, &mut features)?;
                 metadata.insert("file_path".to_string(), file_path.to_string());
@@ -1114,7 +1115,7 @@ impl CommonDataLoader {
         debug!("加载张量文件: {}, dtype: {}, shape: {:?}, compression: {:?}", path, dtype, shape, compression);
         
         let content = fs::read(path)
-            .map_err(|e| crate::error::Error::io(&format!("读取张量文件失败: {}, error: {}", path, e)))?;
+            .map_err(|e| crate::error::Error::io_error(&format!("读取张量文件失败: {}, error: {}", path, e)))?;
             
         let mut features = Vec::new();
         let mut metadata = HashMap::new();
@@ -1131,21 +1132,10 @@ impl CommonDataLoader {
         let raw_data = if let Some(compression_type) = compression {
             match compression_type {
                 "gzip" => {
-                    // #[cfg(feature = "compression")]
-                    {
-                        use flate2::read::GzDecoder;
-                        use std::io::Read;
-                        
-                        let mut decoder = GzDecoder::new(&content[..]);
-                        let mut decompressed = Vec::new();
-                        decoder.read_to_end(&mut decompressed)
-                            .map_err(|e| crate::error::Error::validation(&format!("GZIP解压缩失败: {}", e)))?;
-                        decompressed
-                    }
-                    // #[cfg(not(feature = "compression"))]
-                    {
-                        return Err(crate::error::Error::not_implemented("GZIP解压缩需要启用compression特性"));
-                    }
+                    // 当前未真正启用压缩支持：直接返回未实现错误，保持返回类型一致
+                    return Err(crate::error::Error::not_implemented(
+                        "GZIP解压缩需要启用compression特性",
+                    ));
                 },
                 "lz4" => {
                     // 注意：lz4 特性未在 Cargo.toml 中定义，直接返回未实现错误
@@ -1316,7 +1306,7 @@ impl CommonDataLoader {
         debug!("加载张量文件: {}, dtype: {}, shape: {:?}, compression: {:?}, endian: {}", path, dtype, shape, compression, endian);
         
         let content = fs::read(path)
-            .map_err(|e| crate::error::Error::io(&format!("读取张量文件失败: {}, error: {}", path, e)))?;
+            .map_err(|e| crate::error::Error::io_error(&format!("读取张量文件失败: {}, error: {}", path, e)))?;
             
         let mut features = Vec::new();
         let mut metadata = HashMap::new();
@@ -1334,21 +1324,10 @@ impl CommonDataLoader {
         let raw_data = if let Some(compression_type) = compression {
             match compression_type {
                 "gzip" => {
-                    // #[cfg(feature = "compression")]
-                    {
-                        use flate2::read::GzDecoder;
-                        use std::io::Read;
-                        
-                        let mut decoder = GzDecoder::new(&content[..]);
-                        let mut decompressed = Vec::new();
-                        decoder.read_to_end(&mut decompressed)
-                            .map_err(|e| crate::error::Error::validation(&format!("GZIP解压缩失败: {}", e)))?;
-                        decompressed
-                    }
-                    // #[cfg(not(feature = "compression"))]
-                    {
-                        return Err(crate::error::Error::not_implemented("GZIP解压缩需要启用compression特性"));
-                    }
+                    // 当前未真正启用压缩支持：直接返回未实现错误，保持返回类型一致
+                    return Err(crate::error::Error::not_implemented(
+                        "GZIP解压缩需要启用compression特性",
+                    ));
                 },
                 "lz4" => {
                     // 注意：lz4 特性未在 Cargo.toml 中定义，直接返回未实现错误

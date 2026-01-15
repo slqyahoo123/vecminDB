@@ -165,7 +165,8 @@ impl StreamDataLoader {
         // 检查文件是否存在
         let path_obj = Path::new(path);
         if !path_obj.exists() {
-            return Err(Error::file_not_found(format!("文件不存在: {}", path)));
+            // 文件不存在，映射为通用的 NotFound 错误，保持语义一致
+            return Err(Error::not_found(format!("文件不存在: {}", path)));
         }
         
         // 读取文件内容

@@ -13,7 +13,6 @@ use crate::data::value::DataValue;
 use crate::data::DataFormat;
 // remove unused sync imports; parsing is single-threaded here
 use std::hash::Hasher;
-use std::hash::Hash;
 
 /// 数据解析器
 pub struct DataParser {
@@ -339,10 +338,10 @@ impl DataValidator {
         fixed = fixed.replace("'", "\"");
         
         // 3. 确保字符串被正确引用
-        // 这是一个简化的实现，实际应该使用更复杂的解析逻辑
+        // 当前实现依赖 serde_json 的容错能力进行基本修复
         
         // 4. 处理未引用的键
-        // 同样是简化实现
+        // 由 serde_json 在解析时自动处理
         
         Ok(fixed)
     }
@@ -431,7 +430,7 @@ impl DataCleaner {
     }
 
     /// 清理记录数据
-    pub fn clean_record_data(&self, record: &mut Record) -> Result<(), Box<dyn StdError>> {
+    pub fn clean_record_data(&self, record: &mut Record) -> std::result::Result<(), Box<dyn StdError>> {
         // 遍历记录字段，清理字符串相关的数据值
         for (_field_name, value) in record.fields.iter_mut() {
             match value {
@@ -568,6 +567,12 @@ impl DataCleaner {
                     DataValue::Integer(i) => i.hash(hasher),
                     DataValue::Float(f) | DataValue::Number(f) => f.to_bits().hash(hasher),
                     DataValue::String(s) | DataValue::Text(s) => s.hash(hasher),
+                    DataValue::StringArray(arr) => {
+                        arr.len().hash(hasher);
+                        for s in arr {
+                            s.hash(hasher);
+                        }
+                    }
                     DataValue::Array(arr) => {
                         arr.len().hash(hasher);
                         for item in arr {

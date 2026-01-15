@@ -4,7 +4,6 @@
 use std::collections::HashMap;
 use std::error::Error as StdError;
 use std::hash::{Hash, Hasher};
-use crate::Result;
 use crate::data::processor::config::ProcessorConfig as ImportedProcessorConfig;
 use crate::data::record::{Record, Value as RecordFieldValue};
 use crate::data::value::DataValue;
@@ -20,7 +19,7 @@ impl RecordProcessor {
     }
 
     /// 处理单条记录
-    pub fn process_single_record_with_config(&self, record: &Record, config: &ImportedProcessorConfig) -> Result<Record, Box<dyn StdError>> {
+    pub fn process_single_record_with_config(&self, record: &Record, config: &ImportedProcessorConfig) -> std::result::Result<Record, Box<dyn StdError>> {
         let mut processed_record = record.clone();
         
         // 应用数据清理
@@ -45,14 +44,14 @@ impl RecordProcessor {
     }
 
     /// 清理记录数据
-    pub fn clean_record_data(&self, record: &mut Record) -> Result<(), Box<dyn StdError>> {
+    pub fn clean_record_data(&self, record: &mut Record) -> std::result::Result<(), Box<dyn StdError>> {
         // 复用 DataCleaner 中的实现，保持行为一致
         let cleaner = crate::data::processor::data_ops::DataCleaner::new();
         cleaner.clean_record_data(record)
     }
     
     /// 标准化记录数据
-    pub fn normalize_record_data(&self, record: &mut Record) -> Result<(), Box<dyn StdError>> {
+    pub fn normalize_record_data(&self, record: &mut Record) -> std::result::Result<(), Box<dyn StdError>> {
         // 简单数值标准化：对 Number/Float/Integer 做线性缩放
         for (_field_name, field_val) in record.fields.iter_mut() {
             if let RecordFieldValue::Data(dv) = field_val {
@@ -74,7 +73,7 @@ impl RecordProcessor {
     }
     
     /// 处理缺失值
-    pub fn handle_missing_values(&self, record: &mut Record) -> Result<(), Box<dyn StdError>> {
+    pub fn handle_missing_values(&self, record: &mut Record) -> std::result::Result<(), Box<dyn StdError>> {
         let mut fields_to_update = Vec::new();
         
         for (field_name, field_val) in &record.fields {
@@ -118,14 +117,14 @@ impl RecordProcessor {
     /// 
     /// 这是一个可选的扩展点，子类可以重写此方法来实现自定义的记录处理逻辑
     /// 比如字段变换、数据类型转换等
-    fn process_record(&self, _record: &mut Record) -> Result<(), Box<dyn StdError>> {
+    fn process_record(&self, _record: &mut Record) -> std::result::Result<(), Box<dyn StdError>> {
         // 默认实现：不做任何处理，直接返回成功
         // 子类可以重写此方法来实现具体的处理逻辑
         Ok(())
     }
 
     /// 应用字段映射
-    pub fn apply_field_mapping(&self, record: &mut Record, mapping: &HashMap<String, String>) -> Result<(), Box<dyn StdError>> {
+    pub fn apply_field_mapping(&self, record: &mut Record, mapping: &HashMap<String, String>) -> std::result::Result<(), Box<dyn StdError>> {
         let mut new_data = HashMap::new();
         
         for (old_name, value) in &record.fields {
@@ -138,13 +137,13 @@ impl RecordProcessor {
     }
 
     /// 过滤字段
-    pub fn filter_fields(&self, record: &mut Record, allowed_fields: &[String]) -> Result<(), Box<dyn StdError>> {
+    pub fn filter_fields(&self, record: &mut Record, allowed_fields: &[String]) -> std::result::Result<(), Box<dyn StdError>> {
         record.fields.retain(|field_name, _| allowed_fields.contains(field_name));
         Ok(())
     }
 
     /// 添加计算字段
-    pub fn add_computed_fields(&self, record: &mut Record, computations: &HashMap<String, String>) -> Result<(), Box<dyn StdError>> {
+    pub fn add_computed_fields(&self, record: &mut Record, computations: &HashMap<String, String>) -> std::result::Result<(), Box<dyn StdError>> {
         for (field_name, expression) in computations {
             let computed_value = self.evaluate_expression(expression, record)?;
             record.fields.insert(field_name.clone(), RecordFieldValue::Data(computed_value));
@@ -159,7 +158,7 @@ impl RecordProcessor {
     /// - upper(field_name): 将字符串转换为大写
     /// - lower(field_name): 将字符串转换为小写
     /// - field_name: 直接返回字段值
-    fn evaluate_expression(&self, expression: &str, record: &Record) -> Result<DataValue, Box<dyn StdError>> {
+    fn evaluate_expression(&self, expression: &str, record: &Record) -> std::result::Result<DataValue, Box<dyn StdError>> {
         // 表达式解析器实现
         // 支持基本操作：len, upper, lower, 以及直接字段访问
         
@@ -220,7 +219,7 @@ impl RecordProcessor {
     }
 
     /// 应用验证规则
-    fn apply_validation_rule(&self, record: &Record, rule: &ValidationRule) -> Result<(), String> {
+    fn apply_validation_rule(&self, record: &Record, rule: & ValidationRule) -> std::result::Result<(), String> {
         match rule {
             ValidationRule::Required(field_name) => {
                 if !record.fields.contains_key(field_name) {
@@ -314,7 +313,7 @@ impl FeatureExtractor {
     }
 
     /// 从记录中提取特征
-    pub fn extract_features_from_records(&self, records: &[Record], _config: &ImportedProcessorConfig) -> Result<crate::compat::tensor::TensorData, Box<dyn StdError>> {
+    pub fn extract_features_from_records(&self, records: &[Record], _config: &ImportedProcessorConfig) -> std::result::Result<crate::compat::tensor::TensorData, Box<dyn StdError>> {
         if records.is_empty() {
             return Ok(crate::compat::tensor::TensorData {
                 shape: vec![0],
@@ -367,12 +366,12 @@ impl FeatureExtractor {
     }
     
     /// 内联提取（用于自检/就绪检查）
-    pub fn extract_inline(&self, records: &[Record]) -> Result<crate::compat::tensor::TensorData, Box<dyn StdError>> {
+    pub fn extract_inline(&self, records: &[Record]) -> std::result::Result<crate::compat::tensor::TensorData, Box<dyn StdError>> {
         self.extract_features_from_records(records, &ImportedProcessorConfig::default())
     }
     
     /// 从记录中提取标签
-    pub fn extract_labels_from_records(&self, records: &[Record], config: &ImportedProcessorConfig) -> Result<Option<crate::compat::tensor::TensorData>, Box<dyn StdError>> {
+    pub fn extract_labels_from_records(&self, records: &[Record], config: &ImportedProcessorConfig) -> std::result::Result<Option<crate::compat::tensor::TensorData>, Box<dyn StdError>> {
         // 如果配置中指定了标签字段，则提取标签
         if let Some(ref label_field) = config.label_column {
             let mut labels = Vec::new();
@@ -553,7 +552,7 @@ impl RecordTransformer {
     }
 
     /// 批量转换记录
-    pub fn transform_records(&self, records: &mut Vec<Record>, transformations: &[Transformation]) -> Result<(), Box<dyn StdError>> {
+    pub fn transform_records(&self, records: &mut Vec<Record>, transformations: &[Transformation]) -> std::result::Result<(), Box<dyn StdError>> {
         for record in records.iter_mut() {
             for transformation in transformations {
                 self.apply_transformation(record, transformation)?;
@@ -563,7 +562,7 @@ impl RecordTransformer {
     }
 
     /// 应用单个转换
-    fn apply_transformation(&self, record: &mut Record, transformation: &Transformation) -> Result<(), Box<dyn StdError>> {
+    fn apply_transformation(&self, record: &mut Record, transformation: &Transformation) -> std::result::Result<(), Box<dyn StdError>> {
         match transformation {
             Transformation::Rename(old_name, new_name) => {
                 if let Some(value) = record.fields.remove(old_name) {
@@ -599,7 +598,7 @@ impl RecordTransformer {
     }
 
     /// 转换值类型
-    fn convert_value(&self, value: &DataValue, target_type: &RecordValueType) -> Result<DataValue, Box<dyn StdError>> {
+    fn convert_value(&self, value: &DataValue, target_type: &RecordValueType) -> std::result::Result<DataValue, Box<dyn StdError>> {
         match (value, target_type) {
             (DataValue::String(s) | DataValue::Text(s), RecordValueType::Integer) => {
                 match s.parse::<i64>() {

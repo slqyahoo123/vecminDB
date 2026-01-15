@@ -8,7 +8,6 @@ use tracing::{info, warn, debug, error, instrument, span, Level};
 use serde::{Serialize, Deserialize};
 use tokio::sync::RwLock;
 
-use crate::Result;
 use crate::data::feature::extractor::{
     FeatureVector, FeatureBatch, ExtractorError, InputData, ExtractorContext
 };
@@ -467,11 +466,12 @@ pub trait FeatureFuser: Send + Sync {
             0
         };
         
+        let batch_size = results.len();
         Ok(FeatureBatch {
             feature_type,
             values: results,
             extractor_type: None,
-            batch_size: results.len(),
+            batch_size,
             dimension,
             metadata: HashMap::new(),
         })
@@ -540,7 +540,7 @@ impl FeatureFuser for ConcatenationFuser {
         }
         
         // 获取第一个特征的类型（如果有多个不同类型，以第一个为准）
-        let feature_type = features[0].feature_type;
+        let feature_type = features[0].feature_type.clone();
         
         Ok(FeatureVector {
             feature_type,
@@ -652,7 +652,7 @@ impl FeatureFuser for WeightedAverageFuser {
         }
         
         // 获取特征类型（取第一个）
-        let feature_type = features[0].feature_type;
+        let feature_type = features[0].feature_type.clone();
         
         Ok(FeatureVector {
             feature_type,
@@ -674,7 +674,7 @@ impl FeatureFuser for WeightedAverageFuser {
         
         // 如果没有设置输出维度，但有特征权重，返回第一个非零权重特征的维度
         if let Some(weights) = &self.weights {
-            for (i, &w) in weights.iter().enumerate() {
+            for (_i, &w) in weights.iter().enumerate() {
                 if w > 0.0 {
                     return Some(0); // 这里应该在实际实现中获取对应特征的维度
                 }
@@ -729,10 +729,13 @@ impl AttentionFuser {
     }
     
     /// 计算注意力分数
+    ///
+    /// 使用特征向量的 L2 范数作为注意力分数的基础，并应用温度缩放。
+    /// 这种方法假设向量的幅度反映了其重要性。
     fn compute_attention_scores(&self, features: &[FeatureVector]) -> Vec<f32> {
-        // 简化实现：计算每个特征向量的二范数，将其作为注意力分数
         let mut scores = Vec::with_capacity(features.len());
         
+        // 计算每个特征向量的 L2 范数
         for feature in features {
             let norm_squared: f32 = feature.values.iter()
                 .map(|&x| x * x)
@@ -741,7 +744,7 @@ impl AttentionFuser {
             scores.push(norm);
         }
         
-        // 应用温度缩放
+        // 应用温度缩放以控制分布的平滑度
         for score in &mut scores {
             *score /= self.temperature;
         }
@@ -799,7 +802,7 @@ impl FeatureFuser for AttentionFuser {
         }
         
         // 获取特征类型（取第一个）
-        let feature_type = features[0].feature_type;
+        let feature_type = features[0].feature_type.clone();
         
         Ok(FeatureVector {
             feature_type,
@@ -859,6 +862,7 @@ mod tests {
             values: vec![1.0, 2.0, 3.0],
             extractor_type: None,
             metadata: HashMap::new(),
+            features: vec![],
         };
         
         let feature2 = FeatureVector {
@@ -866,6 +870,7 @@ mod tests {
             values: vec![4.0, 5.0],
             extractor_type: None,
             metadata: HashMap::new(),
+            features: vec![],
         };
         
         let result = fuser.fuse(vec![feature1, feature2]).await.unwrap();
@@ -884,6 +889,7 @@ mod tests {
             values: vec![1.0, 2.0, 3.0],
             extractor_type: None,
             metadata: HashMap::new(),
+            features: vec![],
         };
         
         let feature2 = FeatureVector {
@@ -891,6 +897,7 @@ mod tests {
             values: vec![4.0, 5.0, 6.0],
             extractor_type: None,
             metadata: HashMap::new(),
+            features: vec![],
         };
         
         let result = fuser.fuse(vec![feature1, feature2]).await.unwrap();
@@ -912,6 +919,7 @@ mod tests {
             values: vec![1.0, 0.0, 0.0],
             extractor_type: None,
             metadata: HashMap::new(),
+            features: vec![],
         };
         
         let feature2 = FeatureVector {
@@ -919,6 +927,7 @@ mod tests {
             values: vec![0.0, 1.0, 0.0],
             extractor_type: None,
             metadata: HashMap::new(),
+            features: vec![],
         };
         
         let feature3 = FeatureVector {
@@ -926,6 +935,7 @@ mod tests {
             values: vec![0.0, 0.0, 1.0],
             extractor_type: None,
             metadata: HashMap::new(),
+            features: vec![],
         };
         
         let result = fuser.fuse(vec![feature1, feature2, feature3]).await.unwrap();
