@@ -426,39 +426,7 @@ pub trait StorageEngine: Send + Sync {
     /// 异步返回批次数据对象
     fn get_batch_data(&self, batch_id: &str) -> Pin<Box<dyn Future<Output = Result<crate::data::DataBatch>> + Send + '_>>;
     
-    /// 保存处理后的批次
-    /// 
-    /// # 参数
-    /// - `model_id`: 模型唯一标识符
-    /// - `batch`: 处理后的数据批次
-    fn save_processed_batch(
-        &self,
-        model_id: &str,
-        batch: &crate::data::ProcessedBatch,
-    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>>;
-    
-    /// 获取训练指标历史
-    /// 
-    /// # 参数
-    /// - `model_id`: 模型唯一标识符
-    /// 
-    /// # 返回值
-    /// 异步返回训练指标历史列表
-    fn get_training_metrics_history(
-        &self,
-        model_id: &str,
-    ) -> Pin<Box<dyn Future<Output = Result<Vec<TrainingMetrics>>> + Send + '_>>;
-    
-    /// 记录训练指标
-    /// 
-    /// # 参数
-    /// - `model_id`: 模型唯一标识符
-    /// - `metrics`: 训练指标对象
-    fn record_training_metrics(
-        &self,
-        model_id: &str,
-        metrics: &TrainingMetrics,
-    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>>;
+    // Training-related methods (save_processed_batch, get_training_metrics_history, record_training_metrics) removed: vector database does not need training functionality
     
     /// 查询数据集
     /// 

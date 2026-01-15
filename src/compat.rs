@@ -198,6 +198,30 @@ pub struct TrainingResult {
     pub message: Option<String>,
 }
 
+/// 文本特征训练示例（兼容性类型，向量数据库系统不需要训练功能）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TextTrainingExample {
+    /// 输入文本
+    pub input: String,
+    /// 目标输出
+    pub target: Vec<f32>,
+    /// 标签
+    pub label: Option<String>,
+}
+
+/// 文本特征训练结果（兼容性类型，向量数据库系统不需要训练功能）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TextTrainingResult {
+    /// 训练轮数
+    pub epochs: usize,
+    /// 最终损失
+    pub final_loss: f32,
+    /// 准确率
+    pub accuracy: f32,
+    /// 训练步数
+    pub training_steps: usize,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TrainingStatus {
     Idle,

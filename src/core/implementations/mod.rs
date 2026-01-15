@@ -28,13 +28,7 @@ pub use model_impl::{
     ModelEventPublisher,
 };
 
-pub use training_impl::{
-    ProductionTaskManager,
-    ProductionOptimizer,
-    ProductionLossFunction,
-    ProductionMetricsCalculator,
-    TrainingEventPublisher,
-};
+// Training services removed: vector database does not need training functionality
 
 /// 生产级服务工厂
 /// 
@@ -74,45 +68,7 @@ impl ProductionServiceFactory {
         }
     }
 
-    /// 创建训练服务实例
-    pub fn create_training_services() -> TrainingServices {
-        let task_manager = training_impl::ProductionTaskManager::new();
-        
-        // 创建默认优化器配置
-        let optimizer_config = training_impl::OptimizerConfig {
-            momentum: Some(0.9),
-            weight_decay: Some(1e-4),
-            beta1: Some(0.9),
-            beta2: Some(0.999),
-            epsilon: Some(1e-8),
-        };
-        
-        let optimizer = training_impl::ProductionOptimizer::new(
-            training_impl::OptimizerType::Adam,
-            0.001,
-            optimizer_config,
-        );
-
-        // 创建默认损失函数配置
-        let loss_config = training_impl::LossFunctionConfig {
-            reduction: "mean".to_string(),
-            ignore_index: None,
-        };
-        
-        let loss_function = training_impl::ProductionLossFunction::new(
-            training_impl::LossFunctionType::MSE,
-            loss_config,
-        );
-
-        let metrics_calculator = training_impl::ProductionMetricsCalculator::new();
-
-        TrainingServices {
-            task_manager: std::sync::Arc::new(task_manager),
-            optimizer: std::sync::Arc::new(optimizer),
-            loss_function: std::sync::Arc::new(loss_function),
-            metrics_calculator: std::sync::Arc::new(metrics_calculator),
-        }
-    }
+    // Training services creation removed: vector database does not need training functionality
 
     /// 创建完整的生产级服务套件
     pub fn create_full_services(config: &ProductionConfig) -> crate::Result<ProductionServices> {

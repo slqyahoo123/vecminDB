@@ -423,14 +423,7 @@ pub trait ModelManagementService: Send + Sync {
     async fn list_models(&self) -> Result<Vec<ModelInfo>>;
 }
 
-/// 训练服务接口
-#[async_trait]
-pub trait TrainingService: Send + Sync {
-    async fn start_training(&self, config: TrainingConfig) -> Result<String>;
-    async fn stop_training(&self, task_id: &str) -> Result<()>;
-    async fn get_training_status(&self, task_id: &str) -> Result<TrainingStatus>;
-    async fn get_training_metrics(&self, task_id: &str) -> Result<TrainingMetrics>;
-}
+// TrainingService trait removed: vector database does not need training functionality
 
 /// 算法执行服务接口
 #[async_trait]

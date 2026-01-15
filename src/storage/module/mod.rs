@@ -14,7 +14,7 @@ mod core;
 mod data_ops;
 // mod model_ops;
 mod algorithm_ops;
-mod training_ops;
+// mod training_ops; // Removed: vector database does not need training operations
 mod permissions_ops;
 
 // 从各个子模块重新导出公共接口

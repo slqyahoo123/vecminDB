@@ -32,66 +32,7 @@ impl AlgorithmModelImpl {
 
 #[async_trait]
 impl AlgorithmModelInterface for AlgorithmModelImpl {
-    async fn train(&self, data: &[f32], labels: &[f32]) -> Result<()> {
-        // Training is intentionally not supported in vecminDB – this is a
-        // vector database, not a full training platform.
-        Err(crate::error::Error::feature_not_enabled(format!(
-            "model training for id={} ({} samples, {} labels)",
-            self.model_id,
-            data.len(),
-            labels.len()
-        )))
-    }
-
-    async fn predict(&self, data: &[f32]) -> Result<Vec<f32>> {
-        // Prediction is not performed locally; models should be served by
-        // external inference services. This adapter only exposes the
-        // contract and fails fast when incorrectly used.
-        Err(crate::error::Error::feature_not_enabled(format!(
-            "local prediction for model {} ({} inputs)",
-            self.model_id,
-            data.len()
-        )))
-    }
-
-    async fn save_model(&self, path: &str) -> Result<()> {
-        // Persisting trained models is not handled inside the vector
-        // database – this should be delegated to a dedicated model
-        // registry or storage service.
-        Err(crate::error::Error::feature_not_enabled(format!(
-            "saving model {} to {}",
-            self.model_id,
-            path
-        )))
-    }
-
-    async fn load_model(&self, path: &str) -> Result<()> {
-        // Loading models is outside the responsibility of vecminDB – the
-        // database only consumes vectorized representations.
-        Err(crate::error::Error::feature_not_enabled(format!(
-            "loading model {} from {}",
-            self.model_id,
-            path
-        )))
-    }
-
-    async fn get_parameters(&self) -> Result<HashMap<String, f32>> {
-        // Parameter inspection for training is not supported; callers
-        // should query their training / model management service instead.
-        Err(crate::error::Error::feature_not_enabled(format!(
-            "getting parameters for model {}",
-            self.model_id
-        )))
-    }
-
-    async fn set_parameters(&self, parameters: std::collections::HashMap<String, f32>) -> Result<()> {
-        // Parameter mutation is not supported inside the vector database.
-        Err(crate::error::Error::feature_not_enabled(format!(
-            "setting {} parameters for model {}",
-            parameters.len(),
-            self.model_id
-        )))
-    }
+    // Training-related methods removed: vector database does not need training functionality
 
     async fn apply_algorithm_to_model(&self, algorithm_id: &str, model_id: &str) -> Result<String> {
         // Algorithm application to models is out of scope for the core

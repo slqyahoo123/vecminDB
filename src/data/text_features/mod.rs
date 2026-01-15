@@ -16,7 +16,7 @@ pub mod encoder;
 pub mod similarity;
 pub mod language;
 pub mod model;
-pub mod training;
+// pub mod training; // Removed: vector database does not need training functionality
 pub mod inference;
 
 // Feature Extractors
@@ -123,8 +123,8 @@ pub use self::encoder::{Encoder, EncoderConfig};
 pub use self::features::{FeatureExtractor, FeatureExtractionConfig, FeatureVector, FeatureType};
 pub use self::similarity::{SimilarityCalculator, SimilarityConfig, SimilarityMethod};
 pub use self::language::{LanguageProcessor, LanguageProcessingConfig, Language};
-pub use self::model::{ProcessedText, TrainingExample, TrainingResult, ModelState};
-pub use self::training::{Trainer, TrainingConfig, Optimizer, LossFunction, MSELoss, SGD, Adam};
+pub use self::model::{ProcessedText, ModelState};
+// Training types removed: vector database does not need training functionality
 pub use self::inference::{InferenceEngine, InferenceConfig, InferenceResult, InferencePredictor, PredictionConfig};
 
 use std::collections::HashSet;

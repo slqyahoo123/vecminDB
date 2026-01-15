@@ -6,13 +6,13 @@
 use std::collections::HashMap;
 use super::error::TransformerError;
 use super::config::TransformerConfig;
-use super::model::{TransformerModel, ProcessedText, TrainingExample, TrainingResult};
+use super::model::{TransformerModel, ProcessedText};
 use super::encoder::{Encoder, EncoderConfig};
 use super::tokenizer::Tokenizer;
 use super::features::{FeatureExtractor, FeatureExtractionConfig, FeatureType};
 use super::similarity::{SimilarityCalculator, SimilarityConfig, SimilarityMethod};
 use super::language::{LanguageProcessor, LanguageProcessingConfig, Language};
-use super::training::{Trainer, TrainingConfig, Optimizer, LossFunction, MSELoss, SGD};
+// Training imports removed: vector database does not need training functionality
 use super::inference::{InferenceEngine, InferenceConfig, InferenceResult, InferencePredictor, PredictionConfig};
 
 /// 创建新的Transformer模型
@@ -47,15 +47,7 @@ pub fn create_language_processor(config: LanguageProcessingConfig) -> LanguagePr
     LanguageProcessor::new(config)
 }
 
-/// 创建新的训练器
-pub fn create_trainer(
-    config: TrainingConfig,
-    model: TransformerModel,
-    optimizer: Box<dyn Optimizer>,
-    loss_function: Box<dyn LossFunction>,
-) -> Trainer {
-    Trainer::new(config, model, optimizer, loss_function)
-}
+// Training functions removed: vector database does not need training functionality
 
 /// 创建新的推理引擎
 pub fn create_inference_engine(config: InferenceConfig, model: TransformerModel) -> InferenceEngine {
@@ -91,21 +83,7 @@ pub fn process_batch(texts: &[String]) -> Result<Vec<ProcessedText>, Transformer
     model.process_batch(texts)
 }
 
-/// 便捷的模型训练函数
-pub fn train_model(
-    training_data: &[TrainingExample],
-    config: Option<TrainingConfig>,
-) -> Result<TrainingResult, TransformerError> {
-    let model_config = TransformerConfig::default();
-    let model = TransformerModel::new(model_config)?;
-    
-    let training_config = config.unwrap_or_default();
-    let optimizer = Box::new(SGD::new(training_config.learning_rate, 0.9));
-    let loss_function = Box::new(MSELoss);
-    
-    let mut trainer = Trainer::new(training_config, model, optimizer, loss_function);
-    trainer.train(training_data.to_vec())
-}
+// Training functions removed: vector database does not need training functionality
 
 /// 便捷的推理函数
 pub fn infer_text(text: &str, config: Option<InferenceConfig>) -> Result<InferenceResult, TransformerError> {
@@ -178,10 +156,7 @@ pub fn get_default_language_config() -> LanguageProcessingConfig {
     LanguageProcessingConfig::default()
 }
 
-/// 获取默认训练配置
-pub fn get_default_training_config() -> TrainingConfig {
-    TrainingConfig::default()
-}
+// Training config functions removed: vector database does not need training functionality
 
 /// 获取默认推理配置
 pub fn get_default_inference_config() -> InferenceConfig {

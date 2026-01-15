@@ -377,107 +377,7 @@ impl ModelManagementService for ModelManagementServiceAdapter {
     }
 }
 
-// ============================================================================
-// 训练服务适配器
-// ============================================================================
-
-/// 训练任务信息
-#[derive(Debug, Clone)]
-struct TrainingTaskInfo {
-    pub id: String,
-    pub config: TrainingConfig,
-    pub status: TrainingStatus,
-    pub metrics: Option<TrainingMetrics>,
-    pub started_at: DateTime<Utc>,
-    pub completed_at: Option<DateTime<Utc>>,
-}
-
-/// 训练服务适配器
-pub struct TrainingServiceAdapter {
-    task_storage: Arc<RwLock<HashMap<String, TrainingTaskInfo>>>,
-}
-
-impl TrainingServiceAdapter {
-    pub fn new() -> Self {
-        Self {
-            task_storage: Arc::new(RwLock::new(HashMap::new())),
-        }
-    }
-}
-
-#[async_trait]
-impl TrainingService for TrainingServiceAdapter {
-    async fn start_training(&self, config: TrainingConfig) -> Result<String> {
-        let task_id = Uuid::new_v4().to_string();
-        let now = Utc::now();
-        
-        let task_info = TrainingTaskInfo {
-            id: task_id.clone(),
-            config,
-            status: TrainingStatus::Pending,
-            metrics: None,
-            started_at: now,
-            completed_at: None,
-        };
-        
-        if let Ok(mut storage) = self.task_storage.write() {
-            storage.insert(task_id.clone(), task_info);
-        }
-        
-        // 模拟异步训练开始
-        let task_storage_clone = self.task_storage.clone();
-        let task_id_clone = task_id.clone();
-        tokio::spawn(async move {
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-            if let Ok(mut storage) = task_storage_clone.write() {
-                if let Some(task) = storage.get_mut(&task_id_clone) {
-                    task.status = TrainingStatus::Running;
-                }
-            }
-        });
-        
-        Ok(task_id)
-    }
-    
-    async fn stop_training(&self, task_id: &str) -> Result<()> {
-        if let Ok(mut storage) = self.task_storage.write() {
-            if let Some(task) = storage.get_mut(task_id) {
-                task.status = TrainingStatus::Cancelled;
-                task.completed_at = Some(Utc::now());
-                Ok(())
-            } else {
-                Err(Error::not_found(format!("训练任务 {} 不存在", task_id)))
-            }
-        } else {
-            Err(Error::storage_error("无法写入任务存储"))
-        }
-    }
-    
-    async fn get_training_status(&self, task_id: &str) -> Result<TrainingStatus> {
-        if let Ok(storage) = self.task_storage.read() {
-            if let Some(task) = storage.get(task_id) {
-                Ok(task.status.clone())
-            } else {
-                Err(Error::not_found(format!("训练任务 {} 不存在", task_id)))
-            }
-        } else {
-            Err(Error::storage_error("无法读取任务存储"))
-        }
-    }
-    
-    async fn get_training_metrics(&self, task_id: &str) -> Result<TrainingMetrics> {
-        if let Ok(storage) = self.task_storage.read() {
-            if let Some(task) = storage.get(task_id) {
-                task.metrics.clone()
-                    .ok_or_else(|| Error::not_found(format!("训练任务 {} 暂无指标", task_id)))
-            } else {
-                Err(Error::not_found(format!("训练任务 {} 不存在", task_id)))
-            }
-        } else {
-            Err(Error::storage_error("无法读取任务存储"))
-        }
-    }
-}
+// Training service adapter removed: vector database does not need training functionality
 
 // ============================================================================
 // 算法执行服务适配器
@@ -673,10 +573,7 @@ impl AdapterFactory {
         Arc::new(ModelManagementServiceAdapter::new())
     }
     
-    /// 创建训练服务适配器
-    pub fn create_training_service_adapter() -> Arc<dyn TrainingService> {
-        Arc::new(TrainingServiceAdapter::new())
-    }
+    // Training service adapter creation removed: vector database does not need training functionality
     
     /// 创建算法执行服务适配器
     pub fn create_algorithm_service_adapter() -> Arc<dyn AlgorithmExecutionService> {
@@ -712,11 +609,7 @@ impl Default for ModelManagementServiceAdapter {
     }
 }
 
-impl Default for TrainingServiceAdapter {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+// TrainingServiceAdapter Default implementation removed: vector database does not need training functionality
 
 impl Default for AlgorithmExecutionServiceAdapter {
     fn default() -> Self {
@@ -775,36 +668,7 @@ mod tests {
         assert_eq!(retrieved_model.unwrap().name, "test_model");
     }
 
-    #[tokio::test]
-    async fn test_training_service_adapter() {
-        let adapter = TrainingServiceAdapter::new();
-        
-        let config = TrainingConfig {
-            model_id: "test_model".to_string(),
-            dataset_id: "test_dataset".to_string(),
-            hyperparameters: TrainingHyperparameters {
-                learning_rate: 0.001,
-                batch_size: 32,
-                epochs: 10,
-                optimizer: OptimizerConfig::Adam {
-                    beta1: 0.9,
-                    beta2: 0.999,
-                    eps: 1e-8,
-                },
-                loss_function: "mse".to_string(),
-            },
-            device: UnifiedDevice::CPU,
-            metadata: HashMap::new(),
-        };
-        
-        let task_id = adapter.start_training(config).await.unwrap();
-        let status = adapter.get_training_status(&task_id).await.unwrap();
-        
-        match status {
-            TrainingStatus::Pending => {},
-            _ => panic!("期望状态为Pending"),
-        }
-    }
+    // Training service adapter test removed: vector database does not need training functionality
 
     #[tokio::test]
     async fn test_algorithm_execution_adapter() {

@@ -219,45 +219,7 @@ impl TransformerModel {
         Ok(results)
     }
     
-    /// 训练模型
-    pub fn train(&mut self, training_data: &[TrainingExample]) -> Result<TrainingResult, TransformerError> {
-        if training_data.is_empty() {
-            return Err(TransformerError::InputError("训练数据为空".to_string()));
-        }
-        
-        self.state.is_training = true;
-        self.state.training_steps = 0;
-        
-        // Training is not supported in vecminDB - this is a vector database, not a training platform
-        Err(TransformerError::Internal(format!(
-            "model training is not supported in vecminDB (attempted to train with {} examples)",
-            training_data.len()
-        )))
-    }
-    
-    /// 训练单个批次
-    fn train_batch(&mut self, batch: &[TrainingExample]) -> Result<f32, TransformerError> {
-        let mut batch_loss = 0.0;
-        
-        for example in batch {
-            // 处理输入文本
-            let processed = self.process_text(&example.input)?;
-            
-            // 计算预测
-            let prediction = self.predict(&processed.encoded)?;
-            
-            // 计算损失
-            let loss = self.calculate_loss(&prediction, &example.target)?;
-            batch_loss += loss;
-            
-            // Update parameters (training not supported in vecminDB)
-            self.update_parameters(&processed.encoded, &example.target)?;
-            
-            self.state.training_steps += 1;
-        }
-        
-        Ok(batch_loss / batch.len() as f32)
-    }
+    // Training methods removed: vector database does not need training functionality
     
     /// 预测
     fn predict(&self, encoded: &[f32]) -> Result<Vec<f32>, TransformerError> {
@@ -266,31 +228,7 @@ impl TransformerModel {
         Ok(encoded.to_vec())
     }
     
-    /// 计算损失
-    fn calculate_loss(&self, prediction: &[f32], target: &[f32]) -> Result<f32, TransformerError> {
-        if prediction.len() != target.len() {
-            return Err(TransformerError::dimension_mismatch(
-                format!("{}", prediction.len()),
-                format!("{}", target.len())
-            ));
-        }
-        
-        // 使用均方误差损失
-        let mut loss = 0.0;
-        for (pred, targ) in prediction.iter().zip(target.iter()) {
-            let diff = pred - targ;
-            loss += diff * diff;
-        }
-        
-        Ok(loss / prediction.len() as f32)
-    }
-    
-    /// 更新参数
-    fn update_parameters(&mut self, _input: &[f32], _target: &[f32]) -> Result<(), TransformerError> {
-        // 简化的参数更新实现
-        // 在实际应用中，这里应该实现真正的梯度下降
-        Ok(())
-    }
+    // Training-related methods (calculate_loss, update_parameters) removed: vector database does not need training functionality
     
     /// 保存模型
     pub fn save_model(&self, path: &str) -> Result<(), TransformerError> {
@@ -388,29 +326,8 @@ pub struct ProcessedText {
     pub metadata: HashMap<String, String>,
 }
 
-/// 训练示例
-#[derive(Debug, Clone)]
-pub struct TrainingExample {
-    /// 输入文本
-    pub input: String,
-    /// 目标输出
-    pub target: Vec<f32>,
-    /// 标签
-    pub label: Option<String>,
-}
-
-/// 训练结果
-#[derive(Debug, Clone)]
-pub struct TrainingResult {
-    /// 训练轮数
-    pub epochs: usize,
-    /// 最终损失
-    pub final_loss: f32,
-    /// 准确率
-    pub accuracy: f32,
-    /// 训练步数
-    pub training_steps: usize,
-}
+// Training types (TrainingExample, TrainingResult) moved to compat.rs for backward compatibility
+// Vector database does not need training functionality
 
 /// 模型数据（用于序列化）
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

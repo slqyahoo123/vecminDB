@@ -805,15 +805,7 @@ impl StorageEngineImpl {
         self.distributed_manager.save_distributed_task_info(task_id, task_info).await
     }
 
-    /// 获取分布式任务信息
-    pub async fn get_distributed_task_info(&self, task_id: &str) -> Result<Option<crate::storage::engine::types::DistributedTaskInfo>> {
-        self.distributed_manager.get_distributed_task_info(task_id).await
-    }
-
-    /// 获取节点任务状态
-    pub async fn get_node_task_status(&self, task_id: &str, node_id: &str) -> Result<Option<crate::storage::engine::types::TaskStatus>> {
-        self.distributed_manager.get_node_task_status(task_id, node_id).await
-    }
+    // Distributed training task methods removed: vector database does not need training functionality
 
     /// 获取模型参数
     pub async fn save_model_parameters(&self, model_id: &str, parameters: &crate::model::parameters::ModelParameters) -> Result<()> {
@@ -985,34 +977,7 @@ impl StorageEngineImpl {
         }
     }
 
-    /// 获取任务指标
-    pub async fn get_task_metrics(&self, task_id: &str) -> Result<Option<HashMap<String, f32>>> {
-        let key = format!("task:{}:metrics", task_id);
-        let db = self.db.read().await;
-        if let Some(data) = db.get(key.as_bytes())? {
-            let metrics: HashMap<String, f32> = bincode::deserialize(data.as_ref())?;
-            Ok(Some(metrics))
-        } else {
-            Ok(None)
-        }
-    }
-
-    /// 删除训练任务
-    pub async fn delete_training_task(&self, task_id: &str) -> Result<()> {
-        let db = self.db.write().await;
-        
-        // 删除任务相关的所有数据
-        let task_prefix = format!("task:{}", task_id);
-        let task_keys: Vec<_> = db.scan_prefix(task_prefix.as_bytes())
-            .filter_map(|result| result.ok())
-            .collect();
-        
-        for (key, _) in task_keys {
-            db.remove(&key)?;
-        }
-        
-        Ok(())
-    }
+    // Training task methods removed: vector database does not need training functionality
 
     /// 更新模型访问时间
     pub async fn update_model_access_time(&self, model_id: &str, access_time: chrono::DateTime<chrono::Utc>) -> Result<()> {

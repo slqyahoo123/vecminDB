@@ -389,23 +389,7 @@ pub trait AlgorithmModelInterface: Send + Sync {
     /// 验证算法模型兼容性
     async fn validate_compatibility(&self, algorithm_id: &str, model_id: &str) -> Result<ValidationResult>;
     
-    /// 训练模型
-    async fn train(&self, data: &[f32], labels: &[f32]) -> Result<()>;
-    
-    /// 预测
-    async fn predict(&self, data: &[f32]) -> Result<Vec<f32>>;
-    
-    /// 保存模型
-    async fn save_model(&self, path: &str) -> Result<()>;
-    
-    /// 加载模型
-    async fn load_model(&self, path: &str) -> Result<()>;
-    
-    /// 获取参数
-    async fn get_parameters(&self) -> Result<std::collections::HashMap<String, f32>>;
-    
-    /// 设置参数
-    async fn set_parameters(&self, parameters: std::collections::HashMap<String, f32>) -> Result<()>;
+    // Training-related methods removed: vector database does not need training functionality
 }
 
 /// 监控接口
@@ -468,13 +452,7 @@ pub trait MonitoringInterface: Send + Sync {
 #[async_trait::async_trait]
 pub trait ModelInterface: Send + Sync {
     fn get_model_id(&self) -> String;
-    fn get_model_parameters(&self) -> Vec<f32>;
-    fn set_model_parameters(&self, parameters: Vec<f32>);
-    fn train_step(&self, inputs: &[f32], targets: &[f32]) -> Result<f32>;
-    fn evaluate(&self, inputs: &[f32], targets: &[f32]) -> Result<f32>;
-    fn predict(&self, inputs: &[f32]) -> Result<Vec<f32>>;
-    fn save_model(&self, path: &str) -> Result<()>;
-    fn load_model(&self, path: &str) -> Result<()>;
+    // Training-related methods removed: vector database does not need training functionality
     
     /// 获取模型ID
     fn id(&self) -> &str;
@@ -497,17 +475,7 @@ pub trait ModelInterface: Send + Sync {
     /// 设置模型状态
     fn set_state(&mut self, state: crate::model::interface::ModelState) -> Result<()>;
     
-    /// 获取模型参数
-    async fn get_parameters(&self) -> Result<HashMap<String, crate::model::tensor::TensorData>>;
-    
-    /// 设置模型参数
-    async fn set_parameters(&mut self, parameters: HashMap<String, crate::model::tensor::TensorData>) -> Result<()>;
-    
-    /// 获取优化器状态
-    async fn get_optimizer_state(&self) -> Result<HashMap<String, crate::model::tensor::TensorData>>;
-    
-    /// 设置优化器状态
-    async fn set_optimizer_state(&mut self, state: HashMap<String, crate::model::tensor::TensorData>) -> Result<()>;
+    // Training-related parameter and optimizer methods removed: vector database does not need training functionality
     
     /// 获取模型元数据
     async fn get_metadata(&self) -> Result<HashMap<String, String>>;
