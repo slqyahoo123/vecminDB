@@ -306,7 +306,7 @@ impl ExecutionEnvironment {
                     return Err(Error::internal("资源监控通道已关闭"));
                 }
                 Err(_) => {
-                    return Err(Error::deadline_exceeded("获取资源使用情况超时"));
+                    return Err(Error::timeout("获取资源使用情况超时"));
                 }
             }
         }

@@ -5,7 +5,7 @@ use crate::data::pipeline::{
     ImportPipelineBuilder, Pipeline, PipelineStage, PipelineContext, PipelineResult,
 };
 use crate::data::pipeline::monitor::PipelineMonitor;
-use crate::error::{Result, Error};
+use crate::error::Result;
 
 // 添加类型定义以临时解决导入问题
 struct TransformPipeline {
@@ -67,7 +67,7 @@ impl Pipeline for TransformPipeline {
         &self.name
     }
     
-    fn add_stage(&mut self, stage: Arc<dyn PipelineStage>) -> Result<(), Error> {
+    fn add_stage(&mut self, stage: Arc<dyn PipelineStage>) -> Result<()> {
         self.stages.push(stage);
         Ok(())
     }
@@ -106,7 +106,7 @@ impl Pipeline for ValidationPipeline {
         &self.name
     }
     
-    fn add_stage(&mut self, stage: Arc<dyn PipelineStage>) -> Result<(), Error> {
+    fn add_stage(&mut self, stage: Arc<dyn PipelineStage>) -> Result<()> {
         self.stages.push(stage);
         Ok(())
     }
@@ -145,7 +145,7 @@ impl Pipeline for VisualizationPipeline {
         &self.name
     }
     
-    fn add_stage(&mut self, stage: Arc<dyn PipelineStage>) -> Result<(), Error> {
+    fn add_stage(&mut self, stage: Arc<dyn PipelineStage>) -> Result<()> {
         self.stages.push(stage);
         Ok(())
     }

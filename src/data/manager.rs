@@ -16,7 +16,9 @@ use crate::core::types::{CoreDataSchema, CoreSchemaField, CoreTensorData, CoreFi
 use crate::data::connector::{DatabaseConnectorFactory, DatabaseType, DatabaseConfig, QueryParams};
 use std::pin::Pin;
 use url::Url;
-use log::{info, warn};
+use log::info;
+#[cfg(feature = "websocket")]
+use log::warn;
 use futures::StreamExt;
 
 /// 数据集类型
@@ -226,12 +228,14 @@ impl DataManager {
         }
         
         // 读取数据文件
-        let mut file = WithErrorContext::context(File::open(data_path).await
-            .map_err(|e| Error::Io(e)), "无法打开数据文件")?;
+        let mut file = File::open(data_path).await
+            .map_err(|e| Error::Io(e))
+            .with_context("无法打开数据文件")?;
         
         let mut buffer = Vec::new();
-        WithErrorContext::context(file.read_to_end(&mut buffer).await
-            .map_err(|e| Error::Io(e)), "无法读取数据文件")?;
+        file.read_to_end(&mut buffer).await
+            .map_err(|e| Error::Io(e))
+            .with_context("无法读取数据文件")?;
         
         // 存储数据到存储引擎
         let now = chrono::Utc::now().timestamp();
@@ -248,10 +252,10 @@ impl DataManager {
         
         // 存储数据和元数据
         self.storage.put_data(&dataset_id, &buffer).await
-            .map_err(|e| Error::data(format!("无法存储数据内容: {}", e)))?;
+            .map_err(|e| Error::storage(format!("无法存储数据内容: {}", e)))?;
         
         self.storage.put_dataset(&dataset_id, &dataset).await
-            .map_err(|e| Error::data(format!("无法存储数据集元数据: {}", e)))?;
+            .map_err(|e| Error::storage(format!("无法存储数据集元数据: {}", e)))?;
         
         // 更新缓存
         let mut cache = self.cache.lock().map_err(|_| Error::Lock("无法锁定数据缓存".to_string()))?;
@@ -319,11 +323,11 @@ impl DataManager {
     /// 异步读取文件数据
     pub async fn read_file_async(&self, file_path: &Path) -> Result<Vec<u8>> {
         let mut file = File::open(file_path).await
-            .map_err(|e| Error::new(&format!("无法打开文件 {:?}: {}", file_path, e)))?;
+            .map_err(|e| Error::io_error(format!("无法打开文件 {:?}: {}", file_path, e)))?;
         
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer).await
-            .map_err(|e| Error::new(&format!("读取文件失败: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("读取文件失败: {}", e)))?;
         
         Ok(buffer)
     }
@@ -331,14 +335,14 @@ impl DataManager {
     /// 异步读取文件数据块
     pub async fn read_file_chunk_async(&self, file_path: &Path, chunk_size: usize) -> Result<Vec<Vec<u8>>> {
         let mut file = File::open(file_path).await
-            .map_err(|e| Error::new(&format!("无法打开文件 {:?}: {}", file_path, e)))?;
+            .map_err(|e| Error::io_error(format!("无法打开文件 {:?}: {}", file_path, e)))?;
         
         let mut chunks = Vec::new();
         let mut buffer = vec![0u8; chunk_size];
         
         loop {
             let bytes_read = file.read(&mut buffer).await
-                .map_err(|e| Error::new(&format!("读取文件块失败: {}", e)))?;
+                .map_err(|e| Error::io_error(format!("读取文件块失败: {}", e)))?;
             
             if bytes_read == 0 {
                 break;
@@ -410,11 +414,11 @@ impl DataManager {
         
         // 获取原始数据
         let raw_data = self.get_raw_data(dataset_id).await?
-            .ok_or_else(|| Error::data(format!("找不到数据集: {}", dataset_id)))?;
+            .ok_or_else(|| Error::invalid_data(format!("找不到数据集: {}", dataset_id)))?;
         
         // 获取数据集元数据
         let dataset = self.get_dataset(dataset_id)?
-            .ok_or_else(|| Error::data(format!("找不到数据集元数据: {}", dataset_id)))?;
+            .ok_or_else(|| Error::invalid_data(format!("找不到数据集元数据: {}", dataset_id)))?;
         
         // 进行数据处理逻辑
         // 生产级实现：根据配置进行真正的数据处理转换
@@ -441,10 +445,10 @@ impl DataManager {
         
         // 存储处理后的数据和元数据
         self.storage.put_data(&processed_id, &processed_data).await
-            .map_err(|e| Error::data(format!("无法存储处理后的数据: {}", e)))?;
+            .map_err(|e| Error::invalid_data(format!("无法存储处理后的数据: {}", e)))?;
         
         self.storage.put_dataset(&processed_id, &processed_dataset).await
-            .map_err(|e| Error::data(format!("无法存储处理后的数据集元数据: {}", e)))?;
+            .map_err(|e| Error::invalid_data(format!("无法存储处理后的数据集元数据: {}", e)))?;
         
         // 更新缓存
         let mut cache = self.cache.lock().map_err(|_| Error::Lock("无法锁定数据缓存".to_string()))?;
@@ -472,7 +476,7 @@ impl DataManager {
         } else if let Some(raw_data) = self.get_raw_data(dataset_id).await? {
             raw_data
         } else {
-            return Err(Error::data(format!("找不到数据集: {}", dataset_id)));
+            return Err(Error::invalid_data(format!("找不到数据集: {}", dataset_id)));
         };
         
         // 生产级实现：根据batch_index和batch_size截取相应部分
@@ -480,14 +484,14 @@ impl DataManager {
         let end_idx = std::cmp::min(start_idx + batch_size, data.len());
         
         if start_idx >= data.len() {
-            return Err(Error::data(format!("批次索引超出范围: batch_index={}, data_len={}", batch_index, data.len())));
+            return Err(Error::invalid_data(format!("批次索引超出范围: batch_index={}, data_len={}", batch_index, data.len())));
         }
         
         let batch_data = data[start_idx..end_idx].to_vec();
         
         // 获取数据集以提取标签字段信息
         let dataset = self.get_dataset(dataset_id)?
-            .ok_or_else(|| Error::data(format!("找不到数据集元数据: {}", dataset_id)))?;
+            .ok_or_else(|| Error::invalid_data(format!("找不到数据集元数据: {}", dataset_id)))?;
         
         // 从元数据中提取标签字段（create_batch 方法没有 config 参数，使用默认配置）
         let default_config = DataProcessConfig {
@@ -607,11 +611,11 @@ impl DataManager {
         
         // 获取原始数据
         let raw_data = self.get_raw_data(dataset_id).await?
-            .ok_or_else(|| Error::data(format!("找不到数据集: {}", dataset_id)))?;
+            .ok_or_else(|| Error::invalid_data(format!("找不到数据集: {}", dataset_id)))?;
         
         // 获取数据集元数据
         let dataset = self.get_dataset(dataset_id)?
-            .ok_or_else(|| Error::data(format!("找不到数据集元数据: {}", dataset_id)))?;
+            .ok_or_else(|| Error::invalid_data(format!("找不到数据集元数据: {}", dataset_id)))?;
         
         // 创建数据批次
         let batch = DataBatch {
@@ -659,7 +663,7 @@ impl DataManager {
     pub fn create_batch_iterator(&self, dataset_id: &str, batch_size: usize) -> Result<crate::data::iterator::DataBatchIterator> {
         // 获取数据集元数据
         let dataset = self.get_dataset(dataset_id)?
-            .ok_or_else(|| Error::data(format!("找不到数据集元数据: {}", dataset_id)))?;
+            .ok_or_else(|| Error::invalid_data(format!("找不到数据集元数据: {}", dataset_id)))?;
         
         // 创建数据加载器适配器
         let loader = Arc::new(StorageDataLoader::new(self.storage.clone()));
@@ -676,8 +680,9 @@ impl DataManager {
         let dataset_id = format!("file_{}", uuid::Uuid::new_v4());
         
         // 读取文件数据
-        let data = WithErrorContext::context(tokio::fs::read(file_path).await
-            .map_err(|e| Error::Io(e)), "无法读取文件")?;
+        let data = tokio::fs::read(file_path).await
+            .map_err(|e| Error::Io(e))
+            .with_context("无法读取文件")?;
         
         // 创建核心数据批次
         let data_batch = crate::core::types::CoreDataBatch {
@@ -755,11 +760,11 @@ impl DataManager {
         
         // 创建数据库连接器
         let mut connector = DatabaseConnectorFactory::create_connector(db_config)
-            .map_err(|e| Error::data(format!("无法创建数据库连接器: {}", e)))?;
+            .map_err(|e| Error::invalid_data(format!("无法创建数据库连接器: {}", e)))?;
         
         // 连接到数据库
         Pin::from(connector.connect()).await
-            .map_err(|e| Error::data(format!("数据库连接失败: {}", e)))?;
+            .map_err(|e| Error::invalid_data(format!("数据库连接失败: {}", e)))?;
         
         // 构建查询参数
         // 如果没有指定表，尝试查询系统表获取可用表列表
@@ -787,11 +792,11 @@ impl DataManager {
         
         // 执行查询
         let data_batch_result = Pin::from(connector.query(&query_params)).await
-            .map_err(|e| Error::data(format!("数据库查询失败: {}", e)))?;
+            .map_err(|e| Error::invalid_data(format!("数据库查询失败: {}", e)))?;
         
         // 获取数据库模式
         let schema_result = Pin::from(connector.get_schema(table.as_deref())).await
-            .map_err(|e| Error::data(format!("获取数据库模式失败: {}", e)))?;
+            .map_err(|e| Error::invalid_data(format!("获取数据库模式失败: {}", e)))?;
         
         // 断开数据库连接
         let _ = Pin::from(connector.disconnect()).await;
@@ -969,73 +974,65 @@ impl DataManager {
     /// 
     /// 生产级实现：真正调用HTTP API，解析响应，并将结果转换为 CoreDataBatch
     pub async fn load_from_api(&self, api_endpoint: &str) -> Result<(crate::core::types::CoreDataBatch, CoreDataSchema)> {
-        let dataset_id = format!("api_{}", uuid::Uuid::new_v4());
+        let _dataset_id = format!("api_{}", uuid::Uuid::new_v4());
         
         info!("从API端点加载数据: {}", api_endpoint);
         
         // 创建HTTP客户端
-        #[cfg(feature = "multimodal")]
-        let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(30))
-            .build()
-            .map_err(|e| Error::data(format!("无法创建HTTP客户端: {}", e)))?;
         #[cfg(not(feature = "multimodal"))]
         return Err(Error::feature_not_enabled("multimodal"));
         
-        // 发送HTTP请求
         #[cfg(feature = "multimodal")]
-        let response = client
-            .get(api_endpoint)
-            .send()
-            .await
-            .map_err(|e| Error::data(format!("API请求失败: {}", e)))?;
-        
-        // 检查响应状态
-        #[cfg(feature = "multimodal")]
-        if !response.status().is_success() {
-            return Err(Error::data(format!("API返回错误状态: {}", response.status())));
+        {
+            let client = reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(30))
+                .build()
+                .map_err(|e| Error::invalid_data(format!("无法创建HTTP客户端: {}", e)))?;
+            
+            // 发送HTTP请求
+            let response = client
+                .get(api_endpoint)
+                .send()
+                .await
+                .map_err(|e| Error::invalid_data(format!("API请求失败: {}", e)))?;
+            
+            // 检查响应状态
+            if !response.status().is_success() {
+                return Err(Error::invalid_data(format!("API返回错误状态: {}", response.status())));
+            }
+            
+            // 解析响应为JSON
+            let json_value: serde_json::Value = response
+                .json()
+                .await
+                .map_err(|e| Error::invalid_data(format!("无法解析API响应为JSON: {}", e)))?;
+            
+            // 将JSON响应转换为 CoreTensorData 向量
+            let core_tensors = Self::convert_json_to_core_tensors(&json_value)?;
+            
+            // 从JSON响应推断schema
+            let core_schema = Self::infer_schema_from_json(&json_value, &_dataset_id)?;
+            
+            // 创建 CoreDataBatch
+            let core_data_batch = crate::core::types::CoreDataBatch {
+                id: _dataset_id.clone(),
+                data: core_tensors.clone(),
+                labels: None,
+                batch_size: core_tensors.len(),
+                metadata: Some({
+                    let mut metadata = HashMap::new();
+                    metadata.insert("source_type".to_string(), "api".to_string());
+                    metadata.insert("api_endpoint".to_string(), api_endpoint.to_string());
+                    metadata.insert("response_size".to_string(), core_tensors.len().to_string());
+                    metadata.insert("raw_response".to_string(), serde_json::to_string(&json_value).unwrap_or_default());
+                    metadata
+                }),
+                created_at: chrono::Utc::now(),
+                updated_at: chrono::Utc::now(),
+            };
+            
+            Ok((core_data_batch, core_schema))
         }
-        
-        // 解析响应为JSON
-        #[cfg(feature = "multimodal")]
-        let json_value: serde_json::Value = response
-            .json()
-            .await
-            .map_err(|e| Error::data(format!("无法解析API响应为JSON: {}", e)))?;
-        #[cfg(not(feature = "multimodal"))]
-        let json_value = serde_json::Value::Null;
-        
-        // 将JSON响应转换为 CoreTensorData 向量
-        #[cfg(feature = "multimodal")]
-        let core_tensors = Self::convert_json_to_core_tensors(&json_value)?;
-        #[cfg(not(feature = "multimodal"))]
-        let core_tensors = vec![];
-        
-        // 从JSON响应推断schema
-        #[cfg(feature = "multimodal")]
-        let core_schema = Self::infer_schema_from_json(&json_value, &dataset_id)?;
-        #[cfg(not(feature = "multimodal"))]
-        let core_schema = CoreDataSchema::default();
-        
-        // 创建 CoreDataBatch
-        let core_data_batch = crate::core::types::CoreDataBatch {
-            id: dataset_id.clone(),
-            data: core_tensors.clone(),
-            labels: None,
-            batch_size: core_tensors.len(),
-            metadata: Some({
-                let mut metadata = HashMap::new();
-                metadata.insert("source_type".to_string(), "api".to_string());
-                metadata.insert("api_endpoint".to_string(), api_endpoint.to_string());
-                metadata.insert("response_size".to_string(), core_tensors.len().to_string());
-                metadata.insert("raw_response".to_string(), serde_json::to_string(&json_value).unwrap_or_default());
-                metadata
-            }),
-            created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
-        };
-        
-        Ok((core_data_batch, core_schema))
     }
     
     /// 将JSON值转换为 CoreTensorData 向量
@@ -1228,88 +1225,98 @@ impl DataManager {
             .and_then(|v| v.as_str())
             .unwrap_or("websocket");
         
+        #[allow(unused_mut)]
         let mut collected_data = Vec::new();
         let max_duration = config.get("duration")
             .and_then(|v| v.as_u64())
             .unwrap_or(10) as u64;
         
+        #[cfg(not(feature = "websocket"))]
+        if stream_type == "websocket" {
+            return Err(Error::feature_not_enabled("websocket"));
+        }
+        
+        #[cfg(not(feature = "multimodal"))]
+        if stream_type == "http_stream" || stream_type == "sse" {
+            return Err(Error::feature_not_enabled("multimodal"));
+        }
+        
         match stream_type {
             "websocket" => {
-                // 处理WebSocket流
-                let url = config.get("url")
-                    .and_then(|v| v.as_str())
-                    .ok_or_else(|| Error::invalid_argument("WebSocket URL未指定"))?;
-                
-                // 连接到WebSocket并收集数据
-                let (ws_stream, _) = tokio_tungstenite::connect_async(url)
-                    .await
-                    .map_err(|e| Error::data(format!("WebSocket连接失败: {}", e)))?;
-                
-                let (_, mut read) = ws_stream.split();
-                let timeout = tokio::time::Duration::from_secs(max_duration);
-                let start_time = std::time::Instant::now();
-                
-                // 在超时时间内收集数据
-                while start_time.elapsed() < timeout {
-                    match tokio::time::timeout(
-                        tokio::time::Duration::from_millis(100),
-                        read.next()
-                    ).await {
-                        Ok(Some(Ok(message))) => {
-                            if let Ok(text) = message.to_text() {
-                                if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(text) {
-                                    collected_data.push(json_value);
+                #[cfg(feature = "websocket")]
+                {
+                    // 处理WebSocket流
+                    let url = config.get("url")
+                        .and_then(|v| v.as_str())
+                        .ok_or_else(|| Error::invalid_argument("WebSocket URL未指定"))?;
+                    
+                    // 连接到WebSocket并收集数据
+                    let (ws_stream, _) = tokio_tungstenite::connect_async(url)
+                        .await
+                        .map_err(|e| Error::invalid_data(format!("WebSocket连接失败: {}", e)))?;
+                    
+                    let (_, mut read) = ws_stream.split();
+                    let timeout = tokio::time::Duration::from_secs(max_duration);
+                    let start_time = std::time::Instant::now();
+                    
+                    // 在超时时间内收集数据
+                    while start_time.elapsed() < timeout {
+                        match tokio::time::timeout(
+                            tokio::time::Duration::from_millis(100),
+                            read.next()
+                        ).await {
+                            Ok(Some(Ok(message))) => {
+                                if let Ok(text) = message.to_text() {
+                                    if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(text) {
+                                        collected_data.push(json_value);
+                                    }
                                 }
                             }
+                            Ok(Some(Err(e))) => {
+                                warn!("WebSocket消息接收错误: {}", e);
+                                break;
+                            }
+                            Ok(None) => break,
+                            Err(_) => continue, // 超时，继续等待
                         }
-                        Ok(Some(Err(e))) => {
-                            warn!("WebSocket消息接收错误: {}", e);
-                            break;
-                        }
-                        Ok(None) => break,
-                        Err(_) => continue, // 超时，继续等待
                     }
                 }
             }
             "http_stream" | "sse" => {
-                // 处理HTTP流或Server-Sent Events
-                let url = config.get("url")
-                    .and_then(|v| v.as_str())
-                    .ok_or_else(|| Error::invalid_argument("HTTP流URL未指定"))?;
-                
                 #[cfg(feature = "multimodal")]
-                let client = reqwest::Client::builder()
-                    .timeout(std::time::Duration::from_secs(max_duration))
-                    .build()
-                    .map_err(|e| Error::data(format!("无法创建HTTP客户端: {}", e)))?;
-                #[cfg(not(feature = "multimodal"))]
-                return Err(Error::feature_not_enabled("multimodal"));
-                
-                #[cfg(feature = "multimodal")]
-                let response = client
-                    .get(url)
-                    .send()
-                    .await
-                    .map_err(|e| Error::data(format!("HTTP流请求失败: {}", e)))?;
-                
-                // 检查响应状态
-                #[cfg(feature = "multimodal")]
-                if !response.status().is_success() {
-                    return Err(Error::data(format!("HTTP流返回错误状态: {}", response.status())));
-                }
-                
-                // 读取响应体
-                #[cfg(feature = "multimodal")]
-                let text = response
-                    .text()
-                    .await
-                    .map_err(|e| Error::data(format!("无法读取HTTP流响应: {}", e)))?;
-                
-                // 按行解析JSON数据
-                #[cfg(feature = "multimodal")]
-                for line in text.lines() {
-                    if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(line) {
-                        collected_data.push(json_value);
+                {
+                    // 处理HTTP流或Server-Sent Events
+                    let url = config.get("url")
+                        .and_then(|v| v.as_str())
+                        .ok_or_else(|| Error::invalid_argument("HTTP流URL未指定"))?;
+                    
+                    let client = reqwest::Client::builder()
+                        .timeout(std::time::Duration::from_secs(max_duration))
+                        .build()
+                        .map_err(|e| Error::invalid_data(format!("无法创建HTTP客户端: {}", e)))?;
+                    
+                    let response = client
+                        .get(url)
+                        .send()
+                        .await
+                        .map_err(|e| Error::invalid_data(format!("HTTP流请求失败: {}", e)))?;
+                    
+                    // 检查响应状态
+                    if !response.status().is_success() {
+                        return Err(Error::invalid_data(format!("HTTP流返回错误状态: {}", response.status())));
+                    }
+                    
+                    // 读取响应体
+                    let text = response
+                        .text()
+                        .await
+                        .map_err(|e| Error::invalid_data(format!("无法读取HTTP流响应: {}", e)))?;
+                    
+                    // 按行解析JSON数据
+                    for line in text.lines() {
+                        if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(line) {
+                            collected_data.push(json_value);
+                        }
                     }
                 }
             }
@@ -1387,7 +1394,7 @@ impl DataManager {
             if let Ok(Some(raw_data)) = self.storage.get_data(memory_ref).await {
                 // 解析原始数据
                 let json_value: serde_json::Value = serde_json::from_slice(&raw_data)
-                    .map_err(|e| Error::data(format!("无法解析内存数据: {}", e)))?;
+                    .map_err(|e| Error::invalid_data(format!("无法解析内存数据: {}", e)))?;
                 
                 // 转换为 CoreTensorData
                 let core_tensors = Self::convert_json_to_core_tensors(&json_value)?;
@@ -1442,7 +1449,7 @@ impl DataManager {
         }
         
         // 如果都无法解析，返回错误
-        Err(Error::data(format!("无法从内存引用加载数据: {}", memory_ref)))
+        Err(Error::invalid_data(format!("无法从内存引用加载数据: {}", memory_ref)))
     }
     
     /// 根据配置处理数据
@@ -1455,14 +1462,14 @@ impl DataManager {
             "json" => {
                 // 解析JSON数据
                 let json_value: serde_json::Value = serde_json::from_slice(raw_data)
-                    .map_err(|e| Error::data(format!("无法解析JSON数据: {}", e)))?;
+                    .map_err(|e| Error::invalid_data(format!("无法解析JSON数据: {}", e)))?;
                 
                 // 根据配置进行数据转换
                 let processed_json = Self::transform_json_data(&json_value, config)?;
                 
                 // 序列化回JSON
                 serde_json::to_vec(&processed_json)
-                    .map_err(|e| Error::data(format!("无法序列化处理后的JSON: {}", e)))
+                    .map_err(|e| Error::invalid_data(format!("无法序列化处理后的JSON: {}", e)))
             }
             "csv" => {
                 // 解析CSV数据
@@ -1470,7 +1477,7 @@ impl DataManager {
                 let mut records = Vec::new();
                 
                 for result in reader.deserialize::<HashMap<String, String>>() {
-                    let record = result.map_err(|e| Error::data(format!("CSV解析错误: {}", e)))?;
+                    let record = result.map_err(|e| Error::invalid_data(format!("CSV解析错误: {}", e)))?;
                     records.push(record);
                 }
                 
@@ -1481,11 +1488,11 @@ impl DataManager {
                 let mut writer = csv::Writer::from_writer(vec![]);
                 for record in processed_records {
                     writer.serialize(record)
-                        .map_err(|e| Error::data(format!("CSV序列化错误: {}", e)))?;
+                        .map_err(|e| Error::invalid_data(format!("CSV序列化错误: {}", e)))?;
                 }
                 
                 writer.into_inner()
-                    .map_err(|e| Error::data(format!("无法获取CSV写入器内容: {}", e)))
+                    .map_err(|e| Error::invalid_data(format!("无法获取CSV写入器内容: {}", e)))
             }
             _ => {
                 // 对于其他格式，进行基本的二进制处理
@@ -1563,14 +1570,14 @@ impl DataManager {
                     if let Some(f64_val) = n.as_f64() {
                         // 检查数值有效性
                         if !f64_val.is_finite() {
-                            return Err(Error::data(format!("无效的数值: {}", f64_val)));
+                            return Err(Error::invalid_data(format!("无效的数值: {}", f64_val)));
                         }
                         
                         // 如果没有指定方法，使用简单的缩放（向后兼容）
                         if normalize_method == "none" || normalize_method == "scale" {
                         Ok(serde_json::Value::Number(
                             serde_json::Number::from_f64(f64_val / 1000.0)
-                                    .ok_or_else(|| Error::data(format!("无法转换数值: {}", f64_val)))?
+                                    .ok_or_else(|| Error::invalid_data(format!("无法转换数值: {}", f64_val)))?
                         ))
                     } else {
                             // 其他归一化方法需要统计信息，单个数值无法归一化
@@ -1682,14 +1689,14 @@ impl DataManager {
                                                     key.clone(),
                                                     serde_json::Value::Number(
                                                         serde_json::Number::from_f64(normalized)
-                                                            .ok_or_else(|| Error::data(format!("归一化后的数值无效: {}", normalized)))?
+                                                            .ok_or_else(|| Error::invalid_data(format!("归一化后的数值无效: {}", normalized)))?
                                                     )
                                                 );
                                             } else {
                                                 processed_obj.insert(key.clone(), value.clone());
                                             }
                                         } else {
-                                            return Err(Error::data(format!("字段 {} 包含无效数值: {}", key, f64_val)));
+                                            return Err(Error::invalid_data(format!("字段 {} 包含无效数值: {}", key, f64_val)));
                                         }
                                     } else {
                                         processed_obj.insert(key.clone(), value.clone());
@@ -1762,7 +1769,7 @@ impl DataManager {
                         match value.parse::<f64>() {
                             Ok(num) => {
                                 if !num.is_finite() {
-                                    return Err(Error::data(format!(
+                                    return Err(Error::invalid_data(format!(
                                         "记录 {} 的字段 {} 包含无效数值: {}",
                                         idx, key, num
                                     )));
@@ -1844,7 +1851,7 @@ impl DataManager {
                                     .or_insert_with(Vec::new)
                                     .push(num);
                             } else {
-                                return Err(Error::data(format!(
+                                return Err(Error::invalid_data(format!(
                                     "记录 {} 的字段 {} 包含无效数值: {}",
                                     idx, key, num
                                 )));
@@ -1892,8 +1899,8 @@ impl DataManager {
         }
         
         // 计算最小值和最大值
-        let min = *data.iter().min().ok_or_else(|| Error::data("数据为空，无法计算最小值"))?;
-        let max = *data.iter().max().ok_or_else(|| Error::data("数据为空，无法计算最大值"))?;
+        let min = *data.iter().min().ok_or_else(|| Error::invalid_data("数据为空，无法计算最小值"))?;
+        let max = *data.iter().max().ok_or_else(|| Error::invalid_data("数据为空，无法计算最大值"))?;
         
         // 如果所有值相同，返回原数据或归一化到中间值
         if min == max {
@@ -1929,7 +1936,7 @@ impl DataManager {
             if let Ok(json_value) = serde_json::from_slice::<serde_json::Value>(data) {
                 if let Some(labels) = Self::extract_labels_from_json(&json_value, field_name) {
                     return Ok(Some(serde_json::to_vec(&labels)
-                        .map_err(|e| Error::data(format!("无法序列化标签: {}", e)))?));
+                        .map_err(|e| Error::invalid_data(format!("无法序列化标签: {}", e)))?));
                 }
             }
         }
@@ -1994,7 +2001,7 @@ impl crate::data::loader::DataLoader for StorageDataLoader {
         let dataset_id = path.strip_prefix("dataset/").unwrap_or(path);
         
         let data = self.storage.get_data(dataset_id).await?
-            .ok_or_else(|| Error::data(format!("找不到数据集: {}", dataset_id)))?;
+            .ok_or_else(|| Error::invalid_data(format!("找不到数据集: {}", dataset_id)))?;
         
         // 使用 DataBatch::new 创建基础批次，并填充数据
         let mut batch = crate::data::DataBatch::new(dataset_id, 0, data.len());
@@ -2057,7 +2064,7 @@ impl crate::data::loader::DataLoader for StorageDataLoader {
     async fn get_size(&self, path: &str) -> Result<usize> {
         let dataset_id = path.strip_prefix("dataset/").unwrap_or(path);
         let data = self.storage.get_data(dataset_id).await?
-            .ok_or_else(|| Error::data(format!("找不到数据集: {}", dataset_id)))?;
+            .ok_or_else(|| Error::invalid_data(format!("找不到数据集: {}", dataset_id)))?;
         Ok(data.len())
     }
 

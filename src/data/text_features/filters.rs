@@ -44,7 +44,7 @@ impl StopwordFilter {
     }
     
     /// 从语言代码加载常用的停用词列表
-    pub fn from_language(lang_code: &str) -> Result<Self, Box<dyn Error>> {
+    pub fn from_language(lang_code: &str) -> std::result::Result<Self, Box<dyn Error>> {
         let stopwords = match lang_code.to_lowercase().as_str() {
             "en" => stop_words::get(stop_words::LANGUAGE::English),
             "zh" => stop_words::get(stop_words::LANGUAGE::Chinese),
@@ -66,7 +66,7 @@ impl StopwordFilter {
 }
 
 impl TokenFilter for StopwordFilter {
-    fn filter(&self, tokens: &[String]) -> Result<Vec<String>, Box<dyn Error>> {
+    fn filter(&self, tokens: &[String]) -> std::result::Result<Vec<String>, Box<dyn Error>> {
         let filtered: Vec<String> = tokens
             .iter()
             .filter(|token| !self.stopwords.contains(*token))
@@ -85,9 +85,9 @@ impl TokenFilter for StopwordFilter {
 }
 
 impl TextProcessor for StopwordFilter {
-    fn process(&self, text: &str) -> Result<String, crate::Error> {
+    fn process(&self, text: &str) -> Result<String> {
         let tokens: Vec<String> = text.split_whitespace().map(|s| s.to_string()).collect();
-        let filtered = self.filter(&tokens).map_err(|e| crate::Error::data(format!("文本过滤处理失败: {}", e)))?;
+        let filtered = self.filter(&tokens).map_err(|e| crate::Error::processing(format!("文本过滤处理失败: {}", e)))?;
         Ok(filtered.join(" "))
     }
 
@@ -131,7 +131,7 @@ impl LengthFilter {
 }
 
 impl TokenFilter for LengthFilter {
-    fn filter(&self, tokens: &[String]) -> Result<Vec<String>, Box<dyn Error>> {
+    fn filter(&self, tokens: &[String]) -> std::result::Result<Vec<String>, Box<dyn Error>> {
         let filtered: Vec<String> = tokens
             .iter()
             .filter(|token| {
@@ -155,9 +155,9 @@ impl TokenFilter for LengthFilter {
 }
 
 impl TextProcessor for LengthFilter {
-    fn process(&self, text: &str) -> Result<String, crate::Error> {
+    fn process(&self, text: &str) -> Result<String> {
         let tokens: Vec<String> = text.split_whitespace().map(|s| s.to_string()).collect();
-        let filtered = self.filter(&tokens).map_err(|e| crate::Error::data(format!("文本过滤处理失败: {}", e)))?;
+        let filtered = self.filter(&tokens).map_err(|e| crate::Error::processing(format!("文本过滤处理失败: {}", e)))?;
         Ok(filtered.join(" "))
     }
 
@@ -192,7 +192,7 @@ impl RegexFilter {
     /// * `pattern` - 正则表达式模式
     /// * `keep_matches` - 如果为true，保留匹配的标记；如果为false，移除匹配的标记
     /// * `name` - 过滤器名称
-    pub fn new(pattern: &str, keep_matches: bool, name: Option<String>) -> Result<Self, Box<dyn Error>> {
+    pub fn new(pattern: &str, keep_matches: bool, name: Option<String>) -> std::result::Result<Self, Box<dyn Error>> {
         let regex = regex::Regex::new(pattern)?;
         Ok(Self {
             pattern: regex,
@@ -203,7 +203,7 @@ impl RegexFilter {
 }
 
 impl TokenFilter for RegexFilter {
-    fn filter(&self, tokens: &[String]) -> Result<Vec<String>, Box<dyn Error>> {
+    fn filter(&self, tokens: &[String]) -> std::result::Result<Vec<String>, Box<dyn Error>> {
         let filtered: Vec<String> = tokens
             .iter()
             .filter(|token| {
@@ -229,9 +229,9 @@ impl TokenFilter for RegexFilter {
 }
 
 impl TextProcessor for RegexFilter {
-    fn process(&self, text: &str) -> Result<String, crate::Error> {
+    fn process(&self, text: &str) -> Result<String> {
         let tokens: Vec<String> = text.split_whitespace().map(|s| s.to_string()).collect();
-        let filtered = self.filter(&tokens).map_err(|e| crate::Error::data(format!("文本过滤处理失败: {}", e)))?;
+        let filtered = self.filter(&tokens).map_err(|e| crate::Error::processing(format!("文本过滤处理失败: {}", e)))?;
         Ok(filtered.join(" "))
     }
 
@@ -285,7 +285,7 @@ impl FrequencyFilter {
 }
 
 impl TokenFilter for FrequencyFilter {
-    fn filter(&self, tokens: &[String]) -> Result<Vec<String>, Box<dyn Error>> {
+    fn filter(&self, tokens: &[String]) -> std::result::Result<Vec<String>, Box<dyn Error>> {
         let filtered: Vec<String> = tokens
             .iter()
             .filter(|token| {
@@ -313,9 +313,9 @@ impl TokenFilter for FrequencyFilter {
 }
 
 impl TextProcessor for FrequencyFilter {
-    fn process(&self, text: &str) -> Result<String, crate::Error> {
+    fn process(&self, text: &str) -> Result<String> {
         let tokens: Vec<String> = text.split_whitespace().map(|s| s.to_string()).collect();
-        let filtered = self.filter(&tokens).map_err(|e| crate::Error::data(format!("文本过滤处理失败: {}", e)))?;
+        let filtered = self.filter(&tokens).map_err(|e| crate::Error::processing(format!("文本过滤处理失败: {}", e)))?;
         Ok(filtered.join(" "))
     }
 
@@ -364,7 +364,7 @@ impl FilterChain {
 }
 
 impl TokenFilter for FilterChain {
-    fn filter(&self, tokens: &[String]) -> Result<Vec<String>, Box<dyn Error>> {
+    fn filter(&self, tokens: &[String]) -> std::result::Result<Vec<String>, Box<dyn Error>> {
         let mut current_tokens = tokens.to_vec();
         
         for filter in &self.filters {
@@ -380,9 +380,9 @@ impl TokenFilter for FilterChain {
 }
 
 impl TextProcessor for FilterChain {
-    fn process(&self, text: &str) -> Result<String, crate::Error> {
+    fn process(&self, text: &str) -> Result<String> {
         let tokens: Vec<String> = text.split_whitespace().map(|s| s.to_string()).collect();
-        let filtered = self.filter(&tokens).map_err(|e| crate::Error::data(format!("文本过滤处理失败: {}", e)))?;
+        let filtered = self.filter(&tokens).map_err(|e| crate::Error::processing(format!("文本过滤处理失败: {}", e)))?;
         Ok(filtered.join(" "))
     }
 

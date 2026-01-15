@@ -642,7 +642,7 @@ impl FileDetectionStage {
         };
         
         FileProcessorFactory::create_processor_by_type(processor_file_type, file_path, &self.file_options)
-            .map_err(|e| Error::data(format!("无法创建文件处理器: {}", e)))
+            .map_err(|e| Error::invalid_data(format!("无法创建文件处理器: {}", e)))
     }
 }
 
@@ -916,13 +916,13 @@ impl PipelineStage for DataImportStage {
         
         // 获取总行数
         let total_rows = {
-            let guard = temp_processor_mutex.lock().map_err(|e| Error::data(format!("无法获取 processor 锁: {}", e)))?;
+            let guard = temp_processor_mutex.lock().map_err(|e| Error::invalid_data(format!("无法获取 processor 锁: {}", e)))?;
             guard.get_row_count()?
         };
         
         // 读取所有记录
         let loader_records = {
-            let mut guard = temp_processor_mutex.lock().map_err(|e| Error::data(format!("无法获取 processor 锁: {}", e)))?;
+            let mut guard = temp_processor_mutex.lock().map_err(|e| Error::invalid_data(format!("无法获取 processor 锁: {}", e)))?;
             guard.read_rows(total_rows)?
         };
         
@@ -1469,7 +1469,7 @@ impl ImportPipelineUtils {
         // 使用std::fs获取目录中的所有文件
         let entries = match std::fs::read_dir(directory) {
             Ok(entries) => entries,
-            Err(e) => return Err(Error::io(&format!("无法读取目录 {}: {}", directory, e))),
+            Err(e) => return Err(Error::io_error(format!("无法读取目录 {}: {}", directory, e))),
         };
 
         // 存储导入结果ID

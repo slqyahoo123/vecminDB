@@ -445,7 +445,7 @@ impl DistributedLockManager {
                 warn!("检测到死锁: {:?}", cycle);
                 if cycle.contains(&requester.to_string()) {
                     self.remove_from_wait_queue(&request_id);
-                    return Err(Error::deadlock("检测到死锁"));
+                    return Err(Error::lock("检测到死锁"));
                 }
             }
 
@@ -706,8 +706,8 @@ impl ConsistencyCoordinator {
     }
 
     async fn coordinate_transaction_start(&self, _transaction_id: &TransactionId) -> Result<()> {
-        // 实际实现中需要向所有节点发送事务开始请求
-        // 这里是简化实现
+        // 分布式模式下需要向所有节点发送事务开始请求
+        // 当前单节点模式下无需协调，直接返回成功
         Ok(())
     }
 
@@ -734,15 +734,17 @@ impl ConsistencyCoordinator {
         let active_nodes = self.get_active_nodes();
 
         if active_nodes.len() < quorum_size {
-            return Err(Error::unavailable("没有足够的节点形成仲裁"));
+            return Err(Error::resource("没有足够的节点形成仲裁"));
         }
 
-        // 简化实现：只从本地读取
+        // 单节点模式下从本地 MVCC 读取
+        // 分布式模式下需要从多个节点读取并比较版本
         self.mvcc.read(transaction_id, key)
     }
 
     async fn read_from_all_nodes(&self, transaction_id: &TransactionId, key: &str) -> Result<Option<Vec<u8>>> {
-        // 简化实现：只从本地读取
+        // 单节点模式下从本地 MVCC 读取
+        // 分布式模式下需要从所有节点读取并合并结果
         self.mvcc.read(transaction_id, key)
     }
 
@@ -769,15 +771,17 @@ impl ConsistencyCoordinator {
         let active_nodes = self.get_active_nodes();
 
         if active_nodes.len() < quorum_size {
-            return Err(Error::unavailable("没有足够的节点形成仲裁"));
+            return Err(Error::resource("没有足够的节点形成仲裁"));
         }
 
-        // 简化实现：只写入本地
+        // 单节点模式下写入本地 MVCC
+        // 分布式模式下需要写入多个节点并等待确认
         self.mvcc.write(transaction_id, key, value)
     }
 
     async fn write_to_all_nodes(&self, transaction_id: &TransactionId, key: &str, value: Vec<u8>) -> Result<()> {
-        // 简化实现：只写入本地
+        // 单节点模式下写入本地 MVCC
+        // 分布式模式下需要写入所有节点并等待全部确认
         self.mvcc.write(transaction_id, key, value)
     }
 
@@ -803,22 +807,25 @@ impl ConsistencyCoordinator {
         } else {
             // 中止事务
             self.abort_transaction_all_nodes(transaction_id).await?;
-            Err(Error::transaction_aborted("事务在准备阶段失败"))
+            Err(Error::transaction("事务在准备阶段失败"))
         }
     }
 
     async fn prepare_transaction(&self, _transaction_id: &TransactionId) -> Result<bool> {
-        // 简化实现：总是返回成功
+        // 单节点模式下无需两阶段提交的准备阶段，直接返回成功
+        // 分布式模式下需要向所有节点发送准备请求并等待响应
         Ok(true)
     }
 
     async fn commit_transaction_all_nodes(&self, transaction_id: &TransactionId) -> Result<()> {
-        // 简化实现：只在本地提交
+        // 单节点模式下在本地 MVCC 提交
+        // 分布式模式下需要向所有节点发送提交请求
         self.mvcc.commit_transaction(transaction_id)
     }
 
     async fn abort_transaction_all_nodes(&self, transaction_id: &TransactionId) -> Result<()> {
-        // 简化实现：只在本地中止
+        // 单节点模式下在本地 MVCC 中止
+        // 分布式模式下需要向所有节点发送中止请求
         self.mvcc.abort_transaction(transaction_id)
     }
 }

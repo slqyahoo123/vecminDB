@@ -272,11 +272,11 @@ impl ProcessorConfig {
             match key.as_str() {
                 "batch_size" => {
                     config.batch_size = value.parse().map_err(|e| 
-                        crate::error::Error::InvalidParameter(format!("无效的batch_size: {}", e)))?;
+                        crate::error::Error::invalid_argument(format!("无效的batch_size: {}", e)))?;
                 },
                 "skip_header" => {
                     config.skip_header = value.parse().map_err(|e| 
-                        crate::error::Error::InvalidParameter(format!("无效的skip_header: {}", e)))?;
+                        crate::error::Error::invalid_argument(format!("无效的skip_header: {}", e)))?;
                 },
                 "delimiter" => {
                     config.delimiter = value.chars().next().unwrap_or(',');
@@ -286,27 +286,27 @@ impl ProcessorConfig {
                 },
                 "clean_special_chars" => {
                     config.clean_special_chars = value.parse().map_err(|e| 
-                        crate::error::Error::InvalidParameter(format!("无效的clean_special_chars: {}", e)))?;
+                        crate::error::Error::invalid_argument(format!("无效的clean_special_chars: {}", e)))?;
                 },
                 "normalize_case" => {
                     config.normalize_case = value.parse().map_err(|e| 
-                        crate::error::Error::InvalidParameter(format!("无效的normalize_case: {}", e)))?;
+                        crate::error::Error::invalid_argument(format!("无效的normalize_case: {}", e)))?;
                 },
                 "handle_outliers" => {
                     config.handle_outliers = value.parse().map_err(|e| 
-                        crate::error::Error::InvalidParameter(format!("无效的handle_outliers: {}", e)))?;
+                        crate::error::Error::invalid_argument(format!("无效的handle_outliers: {}", e)))?;
                 },
                 "normalize" => {
                     config.normalize = value.parse().map_err(|e| 
-                        crate::error::Error::InvalidParameter(format!("无效的normalize: {}", e)))?;
+                        crate::error::Error::invalid_argument(format!("无效的normalize: {}", e)))?;
                 },
                 "remove_duplicates" => {
                     config.remove_duplicates = value.parse().map_err(|e| 
-                        crate::error::Error::InvalidParameter(format!("无效的remove_duplicates: {}", e)))?;
+                        crate::error::Error::invalid_argument(format!("无效的remove_duplicates: {}", e)))?;
                 },
                 "fill_missing" => {
                     config.fill_missing = value.parse().map_err(|e| 
-                        crate::error::Error::InvalidParameter(format!("无效的fill_missing: {}", e)))?;
+                        crate::error::Error::invalid_argument(format!("无效的fill_missing: {}", e)))?;
                 },
                 "process_type" => {
                     config.process_type = value;
@@ -316,39 +316,39 @@ impl ProcessorConfig {
                 },
                 "validate" => {
                     config.validate = value.parse().map_err(|e| 
-                        crate::error::Error::InvalidParameter(format!("无效的validate: {}", e)))?;
+                        crate::error::Error::invalid_argument(format!("无效的validate: {}", e)))?;
                 },
                 "process_only_if_all_valid" => {
                     config.process_only_if_all_valid = value.parse().map_err(|e| 
-                        crate::error::Error::InvalidParameter(format!("无效的process_only_if_all_valid: {}", e)))?;
+                        crate::error::Error::invalid_argument(format!("无效的process_only_if_all_valid: {}", e)))?;
                 },
                 "handle_missing_values" => {
                     config.handle_missing_values = value.parse().map_err(|e| 
-                        crate::error::Error::InvalidParameter(format!("无效的handle_missing_values: {}", e)))?;
+                        crate::error::Error::invalid_argument(format!("无效的handle_missing_values: {}", e)))?;
                 },
                 "normalize_numbers" => {
                     config.normalize_numbers = value.parse().map_err(|e| 
-                        crate::error::Error::InvalidParameter(format!("无效的normalize_numbers: {}", e)))?;
+                        crate::error::Error::invalid_argument(format!("无效的normalize_numbers: {}", e)))?;
                 },
                 "convert_to_lowercase" => {
                     config.convert_to_lowercase = value.parse().map_err(|e| 
-                        crate::error::Error::InvalidParameter(format!("无效的convert_to_lowercase: {}", e)))?;
+                        crate::error::Error::invalid_argument(format!("无效的convert_to_lowercase: {}", e)))?;
                 },
                 "trim_whitespace" => {
                     config.trim_whitespace = value.parse().map_err(|e| 
-                        crate::error::Error::InvalidParameter(format!("无效的trim_whitespace: {}", e)))?;
+                        crate::error::Error::invalid_argument(format!("无效的trim_whitespace: {}", e)))?;
                 },
                 "validate_data_types" => {
                     config.validate_data_types = value.parse().map_err(|e| 
-                        crate::error::Error::InvalidParameter(format!("无效的validate_data_types: {}", e)))?;
+                        crate::error::Error::invalid_argument(format!("无效的validate_data_types: {}", e)))?;
                 },
                 "skip_empty_lines" => {
                     config.skip_empty_lines = value.parse().map_err(|e| 
-                        crate::error::Error::InvalidParameter(format!("无效的skip_empty_lines: {}", e)))?;
+                        crate::error::Error::invalid_argument(format!("无效的skip_empty_lines: {}", e)))?;
                 },
                 "ignore_parse_errors" => {
                     config.ignore_parse_errors = value.parse().map_err(|e| 
-                        crate::error::Error::InvalidParameter(format!("无效的ignore_parse_errors: {}", e)))?;
+                        crate::error::Error::invalid_argument(format!("无效的ignore_parse_errors: {}", e)))?;
                 },
                 "encoding" => {
                     config.encoding = Some(value);

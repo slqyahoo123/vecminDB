@@ -481,7 +481,7 @@ impl InputData {
     /// 从字节数据创建
     pub fn from_bytes(data: &[u8], data_type: String) -> Result<Self> {
         let content = String::from_utf8(data.to_vec())
-            .map_err(|e| Error::InvalidArgument(format!("无效的UTF-8数据: {}", e)))?;
+            .map_err(|e| Error::invalid_argument(format!("无效的UTF-8数据: {}", e)))?;
         Ok(Self::new(content, data_type))
     }
 
@@ -557,17 +557,17 @@ impl std::error::Error for ExtractorError {}
 impl From<ExtractorError> for Error {
     fn from(err: ExtractorError) -> Self {
         match err {
-            ExtractorError::InvalidInput(msg) => Error::InvalidArgument(msg),
-            ExtractorError::DimensionMismatch(msg) => Error::InvalidArgument(msg),
-            ExtractorError::ProcessingError(msg) => Error::DataProcessingError(msg),
-            ExtractorError::Timeout(msg) => Error::Timeout(msg),
-            ExtractorError::ConfigurationError(msg) => Error::Configuration(msg),
+            ExtractorError::InvalidInput(msg) => Error::invalid_argument(msg),
+            ExtractorError::DimensionMismatch(msg) => Error::invalid_argument(msg),
+            ExtractorError::ProcessingError(msg) => Error::processing(msg),
+            ExtractorError::Timeout(msg) => Error::timeout(msg),
+            ExtractorError::ConfigurationError(msg) => Error::config(msg),
             ExtractorError::ResourceExhausted(msg) => Error::Resource(msg),
             ExtractorError::NetworkError(msg) => Error::Network(msg),
             ExtractorError::IoError(msg) => Error::Io(std::io::Error::new(std::io::ErrorKind::Other, msg)),
-            ExtractorError::ParseError(msg) => Error::Data(msg),
-            ExtractorError::ValidationError(msg) => Error::Validation(msg),
-            ExtractorError::Unknown(msg) => Error::Unknown(msg),
+            ExtractorError::ParseError(msg) => Error::invalid_data(msg),
+            ExtractorError::ValidationError(msg) => Error::validation(msg),
+            ExtractorError::Unknown(msg) => Error::other(msg),
         }
     }
 }

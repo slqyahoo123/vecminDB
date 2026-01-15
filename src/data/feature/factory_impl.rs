@@ -61,7 +61,7 @@ impl GlobalFeatureExtractorFactory {
     /// 
     /// 生产级实现：注册默认的特征提取器。
     /// 注意：此工厂实现使用主工厂（FeatureExtractorFactory）来创建提取器，确保使用真实实现。
-    pub async fn init(&self) -> Result<(), ExtractorError> {
+    pub async fn init(&self) -> std::result::Result<(), ExtractorError> {
         info!("初始化全局特征提取器工厂");
         
         // 生产级实现：使用主工厂创建真实的提取器

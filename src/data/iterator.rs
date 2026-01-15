@@ -90,7 +90,7 @@ impl DataBatchIterator {
             .unwrap_or(0);
         
         if self.total_size == 0 {
-            return Err(Error::DataError("数据源为空或无法访问".to_string()));
+            return Err(Error::invalid_data("数据源为空或无法访问".to_string()));
         }
 
         // 预加载初始批次

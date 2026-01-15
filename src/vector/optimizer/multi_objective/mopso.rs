@@ -318,7 +318,8 @@ impl MOPSOOptimizer {
         // 生成参数组合
         let mut combinations = Vec::new();
         
-        // 简化实现：生成一些示例参数组合
+        // 基础实现：在参数空间内均匀采样生成参数组合
+        // 完整的 MOPSO 算法应使用粒子群优化进行参数搜索
         for i in 0..5 {
             let mut params = HashMap::new();
             for (j, range) in parameter_space.ranges.iter().enumerate() {

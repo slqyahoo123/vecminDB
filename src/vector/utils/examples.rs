@@ -287,7 +287,12 @@ pub async fn vptree_collection_example() -> Result<()> {
         };
         
         // 添加到集合
-        collection.add_vector(vector)?;
+        let metadata_json = vector.metadata.as_ref().map(|m| {
+            serde_json::json!({
+                "properties": m.properties
+            })
+        });
+        collection.add_vector(&vector.id, &vector.data, metadata_json.as_ref()).await?;
     }
     
     let add_duration = start.elapsed();
@@ -317,7 +322,7 @@ pub async fn vptree_collection_example() -> Result<()> {
     // 9. 执行搜索
     println!("执行向量搜索...");
     let start = Instant::now();
-    let results = collection.search(&query)?;
+    let results = collection.search(&query.vector, query.top_k, SimilarityMetric::Cosine).await?;
     let search_duration = start.elapsed();
     println!("搜索完成，耗时: {:?}", search_duration);
     
@@ -346,7 +351,7 @@ pub async fn vptree_collection_example() -> Result<()> {
     
     println!("\n使用过滤器搜索 (category = 'A')...");
     let start = Instant::now();
-    let filter_results = collection.search(&filter_query)?;
+    let filter_results = collection.search(&filter_query.vector, filter_query.top_k, SimilarityMetric::Cosine).await?;
     let filter_search_duration = start.elapsed();
     println!("过滤搜索完成，耗时: {:?}", filter_search_duration);
     

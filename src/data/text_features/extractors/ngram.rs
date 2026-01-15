@@ -26,14 +26,14 @@ impl NGramExtractor {
     /// 创建新的N-gram特征提取器
     pub fn new(n: usize, char_level: bool, max_features: usize) -> Result<Self> {
         if n < 1 || n > 5 {
-            return Err(Error::InvalidParameter(format!(
+            return Err(Error::invalid_argument(format!(
                 "N-gram大小必须在1-5之间,当前值: {}",
                 n
             )));
         }
         
         if max_features < 1 {
-            return Err(Error::InvalidParameter(format!(
+            return Err(Error::invalid_argument(format!(
                 "最大特征数必须大于0,当前值: {}",
                 max_features
             )));

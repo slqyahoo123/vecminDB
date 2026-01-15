@@ -627,7 +627,9 @@ mod tests {
             SearchStrategy::Standard { ef_search } => {
                 assert_eq!(ef_search, 64);
             },
-            _ => panic!("Default strategy should be Standard"),
+            other => {
+                panic!("Default strategy should be Standard, got {:?}", other);
+            }
         }
     }
 }

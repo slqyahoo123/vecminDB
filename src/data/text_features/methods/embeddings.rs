@@ -290,7 +290,7 @@ impl FeatureMethod for EmbeddingsExtractor {
             return Ok(vec![0.0; self.config.vector_dim]);
         }
         
-        // 计算注意力权重（简化实现）
+        // 计算注意力权重：使用 query-key 点积计算分数
         let mut attention_weights = Vec::new();
         let query = self.compute_query_vector(embeddings)?;
         

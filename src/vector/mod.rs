@@ -676,7 +676,7 @@ impl VectorDBServiceAdapter {
                 index_type: self::indexes::IndexType::HNSW,
                 metadata_schema: None,
             };
-            guard.create_collection(cfg).await?;
+            guard.create_collection(&cfg.name, cfg.dimension, cfg.index_type)?;
         }
         Ok(())
     }
@@ -684,7 +684,7 @@ impl VectorDBServiceAdapter {
     async fn get_default_collection(&self) -> Result<Arc<RwLock<VectorCollection>>> {
         self.ensure_default_collection().await?;
         let guard = self.db.read().await;
-        guard.get_collection(&self.default_collection).await
+        guard.get_collection(&self.default_collection)
     }
 }
 

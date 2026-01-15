@@ -125,13 +125,14 @@ pub async fn normalize_with_processor(
         let len = u32::from_le_bytes(buf) as usize;
         let mut name_buf = vec![0u8; len];
         file.read_exact(&mut name_buf).await?;
-        let column_name = String::from_utf8(name_buf)?;
+        let column_name = String::from_utf8(name_buf)
+            .map_err(|e| Error::invalid_data(format!("列名UTF-8解码失败: {}", e)))?;
         columns.push(column_name);
     }
     
     // 获取schema信息（从metadata中获取而非直接访问处理器）
     let schema_info = metadata.get("schema")
-        .ok_or_else(|| Error::data("缺少schema信息"))?;
+        .ok_or_else(|| Error::invalid_data("缺少schema信息".to_string()))?;
     
     // 验证schema与要标准化的列的兼容性
     if let Some(schema_columns) = schema_info.get("columns") {
@@ -158,7 +159,8 @@ pub async fn normalize_with_processor(
             let len = u32::from_le_bytes(buf) as usize;
             let mut val_buf = vec![0u8; len];
             file.read_exact(&mut val_buf).await?;
-            let value = String::from_utf8(val_buf)?;
+            let value = String::from_utf8(val_buf)
+                .map_err(|e| Error::invalid_data(format!("数据值UTF-8解码失败: {}", e)))?;
             
             let col_name = &columns[col_idx];
             if normalize_columns.contains(col_name) {

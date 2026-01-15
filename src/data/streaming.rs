@@ -390,7 +390,8 @@ impl FileStreamingSource {
                     let headers = if self.records_read == 0 {
                         csv_reader.headers().map_err(|e| Error::parse_error(format!("读取CSV标题失败: {}", e)))?.clone()
                     } else {
-                        // 这里应该缓存标题，简化实现直接重新获取
+                        // CSV 读取器每次调用 headers() 都会重新解析，性能开销较小
+                        // 如需优化，可在首次读取时缓存标题到结构体中
                         csv_reader.headers().map_err(|e| Error::parse_error(format!("读取CSV标题失败: {}", e)))?.clone()
                     };
                     
@@ -520,7 +521,7 @@ impl StreamingProcessor {
         {
             let mut running = self.is_running.lock().unwrap();
             if *running {
-                return Err(Error::AlreadyRunning("流式处理器已在运行".to_string()));
+                return Err(Error::invalid_state("流式处理器已在运行".to_string()));
             }
             *running = true;
         }

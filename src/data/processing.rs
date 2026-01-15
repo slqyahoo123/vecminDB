@@ -169,7 +169,7 @@ impl DataPipeline {
         // 验证比例
         let total_ratio: f32 = ratios.iter().sum();
         if (total_ratio - 1.0).abs() > 1e-6 {
-            return Err(crate::error::Error::InvalidArgument(
+            return Err(crate::error::Error::invalid_argument(
                 format!("Ratios must sum to 1.0, got {}", total_ratio)
             ));
         }

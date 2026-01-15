@@ -127,7 +127,6 @@ pub use self::model::{ProcessedText, TrainingExample, TrainingResult, ModelState
 pub use self::training::{Trainer, TrainingConfig, Optimizer, LossFunction, MSELoss, SGD, Adam};
 pub use self::inference::{InferenceEngine, InferenceConfig, InferenceResult, InferencePredictor, PredictionConfig};
 
-use crate::Result;
 use std::collections::HashSet;
 use std::sync::Arc;
 use regex::Regex;
@@ -388,7 +387,7 @@ lazy_static! {
 
 /// TransformerModel实现TextFeatureExtractor特性
 impl TextFeatureExtractor for TransformerModel {
-    fn extract_features(&self, text: &str, options: Option<&TextProcessingOptions>) -> Result<Vec<f32>, Box<dyn StdError>> {
+    fn extract_features(&self, text: &str, options: Option<&TextProcessingOptions>) -> std::result::Result<Vec<f32>, Box<dyn StdError>> {
         // 使用预处理选项
         let processed_text = if let Some(opts) = options {
             let preprocessor = TextPreprocessor::new(opts.clone());
@@ -404,7 +403,7 @@ impl TextFeatureExtractor for TransformerModel {
         Ok(processed.encoded)
     }
     
-    fn compute_similarity(&self, text1: &str, text2: &str, options: Option<&TextProcessingOptions>) -> Result<f32, Box<dyn StdError>> {
+    fn compute_similarity(&self, text1: &str, text2: &str, options: Option<&TextProcessingOptions>) -> std::result::Result<f32, Box<dyn StdError>> {
         // 使用预处理选项
         let (processed_text1, processed_text2) = if let Some(opts) = options {
             let preprocessor = TextPreprocessor::new(opts.clone());

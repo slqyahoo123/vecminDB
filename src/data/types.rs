@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
 use chrono::{DateTime, Utc};
-use crate::error::Result;
 
 // 重新导出DataValue
 pub use crate::data::value::DataValue;
@@ -528,7 +527,7 @@ impl DataSample {
     }
 
     /// 验证样本数据的完整性
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> std::result::Result<(), String> {
         if self.id.is_empty() {
             return Err("样本ID不能为空".to_string());
         }
@@ -561,12 +560,12 @@ impl DataSample {
     }
 
     /// 转换为JSON字符串
-    pub fn to_json(&self) -> Result<String, serde_json::Error> {
+    pub fn to_json(&self) -> std::result::Result<String, serde_json::Error> {
         serde_json::to_string(self)
     }
 
     /// 从JSON字符串创建
-    pub fn from_json(json: &str) -> Result<Self, serde_json::Error> {
+    pub fn from_json(json: &str) -> std::result::Result<Self, serde_json::Error> {
         serde_json::from_str(json)
     }
 

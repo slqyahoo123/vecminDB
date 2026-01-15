@@ -156,7 +156,7 @@ impl Trainer {
     
     /// 训练单个批次
     fn train_batch(&mut self, batch: &[TrainingExample]) -> Result<f32, TransformerError> {
-        let _model = self.model.lock().unwrap();
+        let mut model = self.model.lock().unwrap();
         
         // 前向传播
         let mut batch_loss = 0.0;

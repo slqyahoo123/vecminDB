@@ -881,7 +881,7 @@ impl ModalityExtractor for VideoFeatureExtractor {
         Ok(tensor)
     }
     
-    fn get_config(&self) -> Result<serde_json::Value, Error> {
+    fn get_config(&self) -> Result<serde_json::Value> {
         let config = serde_json::json!({
             "dimension": self.config.dimension,
             "feature_type": format!("{:?}", self.config.feature_type),

@@ -317,3 +317,9 @@ impl<T> From<std::sync::PoisonError<T>> for Error {
     }
 }
 
+impl From<std::string::FromUtf8Error> for Error {
+    fn from(err: std::string::FromUtf8Error) -> Self {
+        Error::InvalidInput(format!("UTF-8转换错误: {}", err))
+    }
+}
+

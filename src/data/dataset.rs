@@ -494,7 +494,7 @@ impl ProcessedDataset {
     /// 获取指定索引的批次
     pub async fn get_batch(&self, batch_idx: usize) -> Result<crate::data::processor::ProcessedBatch> {
         if batch_idx >= self.batches.len() {
-            return Err(crate::error::Error::DataError(format!("批次索引超出范围: {}", batch_idx)));
+            return Err(crate::error::Error::invalid_data(format!("批次索引超出范围: {}", batch_idx)));
         }
         Ok(self.batches[batch_idx].clone())
     }
@@ -554,7 +554,7 @@ impl ProcessedDataset {
     }
 
     /// 从DataBatch创建ProcessedDataset
-    pub fn from_data_batch(data_batch: crate::data::exports::DataBatch) -> Result<Self, crate::error::Error> {
+    pub fn from_data_batch(data_batch: crate::data::exports::DataBatch) -> Result<Self> {
         let now = Utc::now();
         let batch_id: String = data_batch.id.clone();
         

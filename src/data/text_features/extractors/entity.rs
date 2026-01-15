@@ -25,7 +25,7 @@ impl EntityExtractor {
     /// 创建新的实体特征提取器
     pub fn new(entity_types: Vec<String>) -> Result<Self> {
         if entity_types.is_empty() {
-            return Err(Error::InvalidParameter("实体类型列表不能为空".to_string()));
+            return Err(Error::invalid_argument("实体类型列表不能为空".to_string()));
         }
         
         // 创建实体模式

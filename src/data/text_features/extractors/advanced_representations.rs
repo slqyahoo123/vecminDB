@@ -259,7 +259,8 @@ impl PretrainedModel {
         // 生产级实现：创建空的模型结构，后续可以通过load方法加载预训练权重
         if let Some(path) = path {
             // 从路径加载模型
-            // 这里简化实现
+            // 当前实现创建空模型结构，实际应加载预训练权重文件
+            // 生产环境需要集成 ONNX Runtime 或 tch 加载真实模型
             Ok(Self {
                 model_type: "bert-base".to_string(),
                 weights: HashMap::new(),

@@ -809,10 +809,10 @@ impl ModalityExtractor for AudioFeatureExtractor {
                 if let Some(serde_json::Value::String(base64_data)) = obj.get("data") {
                     base64_data.clone()
                 } else {
-                    return Err(Error::InvalidArgument("Audio data not found in JSON object".to_string()));
+                    return Err(Error::invalid_argument("Audio data not found in JSON object".to_string()));
                 }
             },
-            _ => return Err(Error::InvalidArgument("Invalid audio data format".to_string())),
+            _ => return Err(Error::invalid_argument("Invalid audio data format".to_string())),
         };
         
         let source = AudioSource::Base64(audio_data);
@@ -836,9 +836,9 @@ impl ModalityExtractor for AudioFeatureExtractor {
         Ok(tensor)
     }
     
-    fn get_config(&self) -> Result<serde_json::Value, Error> {
+    fn get_config(&self) -> Result<serde_json::Value> {
         let config = serde_json::to_value(&self.config)
-            .map_err(|e| Error::InvalidArgument(format!("Failed to serialize config: {}", e)))?;
+            .map_err(|e| Error::invalid_argument(format!("Failed to serialize config: {}", e)))?;
         Ok(config)
     }
     

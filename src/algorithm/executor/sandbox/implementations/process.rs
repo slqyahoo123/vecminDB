@@ -51,8 +51,6 @@ impl ProcessSandbox {
             config: config.clone(),
             #[cfg(feature = "tempfile")]
             temp_dir,
-            #[cfg(not(feature = "tempfile"))]
-            temp_dir: None,
             status: RwLock::new(SandboxStatus::Uninitialized),
             child_process,
             environment: None,
@@ -262,8 +260,9 @@ impl ProcessSandbox {
                 command.env("NO_IO", "1");
             }
             
-            // 注意: 完整的安全隔离需要使用seccomp、namespaces等机制
-            // 这里只是简化实现
+            // 注意: 完整的安全隔离需要使用 seccomp、namespaces、capabilities 等机制
+            // 当前实现提供了基本的环境变量和资源限制设置
+            // 生产环境应结合系统级隔离机制（如 systemd-nspawn、firejail）使用
         }
         
         Ok(())

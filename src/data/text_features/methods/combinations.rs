@@ -147,8 +147,9 @@ impl CombinationExtractor {
                 Ok(result)
             },
             FeatureFusionStrategy::PCA => {
-                // 简化实现，实际应该使用PCA算法
-                // 这里只是返回平均值
+                // 基础实现：返回特征平均值作为降维结果
+                // 完整的 PCA 需要使用协方差矩阵和特征值分解
+                // 生产环境应集成 ndarray 或 linfa 库进行 PCA 计算
                 if features.is_empty() {
                     return Ok(vec![]);
                 }

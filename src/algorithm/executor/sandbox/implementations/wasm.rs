@@ -52,8 +52,6 @@ impl WasmSandbox {
             engine,
             #[cfg(feature = "tempfile")]
             temp_dir,
-            #[cfg(not(feature = "tempfile"))]
-            temp_dir: None,
             status: RwLock::new(SandboxStatus::Uninitialized),
             environment: None,
         })

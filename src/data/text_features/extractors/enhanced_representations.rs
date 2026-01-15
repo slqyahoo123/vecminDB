@@ -430,8 +430,9 @@ impl SelfAttentionTransformer {
 
 impl FeatureTransformer for SelfAttentionTransformer {
     fn transform(&self, _tokens: &[String], features: &[f32]) -> Result<Vec<f32>> {
-        // 实际应用中，这里应该实现自注意力模型
-        // 这里简化实现，只返回原始特征
+        // 基础实现：返回原始特征
+        // 完整的自注意力模型需要实现 Q/K/V 矩阵和注意力计算
+        // 生产环境应加载预训练的自注意力模型权重
         Ok(features.to_vec())
     }
     

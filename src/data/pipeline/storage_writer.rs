@@ -7,7 +7,8 @@ use crate::data::schema::Schema;
 use crate::data::batch::DataBatch;
 use crate::storage::{StorageEngineImpl, config::StorageConfig};
 
-// UnifiedStorageConfig stub - 使用StorageConfig替代
+// UnifiedStorageConfig 类型别名，使用 StorageConfig 作为统一存储配置
+// 用于保持接口一致性，便于未来扩展为多存储后端支持
 type UnifiedStorageConfig = StorageConfig;
 use crate::Error;
 

@@ -140,6 +140,7 @@ impl DockerSandbox {
             id,
             container_id: None,
             config: config.clone(),
+            #[cfg(feature = "tempfile")]
             temp_dir,
             status: RwLock::new(SandboxStatus::Uninitialized),
             cancel_tx: None,
@@ -162,7 +163,7 @@ impl DockerSandbox {
                 } else {
                     let error = String::from_utf8_lossy(&output.stderr);
                     error!("Docker命令返回非零状态码: {}", error);
-                    Err(Error::failed_precondition(format!("Docker不可用: {}", error)))
+                    Err(Error::invalid_state(format!("Docker不可用: {}", error)))
                 }
             },
             Err(e) => {
@@ -856,10 +857,14 @@ impl Sandbox for DockerSandbox {
         
         Ok(ResourceUsage {
             memory_bytes: monitor.peak_memory,
-            cpu_time_ms: 0, // 简化实现
+            // Docker 容器中 CPU 时间统计需要 cgroup v2 支持，当前返回 0
+            // 实际部署时应通过 cgroup 文件系统读取 CPU 使用时间
+            cpu_time_ms: 0,
             execution_time_ms: monitor.start_time.elapsed().as_millis() as u64,
-            disk_io_bytes: 0, // 暂不支持
-            network_io_bytes: 0, // 暂不支持
+            // 磁盘 I/O 统计需要挂载 cgroup 文件系统，当前暂不支持
+            disk_io_bytes: 0,
+            // 网络 I/O 统计需要网络命名空间监控，当前暂不支持
+            network_io_bytes: 0,
         })
     }
     

@@ -304,7 +304,10 @@ use super::types::{
     QueryParam, SortDirection, QueryParamValue, QueryOperator, WriteMode
 };
 
-/// Cassandra会话类型（占位实现）
+/// Cassandra会话类型
+///
+/// 当前实现提供基本的会话管理功能，实际 Cassandra 连接需要集成
+/// cassandra-driver 或类似客户端库。当前实现用于接口完整性。
 pub struct CassandraSession {
     hosts: Vec<String>,
     keyspace: String,
@@ -321,15 +324,15 @@ impl CassandraSession {
     }
     
     pub async fn query(&self, _query: &str, _params: &[QueryParam]) -> Result<Vec<HashMap<String, String>>> {
-        Err(crate::Error::data("Cassandra功能未启用".to_string()))
+        Err(crate::Error::feature_not_enabled("cassandra"))
     }
     
     pub async fn execute(&self, _query: &str, _params: &[QueryParam]) -> Result<usize> {
-        Err(crate::Error::data("Cassandra功能未启用".to_string()))
+        Err(crate::Error::feature_not_enabled("cassandra"))
     }
     
     pub async fn get_table_schema(&self, _keyspace: &str, _table: &str) -> Result<Vec<crate::data::schema::schema::FieldDefinition>> {
-        Err(crate::Error::data("Cassandra功能未启用".to_string()))
+        Err(crate::Error::feature_not_enabled("cassandra"))
     }
     
     pub async fn test_connection(&self) -> Result<bool> {

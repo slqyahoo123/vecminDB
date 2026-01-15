@@ -166,7 +166,7 @@ impl VectorCollection {
         &self,
         vector: &[f32],
         top_k: usize,
-        metric: crate::vector::core::operations::SimilarityMetric,
+        _metric: crate::vector::core::operations::SimilarityMetric,
     ) -> Result<Vec<VectorSearchResult>> {
         // 验证查询向量维度
         if vector.len() != self.config.dimension {

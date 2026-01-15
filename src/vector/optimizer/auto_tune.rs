@@ -929,7 +929,7 @@ mod tests {
                         results.contains_key(&IndexType::IVF));
             },
             Err(e) => {
-                panic!("自动调优失败: 测试应该成功完成自动调优，但遇到了错误: {}", e);
+                panic!("自动调优测试失败: 预期成功完成自动调优，但遇到错误: {}", e);
             }
         }
     }

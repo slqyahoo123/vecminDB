@@ -591,7 +591,7 @@ where
         };
         
         if current_total >= self.config.max_connections {
-            return Err(Error::resource_exhausted("Maximum connections reached"));
+            return Err(Error::resource("Maximum connections reached"));
         }
         
         // 创建连接
@@ -601,7 +601,7 @@ where
         )
         .await
         .map_err(|_| Error::timeout("Connection creation timeout"))?
-        .map_err(|e| Error::connection(&format!("Failed to create connection: {}", e)))?;
+        .map_err(|e| Error::network(format!("Failed to create connection: {}", e)))?;
         
         let metadata = ConnectionMetadata::new(
             self.factory.database_type(),

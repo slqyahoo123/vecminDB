@@ -29,7 +29,7 @@ impl TopicExtractor {
     /// 创建新的主题提取器
     pub fn new(num_topics: usize) -> Result<Self> {
         if num_topics < 1 {
-            return Err(Error::InvalidParameter(format!(
+            return Err(Error::invalid_argument(format!(
                 "主题数量必须大于0,当前值: {}",
                 num_topics
             )));

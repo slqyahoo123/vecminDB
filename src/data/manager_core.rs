@@ -83,7 +83,7 @@ impl DataManager {
                 Ok(arc_data)
             }
             None => {
-                Err(crate::error::Error::DataError(format!("Data not found: {}", data_id)))
+                Err(crate::error::Error::not_found(format!("Data not found: {}", data_id)))
             }
         }
     }
@@ -231,20 +231,20 @@ impl DataManager {
     ) -> Result<crate::data::exports::DataBatch> {
         // 获取数据集
         let dataset = self.get_dataset(dataset_id).await?
-            .ok_or_else(|| crate::error::Error::DataError(format!("Dataset not found: {}", dataset_id)))?;
+            .ok_or_else(|| crate::error::Error::invalid_data(format!("Dataset not found: {}", dataset_id)))?;
 
         // 计算批次范围
         let batch_count = dataset.batches.len();
         
         if batch_idx >= batch_count {
-            return Err(crate::error::Error::DataError("Batch index out of range".to_string()));
+            return Err(crate::error::Error::invalid_data("Batch index out of range".to_string()));
         }
 
         // 从数据集的批次中获取指定的批次
         let processed_batch = if batch_idx < batch_count {
             &dataset.batches[batch_idx]
         } else {
-            return Err(crate::error::Error::DataError("Batch index out of range".to_string()));
+            return Err(crate::error::Error::invalid_data("Batch index out of range".to_string()));
         };
 
         // 创建批次数据 - 从ProcessorBatch的features字段转换
@@ -345,7 +345,7 @@ impl DataManager {
         
         // 检查文件是否存在
         if !Path::new(file_path).exists() {
-            return Err(crate::error::Error::DataError(format!("文件不存在: {}", file_path)));
+            return Err(crate::error::Error::invalid_data(format!("文件不存在: {}", file_path)));
         }
         
         // 根据文件扩展名确定处理方式

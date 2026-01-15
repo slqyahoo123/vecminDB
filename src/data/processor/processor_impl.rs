@@ -2483,18 +2483,18 @@ impl UserDataProcessor {
             DataFormat::JSON => {
                 // JSON数据处理
                 let json_data: serde_json::Value = serde_json::from_slice(data)
-                    .map_err(|e| Error::DataProcessingError(format!("JSON解析失败: {}", e)))?;
+                    .map_err(|e| Error::processing(format!("JSON解析失败: {}", e)))?;
                 
                 // 应用用户配置的数据转换
                 let processed_data = self.apply_user_transformations(json_data).await?;
                 
                 serde_json::to_vec(&processed_data)
-                    .map_err(|e| Error::DataProcessingError(format!("JSON序列化失败: {}", e)))
+                    .map_err(|e| Error::processing(format!("JSON序列化失败: {}", e)))
             }
             DataFormat::CSV => {
                 // CSV数据处理
                 let csv_data = String::from_utf8(data.to_vec())
-                    .map_err(|e| Error::DataProcessingError(format!("CSV解析失败: {}", e)))?;
+                    .map_err(|e| Error::processing(format!("CSV解析失败: {}", e)))?;
                 
                 let processed_csv = self.process_csv_data(csv_data).await?;
                 Ok(processed_csv.into_bytes())

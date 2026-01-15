@@ -10,7 +10,6 @@ use serde::{Serialize, Deserialize};
 use log::{debug, info};
 use async_trait::async_trait;
 
-use crate::Result;
 use crate::data::feature::extractor::{
     FeatureExtractor, ExtractorError, InputData, ExtractorContext,
     FeatureVector, FeatureBatch, ExtractorConfig
@@ -431,7 +430,7 @@ impl TfIdfExtractor {
     }
     
     /// 训练TF-IDF模型
-    pub fn fit(&self, documents: &[String]) -> Result<(), ExtractorError> {
+    pub fn fit(&self, documents: &[String]) -> std::result::Result<(), ExtractorError> {
         let mut vocabulary = self.vocabulary.write().map_err(|e| {
             ExtractorError::Internal(format!("获取词汇表写锁失败: {}", e))
         })?;
@@ -469,7 +468,7 @@ impl TfIdfExtractor {
     }
     
     /// 转换文档为TF-IDF特征向量
-    pub fn transform(&self, document: &str) -> Result<Vec<f32>, ExtractorError> {
+    pub fn transform(&self, document: &str) -> std::result::Result<Vec<f32>, ExtractorError> {
         let vocabulary = self.vocabulary.read().map_err(|e| {
             ExtractorError::Internal(format!("获取词汇表读锁失败: {}", e))
         })?;
@@ -485,7 +484,7 @@ impl TfIdfExtractor {
     }
     
     /// 批量转换文档为TF-IDF特征向量
-    pub fn transform_batch(&self, documents: &[String]) -> Result<Vec<Vec<f32>>, ExtractorError> {
+    pub fn transform_batch(&self, documents: &[String]) -> std::result::Result<Vec<Vec<f32>>, ExtractorError> {
         let mut result = Vec::with_capacity(documents.len());
         
         for document in documents {

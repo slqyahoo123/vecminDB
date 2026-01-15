@@ -201,7 +201,7 @@ impl FeatureExtractorManager {
     }
     
     /// 初始化管理器
-    pub async fn init(&self) -> Result<(), ExtractorError> {
+    pub async fn init(&self) -> std::result::Result<(), ExtractorError> {
         info!("初始化特征提取器管理器");
         
         // 确保工厂已初始化
@@ -212,7 +212,7 @@ impl FeatureExtractorManager {
     }
     
     /// 获取特征提取器实例（带缓存）
-    pub async fn get_extractor(&self, config: crate::data::feature::extractor::ExtractorConfig) -> Result<Box<dyn FeatureExtractor>, ExtractorError> {
+    pub async fn get_extractor(&self, config: crate::data::feature::extractor::ExtractorConfig) -> std::result::Result<Box<dyn FeatureExtractor>, ExtractorError> {
         let extractor_id = self.generate_extractor_id(&config);
         
         // 检查缓存，但不直接返回，而是重新创建实例
@@ -257,8 +257,10 @@ impl FeatureExtractorManager {
         &self,
         configs: Vec<crate::data::feature::extractor::ExtractorConfig>,
         fusion_strategy: &str,
-    ) -> Result<Box<dyn FeatureExtractor>, ExtractorError> {
-        crate::data::feature::factory_impl::create_composite_extractor(configs, fusion_strategy).await
+    ) -> Result<Box<dyn FeatureExtractor>> {
+        crate::data::feature::factory_impl::create_composite_extractor(configs, fusion_strategy)
+            .await
+            .map_err(|e| e.into())
     }
     
     /// 生成提取器唯一标识符
@@ -288,9 +290,9 @@ impl FeatureExtractorManager {
         config: crate::data::feature::extractor::ExtractorConfig, 
         input: InputData,
         context: Option<ExtractorContext>,
-    ) -> Result<FeatureVector, ExtractorError> {
-        let extractor = self.get_extractor(config).await?;
-        extractor.extract(input, context).await
+    ) -> Result<FeatureVector> {
+        let extractor = self.get_extractor(config).await.map_err(|e| e.into())?;
+        extractor.extract(input, context).await.map_err(|e| e.into())
     }
     
     /// 批量提取特征
@@ -299,9 +301,9 @@ impl FeatureExtractorManager {
         config: crate::data::feature::extractor::ExtractorConfig,
         inputs: Vec<InputData>,
         context: Option<ExtractorContext>,
-    ) -> Result<FeatureBatch, ExtractorError> {
-        let extractor = self.get_extractor(config).await?;
-        extractor.batch_extract(inputs, context).await
+    ) -> Result<FeatureBatch> {
+        let extractor = self.get_extractor(config).await.map_err(|e| e.into())?;
+        extractor.batch_extract(inputs, context).await.map_err(|e| e.into())
     }
     
     /// 提取特征并计算相似度
@@ -311,11 +313,11 @@ impl FeatureExtractorManager {
         input1: InputData,
         input2: InputData,
         context: Option<ExtractorContext>,
-    ) -> Result<f32, ExtractorError> {
-        let extractor = self.get_extractor(config).await?;
+    ) -> Result<f32> {
+        let extractor = self.get_extractor(config).await.map_err(|e| e.into())?;
         
-        let feature1 = extractor.extract(input1, context.clone()).await?;
-        let feature2 = extractor.extract(input2, context).await?;
+        let feature1 = extractor.extract(input1, context.clone()).await.map_err(|e| e.into())?;
+        let feature2 = extractor.extract(input2, context).await.map_err(|e| e.into())?;
         
         // 计算余弦相似度
         let dot_product: f32 = feature1.values.iter()

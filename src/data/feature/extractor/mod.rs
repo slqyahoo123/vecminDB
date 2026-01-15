@@ -19,7 +19,6 @@ use serde::{Serialize, Deserialize};
 use tracing::error;
 
 use crate::data::feature::types::{ExtractorType, FeatureType};
-use crate::Result;
 // use crate::Error; // not needed; use fully-qualified crate::Error in conversions
 
 /// 输入数据类型
@@ -468,17 +467,17 @@ impl ExtractorConfig {
     }
     
     /// 获取i32参数
-    pub fn get_i32_param(&self, key: &str) -> Option<Result<i32, ExtractorError>> {
+    pub fn get_i32_param(&self, key: &str) -> Option<std::result::Result<i32, ExtractorError>> {
         self.get_param::<i32>(key)
     }
     
     /// 获取f32参数
-    pub fn get_f32_param(&self, key: &str) -> Option<Result<f32, ExtractorError>> {
+    pub fn get_f32_param(&self, key: &str) -> Option<std::result::Result<f32, ExtractorError>> {
         self.get_param::<f32>(key)
     }
     
     /// 获取bool参数
-    pub fn get_bool_param(&self, key: &str) -> Option<Result<bool, ExtractorError>> {
+    pub fn get_bool_param(&self, key: &str) -> Option<std::result::Result<bool, ExtractorError>> {
         self.params.get(key).map(|s| {
             match s.to_lowercase().as_str() {
                 "true" | "1" | "yes" | "y" => Ok(true),
@@ -538,10 +537,29 @@ impl From<crate::Error> for ExtractorError {
             crate::Error::InvalidInput(msg) => ExtractorError::InvalidInput(msg),
             crate::Error::Processing(msg) => ExtractorError::ProcessingError(msg),
             crate::Error::Internal(msg) => ExtractorError::Internal(msg),
-            crate::Error::Configuration(msg) => ExtractorError::Config(msg),
+            crate::Error::Config(msg) => ExtractorError::Config(msg),
             crate::Error::Serialization(msg) => ExtractorError::Serialization(msg),
             crate::Error::NotFound(msg) => ExtractorError::NotFound(msg),
             _ => ExtractorError::Other(format!("转换错误: {}", err)),
+        }
+    }
+}
+
+impl From<ExtractorError> for crate::Error {
+    fn from(err: ExtractorError) -> Self {
+        match err {
+            ExtractorError::Extract(msg) => crate::Error::processing(msg),
+            ExtractorError::Config(msg) => crate::Error::config(msg),
+            ExtractorError::Validation(msg) => crate::Error::validation(msg),
+            ExtractorError::InvalidInput(msg) => crate::Error::invalid_input(msg),
+            ExtractorError::InputData(msg) => crate::Error::invalid_data(msg),
+            ExtractorError::Internal(msg) => crate::Error::internal(msg),
+            ExtractorError::Unsupported(msg) => crate::Error::not_implemented(msg),
+            ExtractorError::NotFound(msg) => crate::Error::not_found(msg),
+            ExtractorError::Serialization(msg) => crate::Error::serialization(msg),
+            ExtractorError::DimensionMismatch(msg) => crate::Error::invalid_argument(msg),
+            ExtractorError::ProcessingError(msg) => crate::Error::processing(msg),
+            ExtractorError::Other(msg) => crate::Error::other(msg),
         }
     }
 }

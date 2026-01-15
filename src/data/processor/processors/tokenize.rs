@@ -122,7 +122,8 @@ pub async fn tokenize_with_processor(
         let len = u32::from_le_bytes(buf) as usize;
         let mut name_buf = vec![0u8; len];
         file.read_exact(&mut name_buf).await?;
-        let column_name = String::from_utf8(name_buf)?;
+        let column_name = String::from_utf8(name_buf)
+            .map_err(|e| Error::invalid_data(format!("列名UTF-8解码失败: {}", e)))?;
         columns.push(column_name);
     }
     
@@ -135,7 +136,8 @@ pub async fn tokenize_with_processor(
             let len = u32::from_le_bytes(buf) as usize;
             let mut val_buf = vec![0u8; len];
             file.read_exact(&mut val_buf).await?;
-            let value = String::from_utf8(val_buf)?;
+            let value = String::from_utf8(val_buf)
+                .map_err(|e| Error::invalid_data(format!("数据值UTF-8解码失败: {}", e)))?;
             row.push(value);
         }
         rows.push(row);

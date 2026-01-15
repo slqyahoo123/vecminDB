@@ -516,8 +516,9 @@ impl WordPieceTokenizer {
 
 impl Tokenizer for WordPieceTokenizer {
     fn tokenize(&self, text: &str) -> Result<Vec<String>> {
-        // 简化实现：使用空格分词，实际WordPiece算法更复杂
-        // 在真实实现中，应该使用词典和子词切分算法
+        // 基础实现：使用空格分词
+        // 完整的 WordPiece 算法需要词汇表和子词切分逻辑
+        // 生产环境应集成 transformers 库或加载预训练 tokenizer
         let words = text.split_whitespace().map(|s| s.to_string()).collect();
         Ok(words)
     }
@@ -547,8 +548,9 @@ impl SentencePieceTokenizer {
 
 impl Tokenizer for SentencePieceTokenizer {
     fn tokenize(&self, text: &str) -> Result<Vec<String>> {
-        // 简化实现：使用空格分词，实际SentencePiece需要调用专门的库
-        // 在真实实现中，应该加载SentencePiece模型
+        // 基础实现：使用空格分词
+        // 完整的 SentencePiece 需要加载 .model 文件并使用 sentencepiece-rs 库
+        // 生产环境应调用 sentencepiece 库进行子词切分
         let words = text.split_whitespace().map(|s| s.to_string()).collect();
         Ok(words)
     }

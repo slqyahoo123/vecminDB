@@ -294,7 +294,7 @@ impl PipelineContext {
     }
 
     /// 获取字符串值
-    pub fn get_string(&self, key: &str) -> Result<String, Error> {
+    pub fn get_string(&self, key: &str) -> Result<String> {
         // 尝试从不同的存储获取值
         if let Some(value) = self.params.get(key) {
             return serde_json::from_value(value.clone())
@@ -483,7 +483,7 @@ impl Pipeline for BasicPipeline {
         self.description.as_deref()
     }
     
-    fn add_stage(&mut self, stage: Arc<dyn PipelineStage>) -> Result<(), Error> {
+    fn add_stage(&mut self, stage: Arc<dyn PipelineStage>) -> Result<()> {
         self.stages.push(stage);
         Ok(())
     }

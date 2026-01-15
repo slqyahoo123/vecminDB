@@ -91,14 +91,14 @@ impl StandardTextCleaner {
     }
     
     /// 添加自定义清理模式
-    pub fn add_pattern(&mut self, pattern: &str, replacement: &str) -> Result<(), Error> {
-        let regex = Regex::new(pattern).map_err(|e| Error::InvalidParameter(format!("无效的正则表达式模式: {}", e)))?;
+    pub fn add_pattern(&mut self, pattern: &str, replacement: &str) -> Result<()> {
+        let regex = Regex::new(pattern).map_err(|e| Error::invalid_argument(format!("无效的正则表达式模式: {}", e)))?;
         self.custom_patterns.push((regex, replacement.to_string()));
         Ok(())
     }
     
     /// 使用自定义模式创建
-    pub fn with_patterns(mut self, patterns: Vec<(String, String)>) -> Result<Self, Error> {
+    pub fn with_patterns(mut self, patterns: Vec<(String, String)>) -> Result<Self> {
         for (pattern, replacement) in patterns {
             self.add_pattern(&pattern, &replacement)?;
         }
@@ -174,7 +174,7 @@ impl StandardTextCleaner {
 
 impl TextProcessor for StandardTextCleaner {
     /// 处理文本
-    fn process(&self, text: &str) -> Result<String, Error> {
+    fn process(&self, text: &str) -> Result<String> {
         // 如果输入为空，返回空
         if text.is_empty() {
             return Ok(String::new());
