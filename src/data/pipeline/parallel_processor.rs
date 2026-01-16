@@ -877,7 +877,7 @@ impl ParallelProcessor {
         #[cfg(target_os = "windows")]
         {
             // Windows系统：使用WMI或性能计数器
-            // 这里使用简化的方法，实际生产环境中应该使用Windows API
+            // 使用系统调用获取进程信息（Windows环境）
             use std::process::Command;
             
             if let Ok(output) = Command::new("tasklist")

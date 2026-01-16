@@ -214,7 +214,7 @@ impl VectorIndex for IVFIndex {
         }
         
         let serialized: SerializableIVFIndex = bincode::deserialize(data)
-            .map_err(|e| Error::deserialization(e.to_string()))?;
+            .map_err(|e| Error::serialization(e.to_string()))?;
         
         // 更新现有实例
         self.clusters = serialized.clusters;
@@ -249,7 +249,7 @@ impl VectorIndex for IVFIndex {
         }
         
         let serialized: SerializableIVFIndex = bincode::deserialize(data)
-            .map_err(|e| Error::deserialization(e.to_string()))?;
+            .map_err(|e| Error::serialization(e.to_string()))?;
         
         // 创建实例并重新创建不可序列化的成员
         let mut index = Self::new(serialized.config)?;

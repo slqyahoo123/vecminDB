@@ -65,7 +65,7 @@ impl TypeConverterStage {
                         if self.skip_errors {
                             Ok(DataValue::Null)
                         } else {
-                            Err(Error::conversion_error(format!("无法将字符串 '{}' 转换为数字", s)))
+                            Err(Error::invalid_input(format!("无法将字符串 '{}' 转换为数字", s)))
                         }
                     }
                 }
@@ -78,7 +78,7 @@ impl TypeConverterStage {
                         if self.skip_errors {
                             Ok(DataValue::Null)
                         } else {
-                            Err(Error::conversion_error(format!("无法将字符串 '{}' 转换为布尔值", s)))
+                            Err(Error::invalid_input(format!("无法将字符串 '{}' 转换为布尔值", s)))
                         }
                     }
                 }
@@ -94,7 +94,7 @@ impl TypeConverterStage {
                 if self.skip_errors {
                     Ok(DataValue::Null)
                 } else {
-                    Err(Error::conversion_error(format!(
+                    Err(Error::invalid_input(format!(
                         "不支持从 {:?} 转换为 {:?}", 
                         value, 
                         target_type

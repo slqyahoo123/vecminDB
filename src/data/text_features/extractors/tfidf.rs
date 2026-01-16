@@ -60,7 +60,7 @@ impl TfIdfExtractor {
     /// 拟合模型
     pub fn fit(&mut self, texts: &[String]) -> Result<()> {
         if texts.is_empty() {
-            return Err(Error::InvalidData("训练数据为空".to_string()));
+            return Err(Error::invalid_data("训练数据为空".to_string()));
         }
         
         // 重置状态
@@ -104,7 +104,7 @@ impl TfIdfExtractor {
     /// 转换文本为特征向量
     pub fn transform(&self, text: &str) -> Result<Vec<f32>> {
         if !self.is_fitted {
-            return Err(Error::InvalidOperation("模型尚未拟合".to_string()));
+            return Err(Error::invalid_state("模型尚未拟合".to_string()));
         }
         
         // 预处理文本
@@ -155,7 +155,7 @@ impl TfIdfExtractor {
     /// 保存模型状态
     pub fn save(&self) -> Result<String> {
         if !self.is_fitted {
-            return Err(Error::InvalidOperation("模型尚未拟合".to_string()));
+            return Err(Error::invalid_state("模型尚未拟合".to_string()));
         }
         
         let state = TfIdfModelState {
@@ -167,7 +167,7 @@ impl TfIdfExtractor {
         };
         
         serde_json::to_string(&state)
-            .map_err(|e| Error::SerializationError(format!("无法序列化模型: {}", e)))
+            .map_err(|e| Error::serialization(format!("无法序列化模型: {}", e)))
     }
     
     /// 加载模型状态
@@ -220,7 +220,7 @@ impl TfIdfExtractor {
         };
         
         if min_df > max_df {
-            return Err(Error::InvalidData(format!(
+            return Err(Error::invalid_data(format!(
                 "最小文档频率({})大于最大文档频率({})",
                 min_df, max_df
             )));
@@ -262,7 +262,7 @@ impl TfIdfExtractor {
     /// 计算IDF值
     fn compute_idf(&mut self) -> Result<()> {
         if self.document_count == 0 {
-            return Err(Error::InvalidData("文档计数为0".to_string()));
+            return Err(Error::invalid_data("文档计数为0".to_string()));
         }
         
         let doc_count = self.document_count as f32;

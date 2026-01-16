@@ -552,9 +552,9 @@ impl VectorDB {
         let backup_dir = base_dir.join("backups");
         
         fs::create_dir_all(&config_dir)
-            .map_err(|e| Error::StorageError(format!("Failed to create config directory: {}", e)))?;
+            .map_err(|e| Error::storage(format!("Failed to create config directory: {}", e)))?;
         fs::create_dir_all(&backup_dir)
-            .map_err(|e| Error::StorageError(format!("Failed to create backup directory: {}", e)))?;
+            .map_err(|e| Error::storage(format!("Failed to create backup directory: {}", e)))?;
         
         // 3. 生成配置文件路径
         let config_filename = format!("{}.json", config.name);
@@ -565,7 +565,7 @@ impl VectorDB {
         // 4. 备份现有配置（如果存在）
         if config_path.exists() {
             fs::copy(&config_path, &backup_path)
-                .map_err(|e| Error::StorageError(format!("Failed to backup existing config: {}", e)))?;
+                .map_err(|e| Error::storage(format!("Failed to backup existing config: {}", e)))?;
             log::info!("Backed up existing config to: {:?}", backup_path);
         }
         
@@ -575,17 +575,17 @@ impl VectorDB {
         
         // 6. 原子写入（先写临时文件，再重命名）
         fs::write(&temp_path, &config_json)
-            .map_err(|e| Error::StorageError(format!("Failed to write temp config file: {}", e)))?;
+            .map_err(|e| Error::storage(format!("Failed to write temp config file: {}", e)))?;
         
         fs::rename(&temp_path, &config_path)
-            .map_err(|e| Error::StorageError(format!("Failed to rename temp config file: {}", e)))?;
+            .map_err(|e| Error::storage(format!("Failed to rename temp config file: {}", e)))?;
         
         // 7. 验证写入的文件
         let written_content = fs::read_to_string(&config_path)
-            .map_err(|e| Error::StorageError(format!("Failed to read back config file: {}", e)))?;
+            .map_err(|e| Error::storage(format!("Failed to read back config file: {}", e)))?;
         
         let _parsed_config: VectorCollectionConfig = serde_json::from_str(&written_content)
-            .map_err(|e| Error::StorageError(format!("Config file validation failed: {}", e)))?;
+            .map_err(|e| Error::storage(format!("Config file validation failed: {}", e)))?;
         
         // 8. 记录操作日志
         log::info!("Successfully saved collection config '{}' to: {:?}", config.name, config_path);
@@ -601,7 +601,7 @@ impl VectorDB {
         let backup_pattern = format!("{}.backup", collection_name);
         
         let mut backup_files: Vec<_> = std::fs::read_dir(backup_dir)
-            .map_err(|e| Error::StorageError(format!("Failed to read backup directory: {}", e)))?
+            .map_err(|e| Error::storage(format!("Failed to read backup directory: {}", e)))?
             .filter_map(|entry| {
                 let entry = entry.ok()?;
                 let filename = entry.file_name().to_string_lossy().to_string();

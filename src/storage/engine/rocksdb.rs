@@ -592,7 +592,7 @@ impl StorageEngine for RocksDBStorage {
         let result = if let Some(value) = db.get(key.as_bytes()).unwrap_or(None) {
             match bincode::deserialize::<crate::data::DataBatch>(&value) {
                 Ok(batch) => Ok(batch),
-                Err(_) => Err(crate::error::Error::deserialization("Failed to deserialize batch data"))
+                Err(_) => Err(crate::error::Error::serialization("Failed to deserialize batch data"))
             }
         } else {
             Err(crate::error::Error::not_found("Batch data not found"))
@@ -667,10 +667,10 @@ impl StorageTransaction for RocksDBTransaction {
             for op in ops {
                 match op {
                     RocksDBTxOp::Store { key, value } => {
-                        db_guard.put(key.as_bytes(), &value).map_err(|e| Error::StorageError(format!("存储操作失败: {}", e)))?;
+                        db_guard.put(key.as_bytes(), &value).map_err(|e| Error::storage(format!("存储操作失败: {}", e)))?;
                     }
                     RocksDBTxOp::Delete { key } => {
-                        db_guard.delete(key.as_bytes()).map_err(|e| Error::StorageError(format!("删除操作失败: {}", e)))?;
+                        db_guard.delete(key.as_bytes()).map_err(|e| Error::storage(format!("删除操作失败: {}", e)))?;
                     }
                 }
             }
@@ -720,7 +720,7 @@ impl StorageTransaction for RocksDBTransaction {
         tokio::runtime::Handle::current().block_on(async move {
             let db_guard = db.read()
                 .map_err(|e| Error::LockError(format!("锁错误: {}", e)))?;
-            Ok(db_guard.get(key_str.as_bytes()).map_err(|e| Error::StorageError(format!("读取操作失败: {}", e)))?)
+            Ok(db_guard.get(key_str.as_bytes()).map_err(|e| Error::storage(format!("读取操作失败: {}", e)))?)
         })
     }
     

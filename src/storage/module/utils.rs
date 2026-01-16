@@ -12,7 +12,7 @@ pub fn str_to_bytes(s: &str) -> Vec<u8> {
 /// 将字节数组转换为字符串
 #[inline]
 pub fn bytes_to_str(bytes: &[u8]) -> Result<&str> {
-    std::str::from_utf8(bytes).map_err(|e| Error::InvalidData(e.to_string()))
+    std::str::from_utf8(bytes).map_err(|e| Error::invalid_data(e.to_string()))
 }
 
 /// 生成唯一ID

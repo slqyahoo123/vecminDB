@@ -72,7 +72,7 @@ pub trait Algorithm: Send + Sync + std::fmt::Debug {
     fn serialize_config(&self) -> Result<Vec<u8>> {
         let config = self.get_config();
         bincode::serialize(&config)
-            .map_err(|e| crate::error::Error::SerializationError(e.to_string()))
+            .map_err(|e| crate::error::Error::serialization(e.to_string()))
     }
     
     /// 设置算法配置（默认实现）
@@ -89,7 +89,7 @@ pub trait Algorithm: Send + Sync + std::fmt::Debug {
     fn get_params(&self) -> Result<serde_json::Value> {
         let config = self.get_config();
         serde_json::to_value(config)
-            .map_err(|e| crate::error::Error::SerializationError(e.to_string()))
+            .map_err(|e| crate::error::Error::serialization(e.to_string()))
     }
 }
 

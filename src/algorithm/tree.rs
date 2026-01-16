@@ -907,7 +907,7 @@ impl Algorithm for DecisionTree {
     fn execute(&self, input: &[u8]) -> Result<Vec<u8>> {
         // 将输入字节转换为特征向量
         let features_data: Vec<f32> = bincode::deserialize(input)
-            .map_err(|e| Error::deserialization(&format!("Failed to deserialize input: {}", e)))?;
+            .map_err(|e| Error::serialization(&format!("Failed to deserialize input: {}", e)))?;
         
         // 执行预测
         let prediction = self.predict(&features_data)

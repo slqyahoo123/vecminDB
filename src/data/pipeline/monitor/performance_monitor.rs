@@ -242,6 +242,13 @@ impl AdvancedPerformanceMonitorStage {
         }
     }
 
+    /// 获取CPU使用率（Windows，无winapi feature）
+    #[cfg(all(target_os = "windows", not(feature = "winapi")))]
+    fn get_cpu_usage(&mut self) -> Result<f64> {
+        warn!("Windows平台需要winapi feature才能获取CPU使用率");
+        Ok(0.0)
+    }
+
     /// 获取CPU使用率（其他平台）
     #[cfg(not(any(target_os = "linux", target_os = "windows")))]
     fn get_cpu_usage(&mut self) -> Result<f64> {
@@ -295,6 +302,13 @@ impl AdvancedPerformanceMonitorStage {
             // 转换为MB
             Ok(pmc.WorkingSetSize as f64 / (1024.0 * 1024.0))
         }
+    }
+
+    /// 获取内存使用情况（Windows，无winapi feature）
+    #[cfg(all(target_os = "windows", not(feature = "winapi")))]
+    fn get_memory_usage(&self) -> Result<f64> {
+        warn!("Windows平台需要winapi feature才能获取内存使用情况");
+        Ok(0.0)
     }
 
     /// 获取内存使用情况（其他平台）

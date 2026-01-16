@@ -327,7 +327,7 @@ impl VPTreeIndex {
     ///   - 数据损坏
     pub fn deserialize(data: &[u8]) -> Result<Self> {
         bincode::deserialize(data)
-            .map_err(|e| Error::deserialization(e.to_string()))
+            .map_err(|e| Error::serialization(e.to_string()))
     }
 }
 

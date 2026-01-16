@@ -180,13 +180,13 @@ impl TopicExtractor {
 impl FeatureExtractor for TopicExtractor {
     fn extract(&self, text: &str) -> Result<Vec<f32>> {
         if text.is_empty() {
-            return Err(Error::InvalidData("输入文本为空".to_string()));
+            return Err(Error::invalid_data("输入文本为空".to_string()));
         }
         
         // 预处理文本
         let words = self.preprocess_text(text);
         if words.is_empty() {
-            return Err(Error::InvalidData("预处理后文本为空".to_string()));
+            return Err(Error::invalid_data("预处理后文本为空".to_string()));
         }
         
         // 转换为词袋表示

@@ -530,7 +530,7 @@ impl crate::algorithm::executor::sandbox::interface::Sandbox for DefaultSandbox 
     async fn prepare_input_data(&self, data: &crate::data::DataBatch) -> Result<Vec<u8>> {
         // 将DataBatch序列化为字节数组
         let serialized = serde_json::to_vec(&data)
-            .map_err(|e| Error::SerializationError(format!("Failed to serialize input data: {}", e)))?;
+            .map_err(|e| Error::serialization(format!("Failed to serialize input data: {}", e)))?;
         
         Ok(serialized)
     }

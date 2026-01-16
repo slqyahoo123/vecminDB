@@ -357,7 +357,7 @@ impl MultimodalFeatureExtractor {
                                 // 未知类别使用-1或最大索引+1
                                 max_categories as f32
                             } else {
-                                return Err(Error::InvalidData(format!("未知类别: {}", category)));
+                                return Err(Error::invalid_data(format!("未知类别: {}", category)));
                             };
                             
                             features.push(encoded_value);
@@ -445,7 +445,7 @@ impl MultimodalFeatureExtractor {
         
         // 处理结果为空的情况
         if combined.is_empty() {
-            return Err(Error::InvalidData("没有可用特征".to_string()));
+            return Err(Error::invalid_data("没有可用特征".to_string()));
         }
         
         // 如果维度过大，进行降维
@@ -848,7 +848,7 @@ impl MultimodalFeatureExtractor {
         
         // 确保提取了特征
         if features.is_empty() {
-            return Err(Error::InvalidData("没有可用特征".to_string()));
+            return Err(Error::invalid_data("没有可用特征".to_string()));
         }
         
         Ok(features)

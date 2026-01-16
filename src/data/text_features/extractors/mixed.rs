@@ -53,7 +53,7 @@ impl MixedFeatureExtractor {
     /// 从数据中自动检测字段类型
     pub fn detect_field_types(&mut self, data: &[Value]) -> Result<HashMap<String, FieldType>> {
         if data.is_empty() {
-            return Err(Error::InvalidData("数据为空，无法检测字段类型".to_string()));
+            return Err(Error::invalid_data("数据为空，无法检测字段类型".to_string()));
         }
         
         let mut field_types: HashMap<String, HashMap<FieldType, usize>> = HashMap::new();
@@ -106,7 +106,7 @@ impl MixedFeatureExtractor {
     /// 计算数值型字段的统计信息
     pub fn compute_numeric_stats(&mut self, data: &[Value]) -> Result<HashMap<String, NumericStats>> {
         if data.is_empty() {
-            return Err(Error::InvalidData("数据为空，无法计算统计信息".to_string()));
+            return Err(Error::invalid_data("数据为空，无法计算统计信息".to_string()));
         }
         
         // 如果字段类型未检测，先检测字段类型
@@ -163,7 +163,7 @@ impl MixedFeatureExtractor {
     /// 收集分类型字段的值集合
     pub fn collect_categorical_values(&mut self, data: &[Value]) -> Result<HashMap<String, HashSet<String>>> {
         if data.is_empty() {
-            return Err(Error::InvalidData("数据为空，无法收集分类值".to_string()));
+            return Err(Error::invalid_data("数据为空，无法收集分类值".to_string()));
         }
         
         // 如果字段类型未检测，先检测字段类型
@@ -304,7 +304,7 @@ impl MixedFeatureExtractor {
                     }
                 },
                 FieldType::Unknown => {
-                    return Err(Error::InvalidData(format!(
+                    return Err(Error::invalid_data(format!(
                         "字段 {} 类型未知",
                         field
                     )));
@@ -368,7 +368,7 @@ impl MixedFeatureExtractor {
                     }
                 },
                 FieldType::Unknown => {
-                    return Err(Error::InvalidData(format!(
+                    return Err(Error::invalid_data(format!(
                         "字段 {} 类型未知",
                         field
                     )));
@@ -506,7 +506,7 @@ impl MixedFeatureExtractor {
                     }
                 },
                 FieldType::Unknown => {
-                    return Err(Error::InvalidData(format!(
+                    return Err(Error::invalid_data(format!(
                         "字段 {} 类型未知",
                         field
                     )));

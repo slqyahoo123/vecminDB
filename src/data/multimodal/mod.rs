@@ -552,7 +552,7 @@ impl extractors::interface::ModalityExtractor for TextModalityExtractor {
     
     fn get_config(&self) -> Result<serde_json::Value> {
         serde_json::to_value(&self.config)
-            .map_err(|e| Error::SerializationError(format!("序列化配置失败: {}", e)))
+            .map_err(|e| Error::serialization(format!("序列化配置失败: {}", e)))
     }
     
     fn get_modality_type(&self) -> ModalityType {
@@ -644,7 +644,7 @@ impl extractors::interface::ModalityExtractor for ImageModalityExtractor {
     
     fn get_config(&self) -> Result<serde_json::Value> {
         serde_json::to_value(&self.config)
-            .map_err(|e| Error::SerializationError(format!("序列化配置失败: {}", e)))
+            .map_err(|e| Error::serialization(format!("序列化配置失败: {}", e)))
     }
     
     fn get_modality_type(&self) -> ModalityType {
@@ -735,7 +735,7 @@ impl extractors::interface::ModalityExtractor for AudioModalityExtractor {
     
     fn get_config(&self) -> Result<serde_json::Value> {
         serde_json::to_value(&self.config)
-            .map_err(|e| Error::SerializationError(format!("序列化配置失败: {}", e)))
+            .map_err(|e| Error::serialization(format!("序列化配置失败: {}", e)))
     }
     
     fn get_modality_type(&self) -> ModalityType {

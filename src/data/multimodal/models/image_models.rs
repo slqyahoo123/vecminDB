@@ -58,7 +58,7 @@ pub trait ImageFeatureModel: Send + Sync + std::fmt::Debug {
     fn extract_from_image_data(&self, image_data: &[u8]) -> Result<Vec<f32>> {
         // 解析图像
         let img = image::load_from_memory(image_data)
-            .map_err(|e| Error::conversion_error(format!("无法解析图像数据: {}", e)))?;
+            .map_err(|e| Error::invalid_input(format!("无法解析图像数据: {}", e)))?;
         
         // 调整尺寸
         let (width, height) = self.get_input_size();
@@ -78,7 +78,7 @@ pub trait ImageFeatureModel: Send + Sync + std::fmt::Debug {
     fn image_to_tensor(&self, image: &image::DynamicImage) -> Result<TensorData> {
         let (width, height) = self.get_input_size();
         if image.width() != width || image.height() != height {
-            return Err(Error::validation_error(format!(
+            return Err(Error::validation(format!(
                 "图像尺寸不匹配: 提供的是 ({}, {}), 需要的是 ({}, {})",
                 image.width(), image.height(), width, height
             )));
@@ -235,7 +235,7 @@ impl ResNetFeatureModel {
         
         // 确保tensor是正确的形状
         if processed.shape.len() != 4 || processed.shape[1] != 3 {
-            return Err(Error::validation_error(
+            return Err(Error::validation(
                 format!("无效的tensor形状: {:?}, 应为[batch_size, 3, height, width]", processed.shape)
             ));
         }
@@ -258,7 +258,7 @@ impl ResNetFeatureModel {
                 }
             }
         } else {
-            return Err(Error::validation_error("TensorData 必须是 F32 类型".to_string()));
+            return Err(Error::validation("TensorData 必须是 F32 类型".to_string()));
         }
         
         Ok(processed)
@@ -277,7 +277,7 @@ impl ResNetFeatureModel {
         // 从 TensorValues 中提取 Vec<f32>
         let data_slice = match &processed.data {
             crate::compat::tensor::TensorValues::F32(vec) => vec.as_slice(),
-            _ => return Err(Error::validation_error("TensorData 必须是 F32 类型".to_string())),
+            _ => return Err(Error::validation("TensorData 必须是 F32 类型".to_string())),
         };
         let fingerprint = calculate_tensor_hash(data_slice);
         
@@ -409,7 +409,7 @@ impl VGGFeatureModel {
         
         // 确保tensor是正确的形状
         if processed.shape.len() != 4 || processed.shape[1] != 3 {
-            return Err(Error::validation_error(
+            return Err(Error::validation(
                 format!("无效的tensor形状: {:?}, 应为[batch_size, 3, height, width]", processed.shape)
             ));
         }
@@ -432,7 +432,7 @@ impl VGGFeatureModel {
                 }
             }
         } else {
-            return Err(Error::validation_error("TensorData 必须是 F32 类型".to_string()));
+            return Err(Error::validation("TensorData 必须是 F32 类型".to_string()));
         }
         
         Ok(processed)
@@ -449,7 +449,7 @@ impl ImageFeatureModel for VGGFeatureModel {
         // 从 TensorValues 中提取 Vec<f32>
         let data_slice = match &processed.data {
             crate::compat::tensor::TensorValues::F32(vec) => vec.as_slice(),
-            _ => return Err(Error::validation_error("TensorData 必须是 F32 类型".to_string())),
+            _ => return Err(Error::validation("TensorData 必须是 F32 类型".to_string())),
         };
         let fingerprint = calculate_tensor_hash(data_slice);
         
@@ -581,7 +581,7 @@ impl EfficientNetFeatureModel {
         
         // 确保tensor是正确的形状
         if processed.shape.len() != 4 || processed.shape[1] != 3 {
-            return Err(Error::validation_error(
+            return Err(Error::validation(
                 format!("无效的tensor形状: {:?}, 应为[batch_size, 3, height, width]", processed.shape)
             ));
         }
@@ -604,7 +604,7 @@ impl EfficientNetFeatureModel {
                 }
             }
         } else {
-            return Err(Error::validation_error("TensorData 必须是 F32 类型".to_string()));
+            return Err(Error::validation("TensorData 必须是 F32 类型".to_string()));
         }
         
         Ok(processed)
@@ -621,7 +621,7 @@ impl ImageFeatureModel for EfficientNetFeatureModel {
         // 从 TensorValues 中提取 Vec<f32>
         let data_slice = match &processed.data {
             crate::compat::tensor::TensorValues::F32(vec) => vec.as_slice(),
-            _ => return Err(Error::validation_error("TensorData 必须是 F32 类型".to_string())),
+            _ => return Err(Error::validation("TensorData 必须是 F32 类型".to_string())),
         };
         let fingerprint = calculate_tensor_hash(data_slice);
         
@@ -742,7 +742,7 @@ impl CLIPImageFeatureModel {
         
         // 确保tensor是正确的形状
         if processed.shape.len() != 4 || processed.shape[1] != 3 {
-            return Err(Error::validation_error(
+            return Err(Error::validation(
                 format!("无效的tensor形状: {:?}, 应为[batch_size, 3, height, width]", processed.shape)
             ));
         }
@@ -765,7 +765,7 @@ impl CLIPImageFeatureModel {
                 }
             }
         } else {
-            return Err(Error::validation_error("TensorData 必须是 F32 类型".to_string()));
+            return Err(Error::validation("TensorData 必须是 F32 类型".to_string()));
         }
         
         Ok(processed)
@@ -782,7 +782,7 @@ impl ImageFeatureModel for CLIPImageFeatureModel {
         // 从 TensorValues 中提取 Vec<f32>
         let data_slice = match &processed.data {
             crate::compat::tensor::TensorValues::F32(vec) => vec.as_slice(),
-            _ => return Err(Error::validation_error("TensorData 必须是 F32 类型".to_string())),
+            _ => return Err(Error::validation("TensorData 必须是 F32 类型".to_string())),
         };
         let fingerprint = calculate_tensor_hash(data_slice);
         

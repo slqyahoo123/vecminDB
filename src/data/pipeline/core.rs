@@ -652,19 +652,11 @@ impl DataPipeline {
     
     /// 根据字段名过滤记录
     pub fn filter_records_by_field(&self, records: Vec<DataRecord>, field_name: &str, field_value: &DataField) -> Result<Vec<DataRecord>> {
-        // 过滤符合条件的记录
-        let filtered_records = records.into_iter()
-            .filter(|record| {
-                if let Some(value) = record.fields.get(field_name) {
-                    // 简化比较逻辑，暂时总是返回true进行过滤
-                    true
-                } else {
-                    false
-                }
-            })
-            .collect();
-            
-        Ok(filtered_records)
+        // 字段值比较功能需要完整的类型比较实现，当前返回特征未启用错误
+        // 如需使用字段过滤，请实现完整的类型比较逻辑或使用其他过滤方法
+        Err(Error::feature_not_enabled(
+            "字段值比较过滤需要完整的类型比较实现，当前未实现。请使用其他过滤方法或实现完整的类型比较逻辑。".to_string()
+        ))
     }
     
     /// 提取记录中的指定字段

@@ -234,7 +234,7 @@ impl PipelineContext {
             .ok_or_else(|| Error::not_found(&format!("参数未找到: {}", key)))?;
             
         serde_json::from_value(value.clone())
-            .map_err(|e| Error::deserialization(&format!("无法反序列化参数 {}: {}", key, e)))
+            .map_err(|e| Error::serialization(&format!("无法反序列化参数 {}: {}", key, e)))
     }
 
     /// 添加数据
@@ -257,7 +257,7 @@ impl PipelineContext {
             .ok_or_else(|| Error::not_found(&format!("数据未找到: {}", key)))?;
             
         serde_json::from_value(value.clone())
-            .map_err(|e| Error::deserialization(&format!("无法反序列化数据 {}: {}", key, e)))
+            .map_err(|e| Error::serialization(&format!("无法反序列化数据 {}: {}", key, e)))
     }
 
     /// 添加临时数据
@@ -280,7 +280,7 @@ impl PipelineContext {
             .ok_or_else(|| Error::not_found(&format!("临时数据未找到: {}", key)))?;
             
         serde_json::from_value(value.clone())
-            .map_err(|e| Error::deserialization(&format!("无法反序列化临时数据 {}: {}", key, e)))
+            .map_err(|e| Error::serialization(&format!("无法反序列化临时数据 {}: {}", key, e)))
     }
 
     /// 设置状态
@@ -298,17 +298,17 @@ impl PipelineContext {
         // 尝试从不同的存储获取值
         if let Some(value) = self.params.get(key) {
             return serde_json::from_value(value.clone())
-                .map_err(|e| Error::deserialization(&format!("无法反序列化参数 {}: {}", key, e)));
+                .map_err(|e| Error::serialization(&format!("无法反序列化参数 {}: {}", key, e)));
         }
         
         if let Some(value) = self.data.get(key) {
             return serde_json::from_value(value.clone())
-                .map_err(|e| Error::deserialization(&format!("无法反序列化数据 {}: {}", key, e)));
+                .map_err(|e| Error::serialization(&format!("无法反序列化数据 {}: {}", key, e)));
         }
         
         if let Some(value) = self.temp.get(key) {
             return serde_json::from_value(value.clone())
-                .map_err(|e| Error::deserialization(&format!("无法反序列化临时数据 {}: {}", key, e)));
+                .map_err(|e| Error::serialization(&format!("无法反序列化临时数据 {}: {}", key, e)));
         }
         
         if let Some(value) = self.state.get(key) {

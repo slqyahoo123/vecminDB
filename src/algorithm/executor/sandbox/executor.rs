@@ -256,7 +256,7 @@ impl SandboxExecutor {
         let output = match serde_json::from_str::<serde_json::Value>(&sandbox_result.stdout) {
             Ok(value) => value,
             Err(e) => {
-                return Err(Error::deserialization(format!(
+                return Err(Error::serialization(format!(
                     "无法解析算法输出: {}，错误: {}", 
                     sandbox_result.stdout, e
                 )));

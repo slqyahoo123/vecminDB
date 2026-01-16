@@ -160,13 +160,13 @@ impl SentimentExtractor {
 impl FeatureExtractor for SentimentExtractor {
     fn extract(&self, text: &str) -> Result<Vec<f32>> {
         if text.is_empty() {
-            return Err(Error::InvalidData("输入文本为空".to_string()));
+            return Err(Error::invalid_data("输入文本为空".to_string()));
         }
         
         // 预处理文本
         let words = self.preprocess_text(text);
         if words.is_empty() {
-            return Err(Error::InvalidData("预处理后文本为空".to_string()));
+            return Err(Error::invalid_data("预处理后文本为空".to_string()));
         }
         
         // 分析情感
@@ -205,7 +205,7 @@ fn load_sentiment_dict() -> Result<HashMap<String, f32>> {
         "hate": -2.0
     }"#;
     
-    from_str(dict_str).map_err(|e| Error::InvalidData(format!("加载情感词典失败: {}", e)))
+    from_str(dict_str).map_err(|e| Error::invalid_data(format!("加载情感词典失败: {}", e)))
 }
 
 #[cfg(test)]

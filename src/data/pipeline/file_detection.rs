@@ -90,7 +90,7 @@ impl PipelineStage for FileDetectionStage {
         
         // 从上下文获取源文件路径
         let source_path = ctx.get_param::<String>("source_path")
-            .map_err(|_| Error::invalid_parameter("source_path"))?;
+            .map_err(|_| Error::invalid_input("source_path"))?;
         
         debug!("检测文件: {}", source_path);
         

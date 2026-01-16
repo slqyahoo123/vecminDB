@@ -65,7 +65,7 @@ where
             hits: AsyncRwLock::new(0),
             misses: AsyncRwLock::new(0),
             event_system: None,
-            error_context: ErrorContext::new("AsyncCacheManager", "init"),
+            error_context: "AsyncCacheManager::init".to_string(),
         }
     }
 

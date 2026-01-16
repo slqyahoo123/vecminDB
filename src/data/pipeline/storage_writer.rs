@@ -133,19 +133,30 @@ impl PipelineStage for StorageWriteStage {
         debug!("写入数据到存储位置: {}", target);
         
         // 创建存储引擎实例
-        // 将 UnifiedStorageConfig 转换为 StorageConfig
-        let unified_config = stage.storage_config.clone().unwrap_or_default();
-        let mut config = StorageConfig::default();
-        config.path = unified_config.data_path.clone();
+        // UnifiedStorageConfig 就是 StorageConfig 的类型别名，直接使用
+        let mut config = stage.storage_config.clone().unwrap_or_default();
+        // 确保必要的配置项已设置
         config.create_if_missing = true;
-        config.max_background_jobs = 4;
-        config.write_buffer_size = unified_config.write_buffer_mb * 1024 * 1024;
-        config.max_open_files = unified_config.max_open_files as i32;
+        if config.max_background_jobs == 0 {
+            config.max_background_jobs = 4;
+        }
+        if config.write_buffer_size == 0 {
+            config.write_buffer_size = 64 * 1024 * 1024; // 默认64MB
+        }
+        if config.max_open_files == 0 {
+            config.max_open_files = 1000;
+        }
         // 如果 unified_config 有 compression 字段（不为 None），则启用压缩
-        config.use_compression = unified_config.compression.is_some();
-        config.max_file_size = 64 * 1024 * 1024; // 64MB
-        config.max_connections = 100;
-        config.connection_timeout = unified_config.transaction_timeout_secs * 1000;
+        config.use_compression = config.compression.is_some();
+        if config.max_file_size == 0 {
+            config.max_file_size = 64 * 1024 * 1024; // 64MB
+        }
+        if config.max_connections == 0 {
+            config.max_connections = 100;
+        }
+        if config.connection_timeout == 0 {
+            config.connection_timeout = 30000; // 默认30秒
+        }
         let storage_engine = StorageEngineImpl::new(config)?;
         
         // 生成唯一数据ID
@@ -174,7 +185,7 @@ impl PipelineStage for StorageWriteStage {
             let data_bytes = bincode::serialize(&batch)
                 .map_err(|e| Error::serialization(&format!("序列化数据失败: {}", e)))?;
             db_guard.insert(data_key.as_bytes(), data_bytes.as_slice())
-                .map_err(|e| Error::StorageError(format!("写入数据失败: {}", e)))?;
+                .map_err(|e| Error::storage(format!("写入数据失败: {}", e)))?;
             
             // 如果有模式，保存模式信息
             if let Some(schema) = &stage.schema {
@@ -182,13 +193,13 @@ impl PipelineStage for StorageWriteStage {
                 let schema_data = bincode::serialize(schema)
                     .map_err(|e| Error::serialization(&format!("序列化模式失败: {}", e)))?;
                 db_guard.insert(schema_key.as_bytes(), schema_data.as_slice())
-                    .map_err(|e| Error::StorageError(format!("写入模式失败: {}", e)))?;
+                    .map_err(|e| Error::storage(format!("写入模式失败: {}", e)))?;
             }
             
             // 保存目标路径与数据ID的映射
             let path_key = format!("path:{}", target);
             db_guard.insert(path_key.as_bytes(), data_id.as_bytes())
-                .map_err(|e| Error::StorageError(format!("写入路径映射失败: {}", e)))?;
+                .map_err(|e| Error::storage(format!("写入路径映射失败: {}", e)))?;
             
             Ok::<(), Error>(())
         })?;

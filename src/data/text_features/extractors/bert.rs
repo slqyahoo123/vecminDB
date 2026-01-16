@@ -129,7 +129,7 @@ impl BertExtractor {
     /// 编码文本
     fn encode_text(&self, text: &str) -> Result<Vec<f32>> {
         if !self.model_loaded {
-            return Err(Error::InvalidOperation("BERT模型未加载".to_string()));
+            return Err(Error::invalid_state("BERT模型未加载".to_string()));
         }
         
         // 在实际实现中，这里应该使用BERT模型对文本进行编码
@@ -165,7 +165,7 @@ impl BertExtractor {
 impl FeatureExtractor for BertExtractor {
     fn extract(&self, text: &str) -> Result<Vec<f32>> {
         if !self.model_loaded {
-            return Err(Error::InvalidOperation("BERT模型未加载".to_string()));
+            return Err(Error::invalid_state("BERT模型未加载".to_string()));
         }
         
         // 预处理文本

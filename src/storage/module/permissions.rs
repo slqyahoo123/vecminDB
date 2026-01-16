@@ -319,7 +319,7 @@ impl PermissionManager {
             let encoded = bincode::serialize(&role)?;
             self.db.put_cf(&roles_cf, role_id.as_bytes(), encoded)?;
         } else {
-            return Err(Error::StorageError("找不到角色列族".to_string()));
+            return Err(Error::storage("找不到角色列族".to_string()));
         }
         
         // 更新内存
@@ -368,7 +368,7 @@ impl PermissionManager {
             let encoded = bincode::serialize(&role)?;
             self.db.put_cf(&roles_cf, role_id.as_bytes(), encoded)?;
         } else {
-            return Err(Error::StorageError("找不到角色列族".to_string()));
+            return Err(Error::storage("找不到角色列族".to_string()));
         }
         
         // 更新内存
@@ -397,7 +397,7 @@ impl PermissionManager {
             let encoded = bincode::serialize(&user_roles)?;
             self.db.put_cf(&user_roles_cf, user_id.as_bytes(), encoded)?;
         } else {
-            return Err(Error::StorageError("找不到用户角色列族".to_string()));
+            return Err(Error::storage("找不到用户角色列族".to_string()));
         }
         
         // 更新内存
@@ -429,7 +429,7 @@ impl PermissionManager {
             let encoded = bincode::serialize(&session)?;
             self.db.put_cf(&sessions_cf, session_id.as_bytes(), encoded)?;
         } else {
-            return Err(Error::StorageError("找不到会话列族".to_string()));
+            return Err(Error::storage("找不到会话列族".to_string()));
         }
         
         // 更新内存
@@ -493,7 +493,7 @@ impl PermissionManager {
             let encoded = bincode::serialize(&acl)?;
             self.db.put_cf(&resource_acls_cf, resource_id.as_bytes(), encoded)?;
         } else {
-            return Err(Error::StorageError("找不到资源ACL列族".to_string()));
+            return Err(Error::storage("找不到资源ACL列族".to_string()));
         }
         
         // 更新内存

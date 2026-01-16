@@ -58,8 +58,8 @@ impl Processor for TextTransformProcessor {
         // 获取需处理的字段值
         let value = match context.data.get(&self.field) {
             Some(DataValue::String(s)) => s.clone(),
-            Some(_) => return Err(Error::InvalidDataType(format!("字段 {} 不是字符串类型", self.field))),
-            None => return Err(Error::FieldNotFound(self.field.clone())),
+            Some(_) => return Err(Error::invalid_data(format!("字段 {} 不是字符串类型", self.field))),
+            None => return Err(Error::not_found(self.field.clone())),
         };
         
         // 执行转换
@@ -165,8 +165,8 @@ impl Processor for TextReplaceProcessor {
         // 获取需处理的字段值
         let value = match context.data.get(&self.field) {
             Some(DataValue::String(s)) => s.clone(),
-            Some(_) => return Err(Error::InvalidDataType(format!("字段 {} 不是字符串类型", self.field))),
-            None => return Err(Error::FieldNotFound(self.field.clone())),
+            Some(_) => return Err(Error::invalid_data(format!("字段 {} 不是字符串类型", self.field))),
+            None => return Err(Error::not_found(self.field.clone())),
         };
         
         // 执行替换
@@ -244,8 +244,8 @@ impl Processor for TextSplitProcessor {
         // 获取需处理的字段值
         let value = match context.data.get(&self.field) {
             Some(DataValue::String(s)) => s.clone(),
-            Some(_) => return Err(Error::InvalidDataType(format!("字段 {} 不是字符串类型", self.field))),
-            None => return Err(Error::FieldNotFound(self.field.clone())),
+            Some(_) => return Err(Error::invalid_data(format!("字段 {} 不是字符串类型", self.field))),
+            None => return Err(Error::not_found(self.field.clone())),
         };
         
         // 执行分割
@@ -328,8 +328,8 @@ impl Processor for TextJoinProcessor {
         // 获取需处理的字段值
         let array = match context.data.get(&self.field) {
             Some(DataValue::Array(arr)) => arr.clone(),
-            Some(_) => return Err(Error::InvalidDataType(format!("字段 {} 不是数组类型", self.field))),
-            None => return Err(Error::FieldNotFound(self.field.clone())),
+            Some(_) => return Err(Error::invalid_data(format!("字段 {} 不是数组类型", self.field))),
+            None => return Err(Error::not_found(self.field.clone())),
         };
         
         // 将数组元素转换为字符串

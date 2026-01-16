@@ -148,7 +148,7 @@ impl LegacyProcessorAdapter {
         // 将数据写入文件
         let data_file = input_dir.join("data.json");
         let data_json = serde_json::to_string(&context.data).map_err(|e| 
-            Error::SerializationError(format!("数据序列化失败: {}", e)))?;
+            Error::serialization(format!("数据序列化失败: {}", e)))?;
         
         let mut file = std::fs::File::create(&data_file).map_err(|e| 
             Error::IoError(format!("创建数据文件失败: {}", e)))?;
@@ -158,7 +158,7 @@ impl LegacyProcessorAdapter {
         // 将元数据写入文件
         let metadata_file = input_dir.join("metadata.json");
         let metadata_json = serde_json::to_string(&context.metadata).map_err(|e| 
-            Error::SerializationError(format!("元数据序列化失败: {}", e)))?;
+            Error::serialization(format!("元数据序列化失败: {}", e)))?;
         
         let mut file = std::fs::File::create(&metadata_file).map_err(|e| 
             Error::IoError(format!("创建元数据文件失败: {}", e)))?;

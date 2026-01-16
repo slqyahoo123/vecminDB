@@ -70,7 +70,7 @@ impl StorageExt for Storage {
         match data {
             Some(bytes) => {
                 let algorithm = serde_json::from_slice(&bytes)
-                    .map_err(|e| Error::deserialization(format!("无法反序列化算法数据: {}", e)))?;
+                    .map_err(|e| Error::serialization(format!("无法反序列化算法数据: {}", e)))?;
                 Ok(Some(algorithm))
             },
             None => Ok(None),
@@ -100,7 +100,7 @@ impl StorageExt for Storage {
         for key in keys {
             if let Some(data) = self.get(&key).await? {
                 let algorithm = serde_json::from_slice(&data)
-                    .map_err(|e| Error::deserialization(format!("无法反序列化算法数据: {}", e)))?;
+                    .map_err(|e| Error::serialization(format!("无法反序列化算法数据: {}", e)))?;
                 algorithms.push(algorithm);
             }
         }

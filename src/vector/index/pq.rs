@@ -513,7 +513,7 @@ impl VectorIndex for PQIndex {
     /// 反序列化索引
     fn deserialize(&mut self, data: &[u8]) -> Result<()> {
         let index: PQIndex = bincode::deserialize(data)
-            .map_err(|e| Error::deserialization(format!("无法反序列化PQ索引: {}", e)))?;
+            .map_err(|e| Error::serialization(format!("无法反序列化PQ索引: {}", e)))?;
         *self = index;
         Ok(())
     }
@@ -526,7 +526,7 @@ impl VectorIndex for PQIndex {
     /// 从字节数组创建索引并装箱
     fn deserialize_box(data: &[u8]) -> Result<Box<dyn VectorIndex + Send + Sync>> {
         let index: PQIndex = bincode::deserialize(data)
-            .map_err(|e| Error::deserialization(format!("无法反序列化PQ索引: {}", e)))?;
+            .map_err(|e| Error::serialization(format!("无法反序列化PQ索引: {}", e)))?;
         Ok(Box::new(index))
     }
     

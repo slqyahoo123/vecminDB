@@ -165,7 +165,7 @@ impl Storage {
         let db = DB::open(&opts, &temp_dir)?;
         
         let permission_manager = PermissionManager::new_in_memory()
-            .map_err(|e| Error::StorageError(format!("Failed to initialize permission manager: {}", e)))?;
+            .map_err(|e| Error::storage(format!("Failed to initialize permission manager: {}", e)))?;
         
         let storage = Arc::new(Self {
             db,
@@ -225,7 +225,7 @@ impl Storage {
                 if e.to_string().contains("Invalid argument: Column family not found") {
                     DB::open(&opts, &config.path)?
                 } else {
-                    return Err(Error::StorageError(format!("Failed to open RocksDB: {}", e)));
+                    return Err(Error::storage(format!("Failed to open RocksDB: {}", e)));
                 }
             }
         };
@@ -546,7 +546,7 @@ impl kv_storage_if::ObjectMetadataStore for Storage {
         let meta_key = make_object_meta_key(bucket, key);
         match self.get_raw(&meta_key).await? {
             Some(bytes) => {
-                let map = serde_json::from_slice(&bytes).map_err(|e| crate::Error::deserialization(e.to_string()))?;
+                let map = serde_json::from_slice(&bytes).map_err(|e| crate::Error::serialization(e.to_string()))?;
                 Ok(Some(map))
             },
             None => Ok(None)
@@ -955,7 +955,7 @@ impl Storage {
                 Ok(Some(value))
             },
             Ok(None) => Ok(None),
-            Err(e) => Err(Error::StorageError(format!("RocksDB read error: {}", e))),
+            Err(e) => Err(Error::storage(format!("RocksDB read error: {}", e))),
         }
     }
     

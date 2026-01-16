@@ -380,7 +380,7 @@ pub fn deserialize_index_box(data: &[u8]) -> Result<Box<dyn VectorIndex + Send +
             use std::io::Cursor;
             let mut cursor = Cursor::new(index_data);
             let index = crate::vector::index::hnsw::HNSWIndex::deserialize(&mut cursor)
-                .map_err(|e| crate::Error::deserialization(format!("Failed to deserialize HNSWIndex: {}", e)))?;
+                .map_err(|e| crate::Error::serialization(format!("Failed to deserialize HNSWIndex: {}", e)))?;
             // HNSWIndex 通过 VectorIndexEnum 包装后实现 VectorIndex
             Ok(Box::new(crate::vector::index::VectorIndexEnum::HNSW(index)) as Box<dyn VectorIndex + Send + Sync>)
         },

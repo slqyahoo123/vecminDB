@@ -594,7 +594,7 @@ impl DynamicGranularIndex {
     pub fn load(storage: &dyn Storage, path: &str) -> Result<Self> {
         // 加载配置信息
         let config_json = storage.read_text(&format!("{}/config.json", path))?;
-        let config: GranularIndexConfig = serde_json::from_str(&config_json).map_err(|e| Error::deserialization(e.to_string()))?;
+        let config: GranularIndexConfig = serde_json::from_str(&config_json).map_err(|e| Error::serialization(e.to_string()))?;
         
         // 创建索引实例
         let mut index = Self::new(config.clone())?;

@@ -122,10 +122,10 @@ impl MVCCController {
     pub fn read(&self, transaction_id: &TransactionId, key: &str) -> Result<Option<Vec<u8>>> {
         let mut transactions = self.active_transactions.write().unwrap();
         let transaction = transactions.get_mut(transaction_id)
-            .ok_or_else(|| Error::validation_error("事务不存在"))?;
+            .ok_or_else(|| Error::validation("事务不存在"))?;
 
         if transaction.status != TransactionStatus::Active {
-            return Err(Error::validation_error("事务不是活跃状态"));
+            return Err(Error::validation("事务不是活跃状态"));
         }
 
         // 添加到读集合
@@ -149,10 +149,10 @@ impl MVCCController {
     pub fn write(&self, transaction_id: &TransactionId, key: &str, value: Vec<u8>) -> Result<()> {
         let mut transactions = self.active_transactions.write().unwrap();
         let transaction = transactions.get_mut(transaction_id)
-            .ok_or_else(|| Error::validation_error("事务不存在"))?;
+            .ok_or_else(|| Error::validation("事务不存在"))?;
 
         if transaction.status != TransactionStatus::Active {
-            return Err(Error::validation_error("事务不是活跃状态"));
+            return Err(Error::validation("事务不是活跃状态"));
         }
 
         // 添加到写集合
@@ -167,10 +167,10 @@ impl MVCCController {
         
         let mut transactions = self.active_transactions.write().unwrap();
         let mut transaction = transactions.remove(transaction_id)
-            .ok_or_else(|| Error::validation_error("事务不存在"))?;
+            .ok_or_else(|| Error::validation("事务不存在"))?;
 
         if transaction.status != TransactionStatus::Active {
-            return Err(Error::validation_error("事务不是活跃状态"));
+            return Err(Error::validation("事务不是活跃状态"));
         }
 
         // 验证读集合（快照隔离）
@@ -181,7 +181,7 @@ impl MVCCController {
                     if version.version > transaction.start_timestamp && 
                        version.version < commit_timestamp {
                         transaction.status = TransactionStatus::Aborted;
-                        return Err(Error::validation_error("读写冲突，事务中止"));
+                        return Err(Error::validation("读写冲突，事务中止"));
                     }
                 }
             }

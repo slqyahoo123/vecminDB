@@ -980,7 +980,7 @@ impl CacheOptimizer {
             // 3. 解析响应
             if response.status().is_success() {
                 let response_data: serde_json::Value = response.json().await
-                    .map_err(|e| crate::error::Error::deserialization(e.to_string()))?;
+                    .map_err(|e| crate::error::Error::serialization(e.to_string()))?;
                 
                 if let Some(recommendations) = response_data.get("recommendations") {
                     if let Some(keys) = recommendations.as_array() {

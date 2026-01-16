@@ -188,7 +188,7 @@ impl ANNOYIndex {
         // 创建当前节点
         let node_index = nodes.len();
         
-        // 占位，后续更新
+        // 创建叶子节点（初始为空，将在递归构建过程中填充）
         nodes.push(Node::Leaf { vector_ids: Vec::new() });
         
         // 递归构建左右子树

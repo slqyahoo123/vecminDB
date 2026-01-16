@@ -245,7 +245,7 @@ impl MOPSOOptimizer {
     /// 选择领导者（用于粒子更新）
     fn select_leader(&mut self) -> Result<&Solution> {
         if self.archive.is_empty() {
-            return Err(Error::InvalidOperation("Archive is empty, cannot select leader".to_string()));
+            return Err(Error::invalid_state("Archive is empty, cannot select leader".to_string()));
         }
         
         // 使用锦标赛选择

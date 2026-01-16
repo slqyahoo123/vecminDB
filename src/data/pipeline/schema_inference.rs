@@ -88,7 +88,7 @@ impl PipelineStage for SchemaInferenceStage {
                 debug!("使用上下文中的模式，字段数: {}", schema.fields().len());
                 return Ok(());
             } else {
-                return Err(Error::invalid_parameter(
+                return Err(Error::invalid_input(
                     "未指定推断模式，但也未提供用户模式"
                 ));
             }
@@ -96,7 +96,7 @@ impl PipelineStage for SchemaInferenceStage {
         
         // 获取源文件路径
         let source_path = ctx.get_param::<String>("source_path")
-            .map_err(|_| Error::invalid_parameter("source_path"))?;
+            .map_err(|_| Error::invalid_input("source_path"))?;
         
         // 获取文件类型（从字符串获取，因为 FileType 无法反序列化）
         let file_type = if let Ok(ft_str) = ctx.get_param::<String>("file_type") {
@@ -113,7 +113,7 @@ impl PipelineStage for SchemaInferenceStage {
         } else {
             // 如果没有提前检测到文件类型，尝试从上下文中的文件路径检测
             let file_path = ctx.get_param::<String>("file_path")
-                .map_err(|_| Error::invalid_parameter("file_type 或 file_path"))?;
+                .map_err(|_| Error::invalid_input("file_type 或 file_path"))?;
             
             let path = PathBuf::from(&file_path);
             FileType::from_path(&path)

@@ -121,7 +121,7 @@ impl TextFeatureVectorStore {
     /// 添加文本并索引其特征向量
     pub fn add_text(&mut self, text_id: &str, text: &str, metadata: HashMap<String, String>) -> Result<()> {
         if !self.initialized {
-            return Err(Error::InvalidOperation("特征提取器未设置".to_string()));
+            return Err(Error::invalid_state("特征提取器未设置".to_string()));
         }
         
         // 提取特征
@@ -165,7 +165,7 @@ impl TextFeatureVectorStore {
     /// 批量添加文本并索引
     pub fn add_texts_batch(&mut self, texts: Vec<(String, String, HashMap<String, String>)>) -> Result<()> {
         if !self.initialized {
-            return Err(Error::InvalidOperation("特征提取器未设置".to_string()));
+            return Err(Error::invalid_state("特征提取器未设置".to_string()));
         }
         
         let mut vectors = Vec::with_capacity(texts.len());
@@ -205,7 +205,7 @@ impl TextFeatureVectorStore {
         if let Some(ref extractor) = self.extractor {
             extractor.extract(text)
         } else {
-            Err(Error::InvalidOperation("特征提取器未设置".to_string()))
+            Err(Error::invalid_state("特征提取器未设置".to_string()))
         }
     }
     
@@ -221,7 +221,7 @@ impl TextFeatureVectorStore {
         -> Result<Vec<VectorSearchResult>> 
     {
         if !self.initialized {
-            return Err(Error::InvalidOperation("特征提取器未设置".to_string()));
+            return Err(Error::invalid_state("特征提取器未设置".to_string()));
         }
         
         // 提取查询文本的特征
@@ -285,7 +285,7 @@ impl TextFeatureVectorStore {
     /// 更新向量
     pub fn update_vector(&mut self, text_id: &str, new_text: &str, metadata: Option<HashMap<String, String>>) -> Result<bool> {
         if !self.initialized {
-            return Err(Error::InvalidOperation("特征提取器未设置".to_string()));
+            return Err(Error::invalid_state("特征提取器未设置".to_string()));
         }
         
         // 提取新特征
@@ -363,7 +363,7 @@ impl TextFeatureVectorStore {
     pub fn load(_path: &str, config: TextFeatureVectorStoreConfig) -> Result<Self> {
         // VectorCollection 目前不支持从磁盘加载
         // 如果需要持久化，可以通过其他方式实现
-        Err(Error::InvalidOperation("VectorCollection 暂不支持从磁盘加载".to_string()))
+        Err(Error::invalid_state("VectorCollection 暂不支持从磁盘加载".to_string()))
     }
     
     /// 清除所有数据

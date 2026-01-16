@@ -545,7 +545,7 @@ impl AlgorithmMetadata {
     /// 从JSON字符串反序列化元数据
     pub fn from_json(json: &str) -> Result<Self> {
         serde_json::from_str(json)
-            .map_err(|e| Error::deserialization(format!("无法反序列化算法元数据: {}", e)))
+            .map_err(|e| Error::serialization(format!("无法反序列化算法元数据: {}", e)))
     }
 }
 
@@ -636,7 +636,7 @@ impl AlgorithmBackup {
     /// 从JSON字符串反序列化
     pub fn from_json(json: &str) -> Result<Self> {
         serde_json::from_str(json)
-            .map_err(|e| Error::deserialization(format!("无法反序列化算法备份: {}", e)))
+            .map_err(|e| Error::serialization(format!("无法反序列化算法备份: {}", e)))
     }
     
     /// 创建不包含算法数据的轻量级备份

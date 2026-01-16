@@ -172,7 +172,7 @@ impl VectorIndex for LSHIndex {
     
     fn deserialize(&mut self, data: &[u8]) -> Result<()> {
         *self = bincode::deserialize(data)
-            .map_err(|e| Error::deserialization(e.to_string()))?;
+            .map_err(|e| Error::serialization(e.to_string()))?;
         Ok(())
     }
     
@@ -182,7 +182,7 @@ impl VectorIndex for LSHIndex {
     
     fn deserialize_box(data: &[u8]) -> Result<Box<dyn VectorIndex + Send + Sync>> {
         let index: Self = bincode::deserialize(data)
-            .map_err(|e| Error::deserialization(e.to_string()))?;
+            .map_err(|e| Error::serialization(e.to_string()))?;
         Ok(Box::new(index))
     }
 }

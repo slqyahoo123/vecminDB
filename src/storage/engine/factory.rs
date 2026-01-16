@@ -43,7 +43,7 @@ impl StorageEngineFactory {
                 let engine = StorageEngineImpl::new(config)?;
                 Ok(Box::new(StorageEngineWrapper::new(engine)))
             },
-            _ => Err(Error::configuration(format!("不支持的存储引擎类型: {}", engine_type))),
+            _ => Err(Error::config(format!("不支持的存储引擎类型: {}", engine_type))),
         }
     }
     
@@ -121,24 +121,12 @@ impl IStorageEngine for StorageEngineWrapper {
         Ok(())
     }
     
-    fn write_batch(&mut self, location: &str, schema: &Schema, records: &[Record]) -> Result<()> {
-        // 这里实现写入逻辑
-        // 简化版实现，实际应该调用StorageEngineImpl的方法
-        let mut path = std::path::PathBuf::from(location);
-        
-        // 确保目录存在
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| Error::storage(format!("创建目录失败: {}", e)))?;
-        }
-        
-        // 在实际实现中，这里应该根据schema格式化数据并写入
-        // 简化版实现
-        path.push("data.parquet");
-        
-        // 记录写入操作
-        log::info!("写入 {} 条记录到 {}", records.len(), path.display());
-        
-        Ok(())
+    fn write_batch(&mut self, _location: &str, _schema: &Schema, _records: &[Record]) -> Result<()> {
+        // 批量写入功能需要完整的parquet格式化和写入实现，当前返回特征未启用错误
+        // 如需使用批量写入，请集成parquet库或使用StorageEngineImpl的方法
+        Err(Error::feature_not_enabled(
+            "批量写入功能需要完整的parquet格式化和写入实现，当前未集成。请使用StorageEngineImpl的方法或集成parquet库。".to_string()
+        ))
     }
     
     fn close(&self) -> Result<()> {

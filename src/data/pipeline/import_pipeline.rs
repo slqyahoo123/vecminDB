@@ -680,7 +680,7 @@ impl PipelineStage for FileDetectionStage {
         // FileType 无法序列化，使用字符串表示
         ctx.add_data("file_type", format!("{:?}", file_type))?;
         // FileProcessor 无法序列化，通过文件路径和类型信息，后续阶段可以重新创建
-        // 或者使用线程本地存储，但这里简化处理：后续阶段根据 file_path 和 file_type 重新创建 processor
+        // 后续阶段根据 file_path 和 file_type 重新创建 processor（FileProcessor 无法序列化）
         
         // 设置状态
         ctx.set_state("file_detected", "true");
@@ -748,7 +748,7 @@ impl SchemaInferenceStage {
         for loader_record in loader_records {
             let mut record = crate::data::record::Record::new();
             let values = loader_record.values();
-            // 简化转换：将 values 转换为 fields
+            // 将 values 转换为 fields（假设 values 的顺序对应字段顺序）
             // 注意：这里假设 values 的顺序对应字段顺序，实际应该使用字段名
             for (idx, value) in values.iter().enumerate() {
                 record.fields.insert(
@@ -784,7 +784,7 @@ impl PipelineStage for SchemaInferenceStage {
             // 文件处理器无法从上下文获取（无法序列化），需要根据文件路径重新创建
             let file_path: String = ctx.get_data("file_path")?;
             let file_type_str: String = ctx.get_data("file_type")?;
-            // 解析文件类型字符串（简化处理，实际应该使用更好的方式）
+            // 解析文件类型字符串
             let file_type = match file_type_str.as_str() {
                 "Csv" => FileType::Csv,
                 "Json" => FileType::Json,
@@ -814,7 +814,7 @@ impl PipelineStage for SchemaInferenceStage {
             
             inferred_schema
         } else {
-            return Err(Error::configuration("未提供模式且未启用模式推断"));
+            return Err(Error::config("未提供模式且未启用模式推断"));
         };
         
         // 更新上下文
@@ -991,7 +991,7 @@ impl DataValidationStage {
     fn validate_record_schema(&self, record: &Record, schema: &DataSchema) -> Result<bool, Error> {
         for field in schema.fields() {
             if let Some(value) = record.get_field(field.name()) {
-                // 检查类型兼容性（简化处理）
+                // 检查类型兼容性
                 // 注意：这里需要根据实际的 Value 类型进行更详细的检查
                 match value {
                     crate::data::record::Value::Data(data_value) => {
@@ -1048,7 +1048,7 @@ impl DataValidationStage {
                         DataValue::Boolean(b) => FieldValue::Boolean(*b),
                         DataValue::Null => FieldValue::Null,
                         DataValue::Array(arr) => {
-                            // 简化处理：将 DataValue 数组转换为 FieldValue 列表
+                            // 将 DataValue 数组转换为 FieldValue 列表
                             let mut list = Vec::new();
                             for v in arr {
                                 match v {

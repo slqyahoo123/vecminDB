@@ -263,7 +263,7 @@ impl RegexCondition {
     /// 创建新的正则表达式条件评估器
     pub fn new(pattern: &str, match_for_true: bool, name: Option<String>) -> Result<Self> {
         let regex = regex::Regex::new(pattern)
-            .map_err(|e| Error::InvalidData(format!("无效的正则表达式: {}", e)))?;
+            .map_err(|e| Error::invalid_data(format!("无效的正则表达式: {}", e)))?;
         
         Ok(Self {
             regex,
@@ -305,7 +305,7 @@ impl MetadataCondition {
     /// 创建新的元数据条件评估器
     pub fn new(key: &str, value_pattern: &str, match_for_true: bool, name: Option<String>) -> Result<Self> {
         let regex = regex::Regex::new(value_pattern)
-            .map_err(|e| Error::InvalidData(format!("无效的正则表达式: {}", e)))?;
+            .map_err(|e| Error::invalid_data(format!("无效的正则表达式: {}", e)))?;
         
         Ok(Self {
             key: key.to_string(),
@@ -654,7 +654,7 @@ impl TextProcessingPipeline {
             stage.enabled = true;
             Ok(())
         } else {
-            Err(Error::InvalidData(format!("阶段索引 {} 不存在", index)))
+            Err(Error::invalid_data(format!("阶段索引 {} 不存在", index)))
         }
     }
     
@@ -664,7 +664,7 @@ impl TextProcessingPipeline {
             stage.enabled = false;
             Ok(())
         } else {
-            Err(Error::InvalidData(format!("阶段索引 {} 不存在", index)))
+            Err(Error::invalid_data(format!("阶段索引 {} 不存在", index)))
         }
     }
     

@@ -196,7 +196,7 @@ impl VectorIndexManager {
         let sample_size = std::cmp::min(self.config.benchmark_sample_size, vector_count);
         
         if sample_size < 10 {
-            return Err(Error::InvalidOperation("向量数量不足，无法执行基准测试".to_string()));
+            return Err(Error::invalid_state("向量数量不足，无法执行基准测试".to_string()));
         }
         
         // 获取维度
@@ -310,7 +310,7 @@ impl VectorIndexManager {
         let sample_size = std::cmp::min(self.config.benchmark_sample_size, vector_count);
         
         if sample_size < 10 {
-            return Err(Error::InvalidOperation("向量数量不足，无法执行基准测试".to_string()));
+            return Err(Error::invalid_state("向量数量不足，无法执行基准测试".to_string()));
         }
         
         // 收集向量样本

@@ -1205,7 +1205,7 @@ impl crate::core::interfaces::StorageTransaction for StorageTransactionWrapper {
                         .map(|handle| handle.block_on(self.engine.put(key, value)))
                         .unwrap_or_else(|_| {
                             tokio::runtime::Runtime::new()
-                                .map_err(|e| Error::StorageError(format!("创建运行时失败: {}", e)))?
+                                .map_err(|e| Error::storage(format!("创建运行时失败: {}", e)))?
                                 .block_on(self.engine.put(key, value))
                         })
                         .map_err(|e| {
@@ -1230,13 +1230,13 @@ impl crate::core::interfaces::StorageTransaction for StorageTransactionWrapper {
                 }
                 super::transaction::TransactionOperation::Delete { ref key } => {
                     let key_str = std::str::from_utf8(key)
-                        .map_err(|e| Error::StorageError(format!("键转换失败: {}", e)))?;
+                        .map_err(|e| Error::storage(format!("键转换失败: {}", e)))?;
                     // 执行 Delete 操作
                     tokio::runtime::Handle::try_current()
                         .map(|handle| handle.block_on(self.engine.delete(key_str)))
                         .unwrap_or_else(|_| {
                             tokio::runtime::Runtime::new()
-                                .map_err(|e| Error::StorageError(format!("创建运行时失败: {}", e)))?
+                                .map_err(|e| Error::storage(format!("创建运行时失败: {}", e)))?
                                 .block_on(self.engine.delete(key_str))
                         })
                         .map_err(|e| {
@@ -1318,7 +1318,7 @@ impl crate::core::interfaces::StorageTransaction for StorageTransactionWrapper {
             .map(|handle| handle.block_on(self.engine.get(key)))
             .unwrap_or_else(|_| {
                 tokio::runtime::Runtime::new()
-                    .map_err(|e| Error::StorageError(format!("创建运行时失败: {}", e)))?
+                    .map_err(|e| Error::storage(format!("创建运行时失败: {}", e)))?
                     .block_on(self.engine.get(key))
             })
     }
@@ -1385,7 +1385,7 @@ impl crate::core::interfaces::StorageInterface for StorageEngineImpl {
             .unwrap_or_else(|_| {
                 // 如果没有运行时，创建一个新的
                 tokio::runtime::Runtime::new()
-                    .map_err(|e| Error::StorageError(format!("创建运行时失败: {}", e)))?
+                    .map_err(|e| Error::storage(format!("创建运行时失败: {}", e)))?
                     .block_on(self.put(key.as_bytes(), value))
             })
     }
@@ -1395,7 +1395,7 @@ impl crate::core::interfaces::StorageInterface for StorageEngineImpl {
             .map(|handle| handle.block_on(self.get(key)))
             .unwrap_or_else(|_| {
                 tokio::runtime::Runtime::new()
-                    .map_err(|e| Error::StorageError(format!("创建运行时失败: {}", e)))?
+                    .map_err(|e| Error::storage(format!("创建运行时失败: {}", e)))?
                     .block_on(self.get(key))
             })
     }
@@ -1405,7 +1405,7 @@ impl crate::core::interfaces::StorageInterface for StorageEngineImpl {
             .map(|handle| handle.block_on(self.delete(key)))
             .unwrap_or_else(|_| {
                 tokio::runtime::Runtime::new()
-                    .map_err(|e| Error::StorageError(format!("创建运行时失败: {}", e)))?
+                    .map_err(|e| Error::storage(format!("创建运行时失败: {}", e)))?
                     .block_on(self.delete(key))
             })
     }
@@ -1419,7 +1419,7 @@ impl crate::core::interfaces::StorageInterface for StorageEngineImpl {
             .map(|handle| handle.block_on(self.get_keys_with_prefix(prefix)))
             .unwrap_or_else(|_| {
                 tokio::runtime::Runtime::new()
-                    .map_err(|e| Error::StorageError(format!("创建运行时失败: {}", e)))?
+                    .map_err(|e| Error::storage(format!("创建运行时失败: {}", e)))?
                     .block_on(self.get_keys_with_prefix(prefix))
             })
     }
@@ -1468,13 +1468,13 @@ impl crate::core::interfaces::StorageInterface for StorageEngineImpl {
             }
             
             let path_cstr = CString::new(check_path.as_os_str().as_bytes())
-                .map_err(|e| Error::StorageError(format!("路径转换失败: {}", e)))?;
+                .map_err(|e| Error::storage(format!("路径转换失败: {}", e)))?;
             
             let mut statvfs_buf: StatVfs = unsafe { mem::zeroed() };
             let result = unsafe { statvfs(path_cstr.as_ptr(), &mut statvfs_buf) };
             
             if result != 0 {
-                return Err(Error::StorageError(format!(
+                return Err(Error::storage(format!(
                     "statvfs调用失败: {}",
                     std::io::Error::last_os_error()
                 )));
@@ -1548,7 +1548,7 @@ impl crate::core::interfaces::StorageInterface for StorageEngineImpl {
             };
             
             if result == 0 {
-                return Err(Error::StorageError(format!(
+                return Err(Error::storage(format!(
                     "GetDiskFreeSpaceExW调用失败: {}",
                     std::io::Error::last_os_error()
                 )));
@@ -1575,7 +1575,7 @@ impl crate::core::interfaces::StorageInterface for StorageEngineImpl {
         {
             // 其他平台：尝试使用文件系统元数据估算
             let metadata = fs::metadata(check_path)
-                .map_err(|e| Error::StorageError(format!("获取路径元数据失败: {}", e)))?;
+                .map_err(|e| Error::storage(format!("获取路径元数据失败: {}", e)))?;
             
             // 对于不支持的系统，返回一个合理的默认值
             // 注意：这不是真实的磁盘空间，但比硬编码的100GB更合理

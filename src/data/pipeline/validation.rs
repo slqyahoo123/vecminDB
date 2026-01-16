@@ -96,7 +96,7 @@ impl ValidationRule {
         if matches!(value, Value::Data(DataValue::Null)) {
             let error_msg = self.error_message.clone()
                 .unwrap_or_else(|| format!("字段 '{}' 不能为空", self.field_name));
-            return Err(Error::validation_error(error_msg));
+            return Err(Error::validation(error_msg));
         }
         Ok(())
     }
@@ -110,7 +110,7 @@ impl ValidationRule {
 
         let field = match schema.get_field(&self.field_name) {
             Some(f) => f,
-            None => return Err(Error::validation_error(
+            None => return Err(Error::validation(
                 format!("字段 '{}' 在模式中不存在", self.field_name)
             )),
         };
@@ -171,7 +171,7 @@ impl ValidationRule {
             Value::Data(DataValue::Integer(i)) => Ok(*i as f64),
             Value::Data(DataValue::Float(f)) => Ok(*f),
             Value::Data(DataValue::Number(n)) => Ok(*n),
-            _ => Err(Error::validation_error(
+            _ => Err(Error::validation(
                 format!("字段 '{}' 不是数值类型，无法进行范围验证", self.field_name)
             )),
         }?;
@@ -182,7 +182,7 @@ impl ValidationRule {
                 let error_msg = self.error_message.clone()
                     .unwrap_or_else(|| format!("字段 '{}' 的值 {} 小于最小值 {}", 
                                     self.field_name, numeric_value, min_val));
-                return Err(Error::validation_error(error_msg));
+                return Err(Error::validation(error_msg));
             }
         }
 
@@ -192,7 +192,7 @@ impl ValidationRule {
                 let error_msg = self.error_message.clone()
                     .unwrap_or_else(|| format!("字段 '{}' 的值 {} 大于最大值 {}", 
                                     self.field_name, numeric_value, max_val));
-                return Err(Error::validation_error(error_msg));
+                return Err(Error::validation(error_msg));
             }
         }
 
@@ -208,14 +208,14 @@ impl ValidationRule {
 
         let pattern = match self.parameters.get("pattern") {
             Some(p) => p,
-            None => return Err(Error::validation_error(
+            None => return Err(Error::validation(
                 format!("格式验证规则必须指定 'pattern' 参数")
             )),
         };
 
         let value_str = match value {
             Value::Data(DataValue::String(s)) => s,
-            _ => return Err(Error::validation_error(
+            _ => return Err(Error::validation(
                 format!("字段 '{}' 不是字符串类型，无法进行格式验证", self.field_name)
             )),
         };
@@ -223,7 +223,7 @@ impl ValidationRule {
         // 使用正则表达式验证
         let regex = match regex::Regex::new(pattern) {
             Ok(r) => r,
-            Err(e) => return Err(Error::validation_error(
+            Err(e) => return Err(Error::validation(
                 format!("正则表达式 '{}' 无效: {}", pattern, e)
             )),
         };
@@ -232,7 +232,7 @@ impl ValidationRule {
             let error_msg = self.error_message.clone()
                 .unwrap_or_else(|| format!("字段 '{}' 的值 '{}' 不符合格式要求: '{}'", 
                                 self.field_name, value_str, pattern));
-            return Err(Error::validation_error(error_msg));
+            return Err(Error::validation(error_msg));
         }
 
         Ok(())
@@ -243,7 +243,7 @@ impl ValidationRule {
         let error_msg = self.error_message.clone()
             .unwrap_or_else(|| format!("字段 '{}' 的值类型不匹配，期望类型: {:?}", 
                             self.field_name, expected_type));
-        Err(Error::validation_error(error_msg))
+        Err(Error::validation(error_msg))
     }
     
     // 自定义验证规则 - 生产级实现
@@ -258,20 +258,20 @@ impl ValidationRule {
                 // 正则表达式验证
                 let pattern = self.parameters.get("pattern")
                     .map(|v| v.as_str())
-                    .ok_or_else(|| Error::validation_error(
+                    .ok_or_else(|| Error::validation(
                         "自定义验证规则 'regex' 需要 'pattern' 参数"
                     ))?;
                 
                 let value_str = match value {
                     Value::Data(DataValue::String(s)) => s,
                     Value::Data(DataValue::Text(s)) => s,
-                    _ => return Err(Error::validation_error(
+                    _ => return Err(Error::validation(
                         format!("字段 '{}' 不是字符串类型，无法进行正则表达式验证", self.field_name)
                     )),
                 };
                 
                 let regex = regex::Regex::new(pattern)
-                    .map_err(|e| Error::validation_error(
+                    .map_err(|e| Error::validation(
                         format!("正则表达式 '{}' 无效: {}", pattern, e)
                     ))?;
                 
@@ -279,7 +279,7 @@ impl ValidationRule {
                     let error_msg = self.error_message.clone()
                         .unwrap_or_else(|| format!("字段 '{}' 的值 '{}' 不符合正则表达式: '{}'", 
                                         self.field_name, value_str, pattern));
-                    return Err(Error::validation_error(error_msg));
+                    return Err(Error::validation(error_msg));
                 }
             },
             "length" => {
@@ -292,7 +292,7 @@ impl ValidationRule {
                 let value_str = match value {
                     Value::Data(DataValue::String(s)) => s,
                     Value::Data(DataValue::Text(s)) => s,
-                    _ => return Err(Error::validation_error(
+                    _ => return Err(Error::validation(
                         format!("字段 '{}' 不是字符串类型，无法进行长度验证", self.field_name)
                     )),
                 };
@@ -304,7 +304,7 @@ impl ValidationRule {
                         let error_msg = self.error_message.clone()
                             .unwrap_or_else(|| format!("字段 '{}' 的长度 {} 小于最小值 {}", 
                                             self.field_name, len, min));
-                        return Err(Error::validation_error(error_msg));
+                        return Err(Error::validation(error_msg));
                     }
                 }
                 
@@ -313,7 +313,7 @@ impl ValidationRule {
                         let error_msg = self.error_message.clone()
                             .unwrap_or_else(|| format!("字段 '{}' 的长度 {} 大于最大值 {}", 
                                             self.field_name, len, max));
-                        return Err(Error::validation_error(error_msg));
+                        return Err(Error::validation(error_msg));
                     }
                 }
             },
@@ -322,7 +322,7 @@ impl ValidationRule {
                 // allowed_values 应该是逗号分隔的字符串，例如 "value1,value2,value3"
                 let allowed_values_str = self.parameters.get("allowed_values")
                     .map(|v| v.as_str())
-                    .ok_or_else(|| Error::validation_error(
+                    .ok_or_else(|| Error::validation(
                         "自定义验证规则 'enum' 需要 'allowed_values' 参数（逗号分隔的字符串）"
                     ))?;
                 
@@ -331,7 +331,7 @@ impl ValidationRule {
                 let value_str = match value {
                     Value::Data(DataValue::String(s)) => s.as_str(),
                     Value::Data(DataValue::Text(s)) => s.as_str(),
-                    _ => return Err(Error::validation_error(
+                    _ => return Err(Error::validation(
                         format!("字段 '{}' 不是字符串类型，无法进行枚举验证", self.field_name)
                     )),
                 };
@@ -341,7 +341,7 @@ impl ValidationRule {
                     let error_msg = self.error_message.clone()
                         .unwrap_or_else(|| format!("字段 '{}' 的值 '{}' 不在允许的枚举值中: [{}]", 
                                         self.field_name, value_str, allowed_str));
-                    return Err(Error::validation_error(error_msg));
+                    return Err(Error::validation(error_msg));
                 }
             },
             "custom_function" => {
@@ -356,7 +356,7 @@ impl ValidationRule {
                     if value_str != expected_str {
                         let error_msg = self.error_message.clone()
                             .unwrap_or_else(|| format!("字段 '{}' 的自定义验证失败", self.field_name));
-                        return Err(Error::validation_error(error_msg));
+                        return Err(Error::validation(error_msg));
                     }
                 } else {
                     // 如果没有指定验证逻辑，默认通过
@@ -367,7 +367,7 @@ impl ValidationRule {
                 // 未知的自定义验证类型
                 let error_msg = self.error_message.clone()
                     .unwrap_or_else(|| format!("未知的自定义验证规则类型: '{}'", rule_type));
-                return Err(Error::validation_error(error_msg));
+                return Err(Error::validation(error_msg));
             }
         }
         
@@ -445,8 +445,8 @@ impl DataValidator {
         for rule in &self.rules {
             if let Some(value) = record.get_field(&rule.field_name) {
                 if let Err(e) = rule.validate(value, schema) {
-                    // Error::ValidationError 是元组变体，不是结构体变体
-                    if let Error::ValidationError(msg) = e {
+                    // Error::Validation 是元组变体
+                    if let Error::Validation(msg) = e {
                         // 写入 metadata 附加明细
                         result.is_valid = false;
                         result.errors.push(format!("[{}] {}", rule.field_name, msg));

@@ -85,7 +85,7 @@ impl AlgorithmOperations for Storage {
         // 如果存在版本记录，为最新版本添加元数据
         if !versions.is_empty() {
             let latest_version = versions.last()
-                .ok_or_else(|| Error::StorageError(format!("算法 {} 没有可用版本", algorithm_id)))?;
+                .ok_or_else(|| Error::storage(format!("算法 {} 没有可用版本", algorithm_id)))?;
             let metadata_version_key = format!("algorithm:metadata:{}:{}", algorithm_id, latest_version);
             self.put(metadata_version_key.as_bytes(), value.as_bytes())?;
         }

@@ -395,7 +395,7 @@ pub fn compare_methods(
     weights: &EvaluationWeights,
 ) -> Result<(TextFeatureMethod, f64)> {
     if methods.is_empty() || data.is_empty() {
-        return Err(Error::InvalidData("空方法列表或数据集".to_string()));
+        return Err(Error::invalid_data("空方法列表或数据集".to_string()));
     }
     
     let mut best_method = methods[0];
@@ -437,7 +437,7 @@ pub fn cross_validate(
     weights: &EvaluationWeights,
 ) -> Result<f64> {
     if data.len() < k {
-        return Err(Error::InvalidData(format!("数据集大小({})小于折数({})", data.len(), k)));
+        return Err(Error::invalid_data(format!("数据集大小({})小于折数({})", data.len(), k)));
     }
     
     let fold_size = data.len() / k;
@@ -608,7 +608,7 @@ pub fn comprehensive_evaluation(
     k: Option<usize>,
 ) -> Result<HashMap<String, f64>> {
     if data.is_empty() {
-        return Err(Error::InvalidData("空数据集".to_string()));
+        return Err(Error::invalid_data("空数据集".to_string()));
     }
     
     let start = Instant::now();

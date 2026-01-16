@@ -41,7 +41,7 @@ impl FlatIndex {
     /// 反序列化索引
     pub fn deserialize(data: &[u8]) -> Result<Self> {
         let index: FlatIndex = bincode::deserialize(data)
-            .map_err(|e| Error::deserialization(format!("Failed to deserialize FlatIndex: {}", e)))?;
+            .map_err(|e| Error::serialization(format!("Failed to deserialize FlatIndex: {}", e)))?;
         Ok(index)
     }
     

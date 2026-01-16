@@ -158,7 +158,7 @@ impl EntityExtractor {
 impl FeatureExtractor for EntityExtractor {
     fn extract(&self, text: &str) -> Result<Vec<f32>> {
         if text.is_empty() {
-            return Err(Error::InvalidData("输入文本为空".to_string()));
+            return Err(Error::invalid_data("输入文本为空".to_string()));
         }
         
         // 提取实体

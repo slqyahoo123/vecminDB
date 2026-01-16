@@ -724,7 +724,7 @@ impl TextProcessorFactory {
                 
                 Ok(Box::new(Tokenizer::new(tokenizer_config, name)?))
             },
-            _ => Err(Error::InvalidOperation(format!("不支持的处理器类型: {:?}", stage_type))),
+            _ => Err(Error::invalid_state(format!("不支持的处理器类型: {:?}", stage_type))),
         }
     }
 } 
