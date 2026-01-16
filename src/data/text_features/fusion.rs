@@ -151,7 +151,7 @@ impl FeatureFusion {
     /// 设置权重 - 用于加权平均策略
     pub fn set_weights(&mut self, weights: Vec<f32>) -> Result<()> {
         if weights.len() != self.extractors.len() {
-            return Err(Error::InvalidData(format!(
+            return Err(Error::invalid_data(format!(
                 "权重数量({})与特征提取器数量({})不匹配",
                 weights.len(),
                 self.extractors.len()
@@ -164,7 +164,7 @@ impl FeatureFusion {
             let normalized: Vec<f32> = weights.iter().map(|&w| w / sum).collect();
             self.weights = Some(normalized);
         } else {
-            return Err(Error::InvalidData("权重总和必须大于0".to_string()));
+            return Err(Error::invalid_data("权重总和必须大于0".to_string()));
         }
         
         Ok(())
@@ -201,7 +201,7 @@ impl FeatureFusion {
     /// 提取融合特征
     pub fn extract(&self, text: &str) -> Result<Vec<f32>> {
         if self.extractors.is_empty() {
-            return Err(Error::InvalidOperation("没有添加任何特征提取器".to_string()));
+            return Err(Error::invalid_input("没有添加任何特征提取器".to_string()));
         }
         
         // 从各特征提取器获取特征
@@ -239,14 +239,14 @@ impl FeatureFusion {
     /// 加权平均融合
     fn weighted_average(&self, features: &[Vec<f32>]) -> Result<Vec<f32>> {
         if features.is_empty() {
-            return Err(Error::InvalidOperation("没有特征可供融合".to_string()));
+            return Err(Error::invalid_input("没有特征可供融合".to_string()));
         }
         
         // 检查所有特征向量维度是否相同
         let dim = features[0].len();
         for (i, feature) in features.iter().enumerate().skip(1) {
             if feature.len() != dim {
-                return Err(Error::InvalidData(format!(
+                return Err(Error::invalid_data(format!(
                     "特征向量维度不一致: 第1个是{}, 第{}个是{}",
                     dim, i + 1, feature.len()
                 )));
@@ -276,14 +276,14 @@ impl FeatureFusion {
     /// 最大值融合
     fn maximum(&self, features: &[Vec<f32>]) -> Result<Vec<f32>> {
         if features.is_empty() {
-            return Err(Error::InvalidOperation("没有特征可供融合".to_string()));
+            return Err(Error::invalid_input("没有特征可供融合".to_string()));
         }
         
         // 检查所有特征向量维度是否相同
         let dim = features[0].len();
         for (i, feature) in features.iter().enumerate().skip(1) {
             if feature.len() != dim {
-                return Err(Error::InvalidData(format!(
+                return Err(Error::invalid_data(format!(
                     "特征向量维度不一致: 第1个是{}, 第{}个是{}",
                     dim, i + 1, feature.len()
                 )));
@@ -306,14 +306,14 @@ impl FeatureFusion {
     /// 最小值融合
     fn minimum(&self, features: &[Vec<f32>]) -> Result<Vec<f32>> {
         if features.is_empty() {
-            return Err(Error::InvalidOperation("没有特征可供融合".to_string()));
+            return Err(Error::invalid_input("没有特征可供融合".to_string()));
         }
         
         // 检查所有特征向量维度是否相同
         let dim = features[0].len();
         for (i, feature) in features.iter().enumerate().skip(1) {
             if feature.len() != dim {
-                return Err(Error::InvalidData(format!(
+                return Err(Error::invalid_data(format!(
                     "特征向量维度不一致: 第1个是{}, 第{}个是{}",
                     dim, i + 1, feature.len()
                 )));
@@ -336,14 +336,14 @@ impl FeatureFusion {
     /// 乘积融合
     fn product(&self, features: &[Vec<f32>]) -> Result<Vec<f32>> {
         if features.is_empty() {
-            return Err(Error::InvalidOperation("没有特征可供融合".to_string()));
+            return Err(Error::invalid_input("没有特征可供融合".to_string()));
         }
         
         // 检查所有特征向量维度是否相同
         let dim = features[0].len();
         for (i, feature) in features.iter().enumerate().skip(1) {
             if feature.len() != dim {
-                return Err(Error::InvalidData(format!(
+                return Err(Error::invalid_data(format!(
                     "特征向量维度不一致: 第1个是{}, 第{}个是{}",
                     dim, i + 1, feature.len()
                 )));
@@ -394,7 +394,7 @@ impl FeatureFusion {
     /// 获取输出维度
     pub fn dimension(&self) -> Result<usize> {
         if self.extractors.is_empty() {
-            return Err(Error::InvalidOperation("没有添加任何特征提取器".to_string()));
+            return Err(Error::invalid_input("没有添加任何特征提取器".to_string()));
         }
         
         match self.strategy {
@@ -451,14 +451,14 @@ impl FeatureFusion {
     /// 使用注意力机制进行融合
     fn attention(&self, features: &[Vec<f32>]) -> Result<Vec<f32>> {
         if features.is_empty() {
-            return Err(Error::InvalidOperation("没有特征可供融合".to_string()));
+            return Err(Error::invalid_input("没有特征可供融合".to_string()));
         }
         
         // 检查所有特征向量维度是否相同
         let dim = features[0].len();
         for (i, feature) in features.iter().enumerate().skip(1) {
             if feature.len() != dim {
-                return Err(Error::InvalidData(format!(
+                return Err(Error::invalid_data(format!(
                     "特征向量维度不一致: 第1个是{}, 第{}个是{}",
                     dim, i + 1, feature.len()
                 )));
@@ -469,7 +469,7 @@ impl FeatureFusion {
         let query_vec = if !features.is_empty() {
             features[0].clone()
         } else {
-            return Err(Error::InvalidOperation("没有特征可供融合".to_string()));
+            return Err(Error::invalid_input("没有特征可供融合".to_string()));
         };
         
         // 计算注意力权重
@@ -515,7 +515,7 @@ impl FeatureFusion {
     /// 门控融合 - 使用门控机制控制不同特征的贡献
     fn gated(&self, features: &[Vec<f32>]) -> Result<Vec<f32>> {
         if features.is_empty() {
-            return Err(Error::InvalidOperation("没有特征可供融合".to_string()));
+            return Err(Error::invalid_input("没有特征可供融合".to_string()));
         }
         
         // 首先进行简单拼接
@@ -566,7 +566,7 @@ impl FeatureFusion {
     /// 自适应特征选择融合
     fn adaptive_selection(&self, features: &[Vec<f32>]) -> Result<Vec<f32>> {
         if features.is_empty() {
-            return Err(Error::InvalidOperation("没有特征可供融合".to_string()));
+            return Err(Error::invalid_input("没有特征可供融合".to_string()));
         }
         
         // 使用默认阈值
@@ -616,7 +616,7 @@ impl FeatureFusion {
             {
                 selected_features.push(features[max_index].clone());
             } else {
-                return Err(Error::InvalidOperation("无法选择特征".to_string()));
+                return Err(Error::invalid_input("无法选择特征".to_string()));
             }
         }
         
@@ -689,7 +689,7 @@ impl AdaptiveFusion {
     /// 为特定数据类型添加权重配置
     pub fn add_weight_config(&mut self, data_type: &str, weights: Vec<f32>) -> Result<()> {
         if weights.len() != self.fusion.extractors.len() {
-            return Err(Error::InvalidData(format!(
+            return Err(Error::invalid_data(format!(
                 "权重数量({})与特征提取器数量({})不匹配",
                 weights.len(),
                 self.fusion.extractors.len()
@@ -702,7 +702,7 @@ impl AdaptiveFusion {
             let normalized: Vec<f32> = weights.iter().map(|&w| w / sum).collect();
             self.weight_adaptation.insert(data_type.to_string(), normalized);
         } else {
-            return Err(Error::InvalidData("权重总和必须大于0".to_string()));
+            return Err(Error::invalid_data("权重总和必须大于0".to_string()));
         }
         
         Ok(())
@@ -811,7 +811,7 @@ impl AdaptiveFusion {
             let weight = 1.0 / self.fusion.extractors.len() as f32;
             vec![weight; self.fusion.extractors.len()]
         } else {
-            return Err(Error::InvalidOperation("没有可用的提取器".to_string()));
+            return Err(Error::invalid_input("没有可用的提取器".to_string()));
         };
         
         // 基于性能指标调整权重
@@ -868,7 +868,7 @@ impl AdaptiveFusion {
     /// 基于数据特征自动校准权重
     pub fn auto_calibrate(&mut self, samples: &[(&str, f32)]) -> Result<()> {
         if samples.is_empty() || self.fusion.extractors.is_empty() {
-            return Err(Error::InvalidOperation("没有样本或提取器".to_string()));
+            return Err(Error::invalid_input("没有样本或提取器".to_string()));
         }
         
         // 提取器数量

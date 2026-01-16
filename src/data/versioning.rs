@@ -295,7 +295,7 @@ impl DataVersionManager {
         // 确保存储目录存在
         if !storage_root.exists() {
             fs::create_dir_all(&storage_root)
-                .map_err(|e| Error::IoError(format!("创建存储目录失败: {}", e)))?;
+                .map_err(|e| Error::io_error(format!("创建存储目录失败: {}", e)))?;
         }
 
         let manager = Self {
@@ -341,7 +341,7 @@ impl DataVersionManager {
         let versions_file = self.storage_root.join("versions.json");
         if versions_file.exists() {
             let content = fs::read_to_string(&versions_file)
-                .map_err(|e| Error::IoError(format!("读取版本文件失败: {}", e)))?;
+                .map_err(|e| Error::io_error(format!("读取版本文件失败: {}", e)))?;
             
             let versions_data: HashMap<VersionId, VersionInfo> = serde_json::from_str(&content)
                 .map_err(|e| Error::invalid_input(format!("解析版本文件失败: {}", e)))?;
@@ -353,7 +353,7 @@ impl DataVersionManager {
         let branches_file = self.storage_root.join("branches.json");
         if branches_file.exists() {
             let content = fs::read_to_string(&branches_file)
-                .map_err(|e| Error::IoError(format!("读取分支文件失败: {}", e)))?;
+                .map_err(|e| Error::io_error(format!("读取分支文件失败: {}", e)))?;
             
             let branches_data: HashMap<BranchName, BranchInfo> = serde_json::from_str(&content)
                 .map_err(|e| Error::invalid_input(format!("解析分支文件失败: {}", e)))?;
@@ -365,7 +365,7 @@ impl DataVersionManager {
         let tags_file = self.storage_root.join("tags.json");
         if tags_file.exists() {
             let content = fs::read_to_string(&tags_file)
-                .map_err(|e| Error::IoError(format!("读取标签文件失败: {}", e)))?;
+                .map_err(|e| Error::io_error(format!("读取标签文件失败: {}", e)))?;
             
             let tags_data: HashMap<TagName, TagInfo> = serde_json::from_str(&content)
                 .map_err(|e| Error::invalid_input(format!("解析标签文件失败: {}", e)))?;
@@ -382,25 +382,25 @@ impl DataVersionManager {
         let versions_file = self.storage_root.join("versions.json");
         let versions_data = self.versions.read().unwrap().clone();
         let content = serde_json::to_string_pretty(&versions_data)
-            .map_err(|e| Error::SerializationError(format!("序列化版本信息失败: {}", e)))?;
+            .map_err(|e| Error::serialization(format!("序列化版本信息失败: {}", e)))?;
         fs::write(&versions_file, content)
-            .map_err(|e| Error::IoError(format!("写入版本文件失败: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("写入版本文件失败: {}", e)))?;
 
         // 保存分支信息
         let branches_file = self.storage_root.join("branches.json");
         let branches_data = self.branches.read().unwrap().clone();
         let content = serde_json::to_string_pretty(&branches_data)
-            .map_err(|e| Error::SerializationError(format!("序列化分支信息失败: {}", e)))?;
+            .map_err(|e| Error::serialization(format!("序列化分支信息失败: {}", e)))?;
         fs::write(&branches_file, content)
-            .map_err(|e| Error::IoError(format!("写入分支文件失败: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("写入分支文件失败: {}", e)))?;
 
         // 保存标签信息
         let tags_file = self.storage_root.join("tags.json");
         let tags_data = self.tags.read().unwrap().clone();
         let content = serde_json::to_string_pretty(&tags_data)
-            .map_err(|e| Error::SerializationError(format!("序列化标签信息失败: {}", e)))?;
+            .map_err(|e| Error::serialization(format!("序列化标签信息失败: {}", e)))?;
         fs::write(&tags_file, content)
-            .map_err(|e| Error::IoError(format!("写入标签文件失败: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("写入标签文件失败: {}", e)))?;
 
         Ok(())
     }
@@ -657,7 +657,7 @@ impl DataVersionManager {
         
         for value in data {
             let serialized = serde_json::to_string(value)
-                .map_err(|e| Error::SerializationError(format!("序列化数据失败: {}", e)))?;
+                .map_err(|e| Error::serialization(format!("序列化数据失败: {}", e)))?;
             hasher.update(serialized.as_bytes());
         }
         
@@ -688,14 +688,14 @@ impl DataVersionManager {
     fn store_version_data(&self, version_id: &VersionId, data: &[DataValue]) -> Result<()> {
         let version_dir = self.storage_root.join("versions").join(version_id);
         fs::create_dir_all(&version_dir)
-            .map_err(|e| Error::IoError(format!("创建版本目录失败: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("创建版本目录失败: {}", e)))?;
         
         let data_file = version_dir.join("data.json");
         let content = serde_json::to_string_pretty(data)
-            .map_err(|e| Error::SerializationError(format!("序列化数据失败: {}", e)))?;
+            .map_err(|e| Error::serialization(format!("序列化数据失败: {}", e)))?;
         
         fs::write(data_file, content)
-            .map_err(|e| Error::IoError(format!("写入数据文件失败: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("写入数据文件失败: {}", e)))?;
         
         Ok(())
     }
@@ -709,7 +709,7 @@ impl DataVersionManager {
         }
         
         let content = fs::read_to_string(data_file)
-            .map_err(|e| Error::IoError(format!("读取数据文件失败: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("读取数据文件失败: {}", e)))?;
         
         let data: Vec<DataValue> = serde_json::from_str(&content)
             .map_err(|e| Error::invalid_input(format!("解析数据失败: {}", e)))?;

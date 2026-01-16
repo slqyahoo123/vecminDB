@@ -182,7 +182,7 @@ pub struct XmlReader;
 impl DataFormatReader for XmlReader {
     fn read_data(&self, path: &Path) -> Result<Vec<DataValue>> {
         let content = std::fs::read_to_string(path)
-            .map_err(|e| Error::IoError(format!("读取XML文件失败: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("读取XML文件失败: {}", e)))?;
         
         // XML解析需要完整的XML解析器，当前返回特征未启用错误
         // 如需使用XML格式，请集成XML解析库（如serde_xml_rs）或使用其他数据格式
@@ -202,7 +202,7 @@ pub struct YamlReader;
 impl DataFormatReader for YamlReader {
     fn read_data(&self, path: &Path) -> Result<Vec<DataValue>> {
         let content = std::fs::read_to_string(path)
-            .map_err(|e| Error::IoError(format!("读取YAML文件失败: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("读取YAML文件失败: {}", e)))?;
         
         // 使用serde_yaml解析
         let yaml_value: serde_yaml::Value = serde_yaml::from_str(&content)
@@ -252,7 +252,7 @@ impl YamlReader {
                 for item in seq {
                     let unified_value = self.yaml_unified_value(item)?;
                     let data_value = unified_value.unified_to_data()
-                        .map_err(|e| Error::data(format!("转换UnifiedValue失败: {}", e)))?;
+                        .map_err(|e| Error::processing(format!("转换UnifiedValue失败: {}", e)))?;
                     array.push(data_value);
                 }
                 Ok(DataValue::Array(array))
@@ -263,7 +263,7 @@ impl YamlReader {
                     if let serde_yaml::Value::String(key_str) = key {
                         let unified_value = self.yaml_unified_value(value)?;
                         let data_value = unified_value.unified_to_data()
-                            .map_err(|e| Error::data(format!("转换UnifiedValue失败: {}", e)))?;
+                            .map_err(|e| Error::processing(format!("转换UnifiedValue失败: {}", e)))?;
                         object.insert(key_str.clone(), data_value);
                     }
                 }
@@ -272,7 +272,7 @@ impl YamlReader {
             _ => {
                 // 将YAML值转换为字符串
                 let yaml_str = serde_yaml::to_string(yaml)
-                    .map_err(|e| Error::data(format!("序列化YAML失败: {}", e)))?;
+                    .map_err(|e| Error::processing(format!("序列化YAML失败: {}", e)))?;
                 Ok(DataValue::String(yaml_str))
             },
         }
@@ -296,7 +296,7 @@ impl YamlReader {
             _ => {
                 // 将YAML值转换为字符串
                 let yaml_str = serde_yaml::to_string(yaml)
-                    .map_err(|e| Error::data(format!("序列化YAML失败: {}", e)))?;
+                    .map_err(|e| Error::processing(format!("序列化YAML失败: {}", e)))?;
                 Ok(UnifiedValue::Text(yaml_str))
             },
         }
@@ -309,7 +309,7 @@ pub struct TomlReader;
 impl DataFormatReader for TomlReader {
     fn read_data(&self, path: &Path) -> Result<Vec<DataValue>> {
         let content = std::fs::read_to_string(path)
-            .map_err(|e| Error::IoError(format!("读取TOML文件失败: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("读取TOML文件失败: {}", e)))?;
         
         // 使用toml解析
         let toml_value: toml::Value = toml::from_str(&content)
@@ -337,7 +337,7 @@ impl TomlReader {
                 for item in arr {
                     let unified_value = self.toml_to_unified_value(item)?;
                     let data_value = unified_value.unified_to_data()
-                        .map_err(|e| Error::data(format!("转换UnifiedValue失败: {}", e)))?;
+                        .map_err(|e| Error::processing(format!("转换UnifiedValue失败: {}", e)))?;
                     array.push(data_value);
                 }
                 Ok(DataValue::Array(array))
@@ -347,7 +347,7 @@ impl TomlReader {
                 for (key, value) in table {
                     let unified_value = self.toml_to_unified_value(value)?;
                     let data_value = unified_value.unified_to_data()
-                        .map_err(|e| Error::data(format!("转换UnifiedValue失败: {}", e)))?;
+                        .map_err(|e| Error::processing(format!("转换UnifiedValue失败: {}", e)))?;
                     object.insert(key.clone(), data_value);
                 }
                 Ok(DataValue::Object(object))
@@ -375,7 +375,7 @@ pub struct TsvReader;
 impl DataFormatReader for TsvReader {
     fn read_data(&self, path: &Path) -> Result<Vec<DataValue>> {
         let file = File::open(path)
-            .map_err(|e| Error::IoError(format!("打开TSV文件失败: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("打开TSV文件失败: {}", e)))?;
         
         let reader = BufReader::new(file);
         let mut csv_reader = csv::ReaderBuilder::new()
@@ -399,7 +399,7 @@ impl DataFormatReader for TsvReader {
                 if let Some(header) = headers.get(i) {
                     let unified_value = self.parse_tsv_field(field);
                     let data_value = unified_value.unified_to_data()
-                        .map_err(|e| Error::data(format!("转换UnifiedValue失败: {}", e)))?;
+                        .map_err(|e| Error::processing(format!("转换UnifiedValue失败: {}", e)))?;
                     data_map.insert(header.to_string(), data_value);
                 }
             }
@@ -482,7 +482,7 @@ impl FixedWidthReader {
 impl DataFormatReader for FixedWidthReader {
     fn read_data(&self, path: &Path) -> Result<Vec<DataValue>> {
         let content = std::fs::read_to_string(path)
-            .map_err(|e| Error::IoError(format!("读取固定宽度文件失败: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("读取固定宽度文件失败: {}", e)))?;
         
         let mut records = Vec::new();
         
@@ -499,7 +499,7 @@ impl DataFormatReader for FixedWidthReader {
                     let field_content = &line[field_def.start..end_pos].trim();
                     let unified_value = self.parse_fixed_width_field(field_content, &field_def.data_type);
                     let data_value = unified_value.unified_to_data()
-                        .map_err(|e| Error::data(format!("转换UnifiedValue失败: {}", e)))?;
+                        .map_err(|e| Error::processing(format!("转换UnifiedValue失败: {}", e)))?;
                     data_map.insert(field_def.name.clone(), data_value);
                 }
             }

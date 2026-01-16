@@ -332,7 +332,7 @@ impl FileStreamingSource {
     pub fn new<P: AsRef<Path>>(path: P, format: DataFormat, config: StreamingConfig) -> Result<Self> {
         let file_path = path.as_ref().to_string_lossy().to_string();
         let file_size = std::fs::metadata(&file_path)
-            .map_err(|e| Error::IoError(format!("获取文件大小失败: {}", e)))?
+            .map_err(|e| Error::io_error(format!("获取文件大小失败: {}", e)))?
             .len();
         
         Ok(Self {
@@ -350,7 +350,7 @@ impl FileStreamingSource {
     /// 初始化读取器
     fn initialize_reader(&mut self) -> Result<()> {
         let file = File::open(&self.file_path)
-            .map_err(|e| Error::IoError(format!("打开文件失败: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("打开文件失败: {}", e)))?;
         
         let buf_reader = Box::new(BufReader::new(file));
         
@@ -400,7 +400,7 @@ impl FileStreamingSource {
                         if let Some(header) = headers.get(i) {
                             let unified_value = parse_csv_field(field);
                             let data_value = unified_value.unified_to_data()
-                                .map_err(|e| Error::data(format!("转换UnifiedValue失败: {}", e)))?;
+                                .map_err(|e| Error::processing(format!("转换UnifiedValue失败: {}", e)))?;
                             data_map.insert(header.to_string(), data_value);
                         }
                     }
