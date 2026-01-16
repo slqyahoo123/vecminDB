@@ -523,7 +523,7 @@ impl ImportManager {
     /// 清理未使用的导入
     pub fn cleanup_unused_imports(&self, analysis_result: &ImportAnalysisResult) -> Result<String> {
         if !self.config.auto_cleanup_unused {
-            return Err(Error::invalid_operation("自动清理未启用"));
+            return Err(Error::invalid_input("自动清理未启用"));
         }
         
         let content = fs::read_to_string(&analysis_result.file_path)?;
@@ -548,7 +548,7 @@ impl ImportManager {
     /// 转换通配符导入
     pub fn convert_wildcard_imports(&self, analysis_result: &ImportAnalysisResult, usage_info: &HashMap<String, Vec<String>>) -> Result<String> {
         if !self.config.convert_wildcard_imports {
-            return Err(Error::invalid_operation("通配符转换未启用"));
+            return Err(Error::invalid_input("通配符转换未启用"));
         }
         
         let content = fs::read_to_string(&analysis_result.file_path)?;

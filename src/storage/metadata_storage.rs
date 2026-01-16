@@ -82,7 +82,7 @@ pub struct MetadataStorage {
 
 impl MetadataStorage {
     /// 创建新的元数据存储
-    pub fn new(storage: Arc<KeyValueStorageEngine>) -> Result<Self> {
+    pub fn new(storage: Arc<dyn KeyValueStorageEngine>) -> Result<Self> {
         Ok(Self {
             storage,
             key_prefix: "metadata:collection:".to_string(),

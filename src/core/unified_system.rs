@@ -1243,31 +1243,31 @@ impl UnifiedServiceRegistry {
     /// 获取数据处理服务
     pub fn get_data_service(&self) -> Result<Arc<dyn DataProcessingService>> {
         self.data_service.clone()
-            .ok_or_else(|| Error::service_not_found("数据处理服务未注册"))
+            .ok_or_else(|| Error::not_found("数据处理服务未注册"))
     }
     
     /// 获取模型管理服务
     pub fn get_model_service(&self) -> Result<Arc<dyn ModelManagementService>> {
         self.model_service.clone()
-            .ok_or_else(|| Error::service_not_found("模型管理服务未注册"))
+            .ok_or_else(|| Error::not_found("模型管理服务未注册"))
     }
     
     /// 获取训练服务
     pub fn get_training_service(&self) -> Result<Arc<dyn TrainingService>> {
         self.training_service.clone()
-            .ok_or_else(|| Error::service_not_found("训练服务未注册"))
+            .ok_or_else(|| Error::not_found("训练服务未注册"))
     }
     
     /// 获取算法执行服务
     pub fn get_algorithm_service(&self) -> Result<Arc<dyn AlgorithmExecutionService>> {
         self.algorithm_service.clone()
-            .ok_or_else(|| Error::service_not_found("算法执行服务未注册"))
+            .ok_or_else(|| Error::not_found("算法执行服务未注册"))
     }
     
     /// 获取存储服务
     pub fn get_storage_service(&self) -> Result<Arc<dyn StorageService>> {
         self.storage_service.clone()
-            .ok_or_else(|| Error::service_not_found("存储服务未注册"))
+            .ok_or_else(|| Error::not_found("存储服务未注册"))
     }
 }
 

@@ -66,5 +66,38 @@ impl NetworkManager {
             "NetworkManager::send_to: 分布式网络未在 vecminDB 中实现",
         ))
     }
+
+    /// 注册消息处理器
+    ///
+    /// 当前实现为占位的「本地模式」：直接返回未实现错误。
+    pub fn register_handler<F>(&self, _channel: &str, _handler: F) -> Result<()>
+    where
+        F: Fn(&[u8], &str) + Send + Sync + 'static,
+    {
+        Err(crate::error::Error::not_implemented(
+            "NetworkManager::register_handler: 分布式网络未在 vecminDB 中实现",
+        ))
+    }
+
+    /// 获取所有节点
+    ///
+    /// Local mode: returns empty list as vecminDB runs as a single-node embedded database.
+    pub async fn get_all_nodes(&self) -> Vec<NodeInfo> {
+        Vec::new()
+    }
+
+    /// 根据角色获取节点
+    ///
+    /// Local mode: returns empty list as vecminDB runs as a single-node embedded database.
+    pub async fn get_nodes_by_role(&self, _role: &NodeRole) -> Vec<NodeInfo> {
+        Vec::new()
+    }
+
+    /// 根据组获取节点
+    ///
+    /// Local mode: returns empty list as vecminDB runs as a single-node embedded database.
+    pub async fn get_nodes_by_group(&self, _group: &str) -> Result<Vec<NodeInfo>> {
+        Ok(Vec::new())
+    }
 }
 

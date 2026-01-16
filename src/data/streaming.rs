@@ -453,7 +453,7 @@ impl StreamingDataSource for FileStreamingSource {
     async fn next_batch(&mut self) -> Result<Option<StreamingBatch>> {
         match self.format {
             DataFormat::Csv => self.read_csv_batch(),
-            _ => Err(Error::UnsupportedFormat(format!("暂不支持流式处理格式: {:?}", self.format))),
+            _ => Err(Error::not_implemented(format!("暂不支持流式处理格式: {:?}", self.format))),
         }
     }
 

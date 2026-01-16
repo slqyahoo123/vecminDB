@@ -976,7 +976,7 @@ impl CacheManager {
             }
             _ => {
                 warn!("暂不支持调整 {:?} 层级大小", tier);
-                return Err(Error::Unsupported(format!("不支持调整 {:?} 层级大小", tier)));
+                return Err(Error::not_implemented(format!("不支持调整 {:?} 层级大小", tier)));
             }
         }
         Ok(())
@@ -1109,7 +1109,7 @@ impl CacheManager {
             CacheTier::Remote => {
                 // 远程缓存预取：异步检查远程服务
                 warn!("暂不支持远程缓存预取");
-                return Err(Error::Unsupported("远程缓存预取暂未实现".to_string()));
+                return Err(Error::not_implemented("远程缓存预取暂未实现".to_string()));
             }
         }
 
@@ -1150,7 +1150,7 @@ impl CacheManager {
             }
             _ => {
                 warn!("暂不支持对 {:?} 层级进行强制淘汰", tier);
-                return Err(Error::Unsupported(format!("不支持对 {:?} 层级进行强制淘汰", tier)));
+                return Err(Error::not_implemented(format!("不支持对 {:?} 层级进行强制淘汰", tier)));
             }
         }
         debug!("已对 {:?} 层级强制淘汰 {} 个缓存项", tier, count);
@@ -1199,7 +1199,7 @@ impl CacheManager {
             }
             _ => {
                 warn!("暂不支持更新 {:?} 层级项", tier);
-                return Err(Error::Unsupported(format!("不支持更新 {:?} 层级项", tier)));
+                return Err(Error::not_implemented(format!("不支持更新 {:?} 层级项", tier)));
             }
         }
         debug!("已更新 {:?} 层级的缓存项: {}", tier, key);
@@ -1219,7 +1219,7 @@ impl CacheManager {
             }
             _ => {
                 warn!("暂不支持获取 {:?} 层级容量", tier);
-                Err(Error::Unsupported(format!("不支持获取 {:?} 层级容量", tier)))
+                Err(Error::not_implemented(format!("不支持获取 {:?} 层级容量", tier)))
             }
         }
     }

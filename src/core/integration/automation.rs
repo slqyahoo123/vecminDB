@@ -509,9 +509,9 @@ impl AutomationEngine {
     
     /// 注册事件监听器
     async fn register_event_listeners(&self) -> Result<()> {
-        let handler = AutomationEventHandler {
-            engine: self.create_weak_ref(),
-        };
+        // Create Arc reference to engine for event handler
+        let engine_arc = Arc::new(self.clone_ref());
+        let handler = AutomationEventHandler::new(engine_arc);
         
         // 监听所有事件
         self.event_bus.subscribe("*", Box::new(handler)).await?;
@@ -619,11 +619,11 @@ impl AutomationEngine {
     
     /// 判断时间调度规则是否应该执行
     fn should_execute_scheduled_rule(&self, rule: &AutomationRule) -> bool {
-        // 简化实现：每次检查都执行
-        // 实际实现应该解析cron表达式
+        // Time-based scheduling: checks if enough time has elapsed since last execution
+        // Note: Cron expression parsing is not implemented; uses check_interval instead
         match &rule.trigger {
             AutomationTrigger::Schedule { .. } => {
-                // 检查是否距离上次执行足够长时间
+                // Check if enough time has elapsed since last execution
                 if let Some(last_executed) = rule.last_executed_at {
                     let elapsed = Utc::now().signed_duration_since(last_executed);
                     elapsed.num_seconds() >= self.check_interval.as_secs() as i64
@@ -636,10 +636,18 @@ impl AutomationEngine {
     }
     
     /// 判断阈值规则是否应该执行
-    async fn should_execute_threshold_rule(&self, _rule: &AutomationRule) -> Result<bool> {
-        // 简化实现：总是返回false
-        // 实际实现应该检查指标值
-        Ok(false)
+    async fn should_execute_threshold_rule(&self, rule: &AutomationRule) -> Result<bool> {
+        // Threshold-based automation requires monitoring system integration
+        // The automation engine does not have access to monitoring metrics
+        if let AutomationTrigger::Threshold { metric_name, operator, threshold_value } = &rule.trigger {
+            Err(crate::Error::feature_not_enabled(format!(
+                "Threshold-based automation requires monitoring system integration. \
+                Metric '{}' threshold check ({} {}) is not available without monitoring system.",
+                metric_name, operator, threshold_value
+            )))
+        } else {
+            Ok(false)
+        }
     }
     
     /// 执行规则内部逻辑
@@ -861,17 +869,17 @@ impl AutomationEngine {
     fn validate_rule(&self, rule: &AutomationRule) -> Result<()> {
         // 检查规则名称
         if rule.name.is_empty() {
-            return Err(crate::Error::InvalidParameter("规则名称不能为空".to_string()));
+            return Err(crate::Error::invalid_input("规则名称不能为空"));
         }
         
         // 检查动作列表
         if rule.actions.is_empty() {
-            return Err(crate::Error::InvalidParameter("规则必须包含至少一个动作".to_string()));
+            return Err(crate::Error::invalid_input("规则必须包含至少一个动作"));
         }
         
         // 检查超时设置
         if rule.timeout_seconds == 0 {
-            return Err(crate::Error::InvalidParameter("超时时间必须大于0".to_string()));
+            return Err(crate::Error::invalid_input("超时时间必须大于0"));
         }
         
         Ok(())
@@ -969,7 +977,13 @@ pub struct AutomationEngineRef {
 
 /// 自动化事件处理器
 pub struct AutomationEventHandler {
-    pub engine: AutomationEngineRef,
+    engine: Arc<AutomationEngine>,
+}
+
+impl AutomationEventHandler {
+    fn new(engine: Arc<AutomationEngine>) -> Self {
+        Self { engine }
+    }
 }
 
 #[async_trait]
@@ -977,8 +991,33 @@ impl crate::core::EventHandler for AutomationEventHandler {
     async fn handle(&self, event: &CoreEvent) -> Result<()> {
         debug!("处理自动化事件: {}", event.event_type);
         
-        // 这里应该通过引擎引用来处理事件
-        // 简化实现，实际应该通过适当的回调机制
+        // Check event-triggered rules
+        let rules = {
+            let rules = self.engine.rules.read()
+                .expect("规则读取锁获取失败：无法读取规则");
+            rules.values()
+                .filter(|rule| rule.status == AutomationRuleStatus::Active)
+                .filter(|rule| rule.matches_event(event))
+                .cloned()
+                .collect::<Vec<_>>()
+        };
+        
+        // Execute matching rules
+        for rule in rules {
+            // Create event clone manually since CoreEvent may not implement Clone
+            let event_clone = CoreEvent {
+                id: event.id.clone(),
+                event_type: event.event_type.clone(),
+                source: event.source.clone(),
+                timestamp: event.timestamp,
+                data: event.data.clone(),
+                metadata: event.metadata.clone(),
+            };
+            let context = AutomationContext::new(rule.id.clone(), Some(event_clone));
+            if let Err(e) = self.engine.execute_rule_internal(rule, context).await {
+                error!("事件触发规则执行失败: {}", e);
+            }
+        }
         
         Ok(())
     }

@@ -335,3 +335,9 @@ impl From<tokio::task::JoinError> for Error {
     }
 }
 
+impl From<anyhow::Error> for Error {
+    fn from(err: anyhow::Error) -> Self {
+        Error::ExecutionError(format!("执行错误: {}", err))
+    }
+}
+

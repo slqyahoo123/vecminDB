@@ -84,7 +84,7 @@ pub struct IndexStorage {
 
 impl IndexStorage {
     /// 创建新的索引存储
-    pub fn new(storage: Arc<KeyValueStorageEngine>, config: IndexStorageConfig) -> Result<Self> {
+    pub fn new(storage: Arc<dyn KeyValueStorageEngine>, config: IndexStorageConfig) -> Result<Self> {
         let key_prefix = format!("index:{}:", config.collection_name);
         Ok(Self {
             storage,

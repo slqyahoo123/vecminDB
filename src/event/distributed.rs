@@ -330,7 +330,7 @@ impl DistributedEventSystem {
             tokio::sync::mpsc::channel(100);
         
         // 注册消息处理器
-        if let Err(e) = network.register_handler("event_system", move |data, _source| {
+        if let Err(e) = network.register_handler("event_system", move |data: &[u8], _source: &str| {
             let message: EventNetworkMessage = match bincode::deserialize(&data) {
                 Ok(msg) => msg,
                 Err(e) => {
@@ -817,7 +817,7 @@ impl EventSystem for DistributedEventSystem {
         self.local_system.publish(event.clone())?;
         
         // 获取目标节点
-        let target_nodes = match self.config.propagation_mode {
+        let target_nodes: Vec<String> = match self.config.propagation_mode {
             EventPropagationMode::SubscribedOnly => {
                 // 只发送给订阅了该事件类型的节点
                 let subs = self.remote_subscriptions.read().map_err(|e| {
@@ -830,13 +830,13 @@ impl EventSystem for DistributedEventSystem {
                         nodes.insert(sub.node_id.clone());
                     }
                 }
-                nodes
+                nodes.into_iter().collect()
             },
             EventPropagationMode::AllNodes => {
                 // 发送给所有节点
                 let nodes: Vec<NodeInfo> = tokio::runtime::Handle::current().block_on(async {
                     self.network.get_all_nodes().await
-                })?;
+                });
                 nodes.into_iter()
                     .map(|n| n.id)
                     .collect()
@@ -850,7 +850,7 @@ impl EventSystem for DistributedEventSystem {
                     NodeRole::Coordinator => NetworkNodeRole::Master, // 映射到 Master
                     NodeRole::Gateway => NetworkNodeRole::Worker, // 映射到 Worker
                     NodeRole::Storage => NetworkNodeRole::Worker, // 映射到 Worker
-                    NodeRole::Custom(_) => NetworkNodeRole::Unknown, // 映射到 Unknown
+                    NodeRole::Custom(_) => NetworkNodeRole::Worker, // 映射到 Worker
                 };
                 // get_nodes_by_role 返回 Vec<NodeInfo>，不需要额外的 Result 包装
                 let nodes = tokio::runtime::Handle::current().block_on(async {

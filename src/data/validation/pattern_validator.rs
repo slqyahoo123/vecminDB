@@ -1,5 +1,4 @@
 // 模式验证器模块，用于验证字符串是否匹配特定模式
-use crate::error::Result;
 use crate::data::value::DataValue;
  
 use crate::data::validation::{ValidationError, DataValidationResult, ValidationWarning, Validator, ValidationType, ErrorSeverity};
@@ -302,7 +301,7 @@ impl PatternValidator {
     }
     
     /// 创建信用卡号验证器
-    pub fn credit_card(error_level: ErrorSeverity) -> Result<Self, regex::Error> {
+    pub fn credit_card(error_level: ErrorSeverity) -> std::result::Result<Self, regex::Error> {
         Self::new(PatternValidatorConfig {
             pattern_type: PatternType::Custom(r"^(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|6(?:011|5[0-9][0-9])[0-9]{12}|3[47][0-9]{13}|3(?:0[0-5]|[68][0-9])[0-9]{11}|(?:2131|1800|35\d{3})\d{11})$".to_string()),
             error_message: Some("无效的信用卡号".to_string()),
@@ -312,7 +311,7 @@ impl PatternValidator {
     }
     
     /// 创建电话号码验证器
-    pub fn phone_number(error_level: ErrorSeverity) -> Result<Self, regex::Error> {
+    pub fn phone_number(error_level: ErrorSeverity) -> std::result::Result<Self, regex::Error> {
         Self::new(PatternValidatorConfig {
             pattern_type: PatternType::Custom(r"^\+[1-9]\d{1,14}$".to_string()),
             error_message: Some("无效的电话号码格式".to_string()),
@@ -326,7 +325,7 @@ impl PatternValidator {
         pattern: &str,
         error_message: Option<String>,
         error_level: ErrorSeverity,
-    ) -> Result<Self, regex::Error> {
+    ) -> std::result::Result<Self, regex::Error> {
         Self::new(PatternValidatorConfig {
             pattern_type: PatternType::Custom(pattern.to_string()),
             error_message,

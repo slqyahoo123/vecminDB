@@ -143,7 +143,7 @@ impl RangeValidator {
     }
     
     /// 验证配置的有效性
-    fn validate_config(config: &RangeValidatorConfig) -> Result<(), String> {
+    fn validate_config(config: &RangeValidatorConfig) -> std::result::Result<(), String> {
         // 检查是否至少设置了一个约束条件
         if config.min.is_none() && config.max.is_none() {
             return Err("At least one of min or max must be set".to_string());

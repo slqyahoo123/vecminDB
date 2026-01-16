@@ -191,7 +191,7 @@ impl BackendFactory {
                 Ok(Arc::new(MemcachedBackend::new(config)?))
             }
             BackendType::Custom(ref name) => {
-                Err(crate::error::Error::Unsupported(
+                Err(crate::error::Error::not_implemented(
                     format!("暂不支持自定义后端类型: {}", name)
                 ))
             }

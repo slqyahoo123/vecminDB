@@ -557,7 +557,7 @@ impl EventSystem for UnifiedEventSystem {
     }
     
     fn get_pending_events(&self) -> Result<Vec<Event>> {
-        let queue = self.event_queue.lock().map_err(|e| Error::internal_error(&format!("Failed to lock event queue: {}", e)))?;
+        let queue = self.event_queue.lock().map_err(|e| Error::internal(format!("Failed to lock event queue: {}", e)))?;
         let mut events = Vec::new();
         for wrapper in queue.iter() {
             if let UnifiedEventWrapper::New(event) = wrapper {

@@ -1,5 +1,4 @@
 use crate::{
-    error::Error,
     vector::{
         index::{
             IndexType, IndexConfig, VectorIndex, VectorIndexEnum,
@@ -176,7 +175,7 @@ impl IndexBenchmark {
     }
     
     /// 测试单个索引类型
-    pub fn benchmark_index(&self, index_type: IndexType, index_config: IndexConfig) -> Result<BenchmarkResult, Error> {
+    pub fn benchmark_index(&self, index_type: IndexType, index_config: IndexConfig) -> Result<BenchmarkResult> {
         // 生成数据集
         let vectors = self.generate_dataset();
         let queries = self.generate_queries();

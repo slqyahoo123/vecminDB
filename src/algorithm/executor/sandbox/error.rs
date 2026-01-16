@@ -146,7 +146,7 @@ impl From<SandboxError> for Error {
             SandboxError::NotFound(msg) => Error::not_found(msg),
             SandboxError::PermissionDenied(msg) => Error::permission_denied(msg),
             SandboxError::LockError(msg) => Error::lock(msg),
-            SandboxError::Unsupported(msg) => Error::unimplemented(msg),
+            SandboxError::Unsupported(msg) => Error::not_implemented(msg),
             _ => Error::internal(error.to_string()),
         }
     }

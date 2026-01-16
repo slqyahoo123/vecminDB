@@ -1095,7 +1095,7 @@ impl WriteAheadLog {
 
 impl StorageEngine {
     /// 创建新的存储引擎
-    pub fn new(options: StorageOptions) -> Result<Self, String> {
+    pub fn new(options: StorageOptions) -> std::result::Result<Self, String> {
         // 创建存储目录
         if options.create_if_missing {
             if let Err(e) = std::fs::create_dir_all(&options.path) {
@@ -1134,7 +1134,7 @@ impl StorageEngine {
     }
     
     /// 打开存储引擎
-    pub fn open(path: &str) -> Result<Self, String> {
+    pub fn open(path: &str) -> std::result::Result<Self, String> {
         let options = StorageOptions {
             path: path.to_string(),
             ..Default::default()
@@ -1144,7 +1144,7 @@ impl StorageEngine {
     }
     
     /// 关闭存储引擎
-    pub fn close(&self) -> Result<(), String> {
+    pub fn close(&self) -> std::result::Result<(), String> {
         let mut is_open = self.is_open.write().map_err(|e| e.to_string())?;
         *is_open = false;
         
@@ -1159,7 +1159,7 @@ impl StorageEngine {
     }
     
     /// 获取键对应的值
-    pub fn get(&self, key: &[u8], options: &ReadOptions) -> Result<Option<Vec<u8>>, String> {
+    pub fn get(&self, key: &[u8], options: &ReadOptions) -> std::result::Result<Option<Vec<u8>>, String> {
         if !*self.is_open.read().map_err(|e| e.to_string())? {
             return Err("存储引擎已关闭".to_string());
         }
@@ -1210,7 +1210,7 @@ impl StorageEngine {
     }
     
     /// 设置键值
-    pub fn put(&self, key: &[u8], value: &[u8], options: &WriteOptions) -> Result<(), String> {
+    pub fn put(&self, key: &[u8], value: &[u8], options: &WriteOptions) -> std::result::Result<(), String> {
         if !*self.is_open.read().map_err(|e| e.to_string())? {
             return Err("存储引擎已关闭".to_string());
         }
@@ -1255,7 +1255,7 @@ impl StorageEngine {
     }
     
     /// 删除键
-    pub fn delete(&self, key: &[u8], options: &WriteOptions) -> Result<(), String> {
+    pub fn delete(&self, key: &[u8], options: &WriteOptions) -> std::result::Result<(), String> {
         if !*self.is_open.read().map_err(|e| e.to_string())? {
             return Err("存储引擎已关闭".to_string());
         }
@@ -1292,7 +1292,7 @@ impl StorageEngine {
     }
     
     /// 批量写入
-    pub fn write_batch(&self, batch: Vec<(Vec<u8>, Option<Vec<u8>>)>, options: &WriteOptions) -> Result<(), String> {
+    pub fn write_batch(&self, batch: Vec<(Vec<u8>, Option<Vec<u8>>)>, options: &WriteOptions) -> std::result::Result<(), String> {
         if !*self.is_open.read().map_err(|e| e.to_string())? {
             return Err("存储引擎已关闭".to_string());
         }
@@ -1350,7 +1350,7 @@ impl StorageEngine {
     }
     
     /// 创建迭代器
-    pub fn iter(&self, options: IteratorOptions) -> Result<StorageIterator, String> {
+    pub fn iter(&self, options: IteratorOptions) -> std::result::Result<StorageIterator, String> {
         if !*self.is_open.read().map_err(|e| e.to_string())? {
             return Err("存储引擎已关闭".to_string());
         }
@@ -1367,7 +1367,7 @@ impl StorageEngine {
     }
     
     /// 手动压缩
-    pub fn compact(&self, _options: &CompactionOptions) -> Result<(), String> {
+    pub fn compact(&self, _options: &CompactionOptions) -> std::result::Result<(), String> {
         if !*self.is_open.read().map_err(|e| e.to_string())? {
             return Err("存储引擎已关闭".to_string());
         }
@@ -1388,7 +1388,7 @@ impl StorageEngine {
     }
     
     /// 获取统计信息
-    pub fn get_statistics(&self) -> Result<HashMap<String, String>, String> {
+    pub fn get_statistics(&self) -> std::result::Result<HashMap<String, String>, String> {
         let mut stats_map = HashMap::new();
         
         if let Ok(stats) = self.stats.read() {
@@ -1465,7 +1465,7 @@ impl StorageEngine {
     }
     
     /// 清空所有数据
-    pub fn clear(&self) -> Result<(), String> {
+    pub fn clear(&self) -> std::result::Result<(), String> {
         if !*self.is_open.read().map_err(|e| e.to_string())? {
             return Err("存储引擎已关闭".to_string());
         }
@@ -1499,7 +1499,7 @@ impl StorageEngine {
     }
     
     /// 创建快照
-    pub fn create_snapshot(&self) -> Result<u64, String> {
+    pub fn create_snapshot(&self) -> std::result::Result<u64, String> {
         if !*self.is_open.read().map_err(|e| e.to_string())? {
             return Err("存储引擎已关闭".to_string());
         }
@@ -1516,7 +1516,7 @@ impl StorageEngine {
     }
     
     /// 从快照恢复
-    pub fn restore_from_snapshot(&self, snapshot_id: u64) -> Result<(), String> {
+    pub fn restore_from_snapshot(&self, snapshot_id: u64) -> std::result::Result<(), String> {
         if !*self.is_open.read().map_err(|e| e.to_string())? {
             return Err("存储引擎已关闭".to_string());
         }
@@ -1528,7 +1528,7 @@ impl StorageEngine {
     }
     
     /// 执行备份
-    pub fn backup(&self, backup_path: &str) -> Result<(), String> {
+    pub fn backup(&self, backup_path: &str) -> std::result::Result<(), String> {
         if !*self.is_open.read().map_err(|e| e.to_string())? {
             return Err("存储引擎已关闭".to_string());
         }

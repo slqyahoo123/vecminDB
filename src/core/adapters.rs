@@ -330,7 +330,7 @@ impl ModelManagementService for ModelManagementServiceAdapter {
         if let Ok(storage) = self.model_storage.read() {
             Ok(storage.get(model_id).cloned())
         } else {
-            Err(Error::storage_error("无法读取模型存储"))
+            Err(Error::storage("无法读取模型存储"))
         }
     }
     
@@ -352,7 +352,7 @@ impl ModelManagementService for ModelManagementServiceAdapter {
                 Err(Error::not_found(format!("模型 {} 不存在", model_id)))
             }
         } else {
-            Err(Error::storage_error("无法写入模型存储"))
+            Err(Error::storage("无法写入模型存储"))
         }
     }
     
@@ -364,7 +364,7 @@ impl ModelManagementService for ModelManagementServiceAdapter {
                 Err(Error::not_found(format!("模型 {} 不存在", model_id)))
             }
         } else {
-            Err(Error::storage_error("无法写入模型存储"))
+            Err(Error::storage("无法写入模型存储"))
         }
     }
     
@@ -372,7 +372,7 @@ impl ModelManagementService for ModelManagementServiceAdapter {
         if let Ok(storage) = self.model_storage.read() {
             Ok(storage.values().cloned().collect())
         } else {
-            Err(Error::storage_error("无法读取模型存储"))
+            Err(Error::storage("无法读取模型存储"))
         }
     }
 }
@@ -513,7 +513,7 @@ impl StorageService for StorageServiceAdapter {
             storage.insert(key.to_string(), value.to_vec());
             Ok(())
         } else {
-            Err(Error::storage_error("无法写入存储"))
+            Err(Error::storage("无法写入存储"))
         }
     }
     
@@ -521,7 +521,7 @@ impl StorageService for StorageServiceAdapter {
         if let Ok(storage) = self.storage.read() {
             Ok(storage.get(key).cloned())
         } else {
-            Err(Error::storage_error("无法读取存储"))
+            Err(Error::storage("无法读取存储"))
         }
     }
     
@@ -530,7 +530,7 @@ impl StorageService for StorageServiceAdapter {
             storage.remove(key);
             Ok(())
         } else {
-            Err(Error::storage_error("无法写入存储"))
+            Err(Error::storage("无法写入存储"))
         }
     }
     
@@ -542,7 +542,7 @@ impl StorageService for StorageServiceAdapter {
                 .collect();
             Ok(keys)
         } else {
-            Err(Error::storage_error("无法读取存储"))
+            Err(Error::storage("无法读取存储"))
         }
     }
     
@@ -550,7 +550,7 @@ impl StorageService for StorageServiceAdapter {
         if let Ok(storage) = self.storage.read() {
             Ok(storage.contains_key(key))
         } else {
-            Err(Error::storage_error("无法读取存储"))
+            Err(Error::storage("无法读取存储"))
         }
     }
 }
@@ -591,7 +591,7 @@ impl AdapterFactory {
         
         registry.register_data_service(Self::create_data_processing_adapter("default".to_string()));
         registry.register_model_service(Self::create_model_management_adapter());
-        registry.register_training_service(Self::create_training_service_adapter());
+        // Training service registration removed: vector database does not need training functionality
         registry.register_algorithm_service(Self::create_algorithm_service_adapter());
         registry.register_storage_service(Self::create_storage_service_adapter());
         

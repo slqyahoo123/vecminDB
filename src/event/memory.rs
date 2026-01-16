@@ -229,7 +229,7 @@ impl EventSystem for MemoryEventSystem {
             // 根据保留策略处理
             match self.retention_policy {
                 RetentionPolicy::KeepAll => {
-                    return Err(Error::resource_exhausted("事件队列已满"));
+                    return Err(Error::resource("事件队列已满"));
                 },
                 RetentionPolicy::KeepLatest(_) => {
                     // 丢弃最旧的事件

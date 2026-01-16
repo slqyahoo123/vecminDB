@@ -75,12 +75,39 @@ impl ModuleCoordinator {
     
     /// 更新任务状态
     pub fn update_task_status(&self, task_id: &Uuid, status: StatusType, message: &str) -> crate::error::Result<()> {
-        self.status_tracker.update_task_status(*task_id, status, message)
+        use crate::status::StatusEvent;
+        use chrono::Utc;
+        let event = StatusEvent {
+            task_id: *task_id,
+            status,
+            progress: None,
+            message: message.to_string(),
+            updated_at: Utc::now(),
+            metadata: std::collections::HashMap::new(),
+        };
+        tokio::runtime::Handle::current().block_on(async {
+            self.status_tracker.update_status(event).await
+        })
     }
     
     /// 创建任务并记录状态
     pub fn create_task(&self, task_type: &str) -> crate::error::Result<Uuid> {
-        self.status_tracker.create_task(task_type)
+        use crate::status::StatusEvent;
+        use crate::status::StatusType;
+        use chrono::Utc;
+        let task_id = Uuid::new_v4();
+        let event = StatusEvent {
+            task_id,
+            status: StatusType::Pending,
+            progress: None,
+            message: format!("Task created: {}", task_type),
+            updated_at: Utc::now(),
+            metadata: std::collections::HashMap::new(),
+        };
+        tokio::runtime::Handle::current().block_on(async {
+            self.status_tracker.update_status(event).await?;
+            Ok(task_id)
+        })
     }
 }
 

@@ -564,9 +564,7 @@ impl ApplicationContainer {
 		if Arc::strong_count(&self.model_manager) > 0 {
 			active_count += 1;
 		}
-		if Arc::strong_count(&self.training_engine) > 0 {
-			active_count += 1;
-		}
+		// training_engine 已移除，不再检查
 		if Arc::strong_count(&self.data_processor) > 0 {
 			active_count += 1;
 		}

@@ -800,7 +800,7 @@ pub fn create_remote_cache(config: RemoteCacheConfig) -> Result<Arc<dyn RemoteCa
             }
         }
         _ => {
-            Err(Error::Unsupported(format!("暂不支持的远程缓存协议: {:?}", config.protocol)))
+            Err(Error::not_implemented(format!("暂不支持的远程缓存协议: {:?}", config.protocol)))
         }
     }
 } 

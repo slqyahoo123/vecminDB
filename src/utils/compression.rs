@@ -95,7 +95,7 @@ impl CompressionUtils {
     /// 使用 GZIP 压缩数据
     pub fn compress_gzip(data: &[u8], level: CompressionLevel) -> Result<Vec<u8>> {
         let mut encoder = GzEncoder::new(Vec::new(), level.to_flate2_level());
-        encoder.write_all(data).map_err(|e| Error::io(format!("GZIP压缩失败: {}", e)))?;
+        encoder.write_all(data).map_err(|e| Error::io_error(format!("GZIP压缩失败: {}", e)))?;
         encoder.finish().map_err(|e| Error::io(format!("完成GZIP压缩失败: {}", e)))
     }
     

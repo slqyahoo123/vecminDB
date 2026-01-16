@@ -857,6 +857,18 @@ impl Component for VectorDB {
             ComponentStatus::Ready
         }
     }
+    
+    fn start(&mut self) -> Result<()> {
+        // VectorDB 启动逻辑
+        // 在实际实现中，这里可以初始化索引、加载数据等
+        Ok(())
+    }
+    
+    fn stop(&mut self) -> Result<()> {
+        // VectorDB 停止逻辑
+        // 在实际实现中，这里可以保存数据、清理资源等
+        Ok(())
+    }
 }
 
 // 统一从index模块导出IndexConfig，避免重复定义

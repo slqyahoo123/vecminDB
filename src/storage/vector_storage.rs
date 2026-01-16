@@ -83,7 +83,7 @@ pub struct VectorStorage {
 
 impl VectorStorage {
     /// 创建新的向量存储
-    pub fn new(storage: Arc<KeyValueStorageEngine>, config: VectorStorageConfig) -> Result<Self> {
+    pub fn new(storage: Arc<dyn KeyValueStorageEngine>, config: VectorStorageConfig) -> Result<Self> {
         let key_prefix = format!("vector:{}:", config.collection_name);
         Ok(Self {
             storage,

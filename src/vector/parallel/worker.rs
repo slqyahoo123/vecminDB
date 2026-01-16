@@ -306,7 +306,7 @@ impl ConcurrentWorkerPool {
     }
     
     /// 启动工作线程池
-    pub fn start(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn start(&mut self) -> std::result::Result<(), Box<dyn std::error::Error>> {
         let mut state = self.state.write().unwrap();
         if *state != WorkerPoolState::Inactive {
             return Err("工作线程池已在运行".into());
@@ -334,7 +334,7 @@ impl ConcurrentWorkerPool {
     }
     
     /// 停止工作线程池
-    pub fn stop(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn stop(&mut self) -> std::result::Result<(), Box<dyn std::error::Error>> {
         let mut state = self.state.write().unwrap();
         if *state != WorkerPoolState::Running {
             return Err("工作线程池未在运行".into());
@@ -355,7 +355,7 @@ impl ConcurrentWorkerPool {
     }
     
     /// 提交任务
-    pub fn submit_task(&self, task: Task) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn submit_task(&self, task: Task) -> std::result::Result<(), Box<dyn std::error::Error>> {
         let state = self.state.read().unwrap();
         if *state != WorkerPoolState::Running {
             return Err("工作线程池未在运行".into());

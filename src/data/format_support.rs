@@ -144,7 +144,7 @@ impl FormatDetector {
             }
         }
 
-        Err(Error::UnsupportedFormat(format!("无法检测文件格式: {:?}", path)))
+        Err(Error::not_implemented(format!("无法检测文件格式: {:?}", path)))
     }
 }
 
@@ -616,7 +616,7 @@ impl DataFormatManager {
         if let Some(reader) = self.readers.get(&format) {
             reader.read_data(path.as_ref())
         } else {
-            Err(Error::UnsupportedFormat(format!("不支持的读取格式: {:?}", format)))
+            Err(Error::not_implemented(format!("不支持的读取格式: {:?}", format)))
         }
     }
 
@@ -630,7 +630,7 @@ impl DataFormatManager {
         if let Some(writer) = self.writers.get(&format) {
             writer.write_data(data, path.as_ref())
         } else {
-            Err(Error::UnsupportedFormat(format!("不支持的写入格式: {:?}", format)))
+            Err(Error::not_implemented(format!("不支持的写入格式: {:?}", format)))
         }
     }
 

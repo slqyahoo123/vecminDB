@@ -585,19 +585,17 @@ impl ModelManager for ProductionModelManager {
         Ok(None)
     }
     
-    fn start_monitoring_task(&self, model_id: &str, monitor_id: &str, config: MonitoringConfig) -> Result<MonitoringTask> {
-        Ok(MonitoringTask {
+    fn start_monitoring_task(&self, model_id: &str, monitor_id: &str, config: &MonitoringConfig) -> Result<crate::algorithm::manager::models::common::MonitoringTask> {
+        use crate::algorithm::manager::models::common::MonitoringTask as CommonMonitoringTask;
+        Ok(CommonMonitoringTask {
             id: monitor_id.to_string(),
             model_id: model_id.to_string(),
-            task_type: MonitoringTaskType::HealthCheck,
-            schedule: "*/5 * * * *".to_string(),
-            config: MonitoringConfig {
+            config: crate::model::manager::metrics::ModelMonitoringConfig {
                 enabled: true,
                 interval_secs: config.interval_seconds,
             },
-            status: TaskStatus::Active,
-            last_run: None,
-            next_run: Utc::now(),
+            status: crate::algorithm::manager::types::model::MonitoringStatus::Active,
+            metrics: HashMap::new(),
         })
     }
     

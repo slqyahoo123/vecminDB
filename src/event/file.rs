@@ -360,7 +360,7 @@ impl FileEventStorage {
     /// 查询事件
     pub fn query_events(&self, filter: EventQueryFilter) -> Result<Vec<Event>> {
         if !self.config.enable_indexing {
-            return Err(Error::Unsupported("查询功能需要启用索引".to_string()));
+            return Err(Error::not_implemented("查询功能需要启用索引".to_string()));
         }
         
         let index = self.index.read().map_err(|e| {
@@ -425,7 +425,7 @@ impl FileEventStorage {
             })?;
             Ok(index.count)
         } else {
-            Err(Error::Unsupported("计数功能需要启用索引".to_string()))
+            Err(Error::not_implemented("计数功能需要启用索引".to_string()))
         }
     }
     
