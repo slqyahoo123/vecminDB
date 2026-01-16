@@ -651,12 +651,98 @@ impl DataPipeline {
     }
     
     /// 根据字段名过滤记录
-    pub fn filter_records_by_field(&self, records: Vec<DataRecord>, _field_name: &str, _field_value: &DataField) -> Result<Vec<DataRecord>> {
-        // 字段值比较功能需要完整的类型比较实现，当前返回特征未启用错误
-        // 如需使用字段过滤，请实现完整的类型比较逻辑或使用其他过滤方法
-        Err(Error::feature_not_enabled(
-            "字段值比较过滤需要完整的类型比较实现，当前未实现。请使用其他过滤方法或实现完整的类型比较逻辑。".to_string()
-        ))
+    pub fn filter_records_by_field(&self, records: Vec<DataRecord>, field_name: &str, field_value: &DataField) -> Result<Vec<DataRecord>> {
+        // 从 DataField 中提取比较值
+        let target_value = if let Some(ref default_val) = field_value.default_value {
+            // 使用默认值
+            crate::data::value::DataValue::from_json(
+                serde_json::from_str(default_val)
+                    .unwrap_or_else(|_| serde_json::Value::String(default_val.to_string()))
+            )
+        } else {
+            // 根据字段类型创建默认值
+            match field_value.field_type {
+                FieldType::Boolean => crate::data::value::DataValue::Boolean(false),
+                FieldType::Numeric | FieldType::Integer | FieldType::Int | FieldType::Float => {
+                    crate::data::value::DataValue::Number(0.0)
+                },
+                FieldType::Text | FieldType::String => {
+                    crate::data::value::DataValue::String(String::new())
+                },
+                FieldType::DateTime => {
+                    crate::data::value::DataValue::DateTime(String::new())
+                },
+                _ => crate::data::value::DataValue::Null,
+            }
+        };
+        
+        // 过滤记录
+        let filtered_records = records.into_iter()
+            .filter(|record| {
+                if let Some(value) = record.fields.get(field_name) {
+                    // 将 Value 转换为 DataValue 进行比较
+                    if let Ok(record_data_value) = value.to_data_value() {
+                        // 比较值
+                        compare_data_values(&record_data_value, &target_value)
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            })
+            .collect();
+        
+        Ok(filtered_records)
+    }
+    
+    /// 比较两个 DataValue 是否相等
+    fn compare_data_values(a: &crate::data::value::DataValue, b: &crate::data::value::DataValue) -> bool {
+        match (a, b) {
+            (crate::data::value::DataValue::Boolean(a_val), crate::data::value::DataValue::Boolean(b_val)) => {
+                a_val == b_val
+            },
+            (crate::data::value::DataValue::Integer(a_val), crate::data::value::DataValue::Integer(b_val)) => {
+                a_val == b_val
+            },
+            (crate::data::value::DataValue::Float(a_val), crate::data::value::DataValue::Float(b_val)) => {
+                (a_val - b_val).abs() < f64::EPSILON
+            },
+            (crate::data::value::DataValue::Number(a_val), crate::data::value::DataValue::Number(b_val)) => {
+                (a_val - b_val).abs() < f64::EPSILON
+            },
+            (crate::data::value::DataValue::String(a_val), crate::data::value::DataValue::String(b_val)) => {
+                a_val == b_val
+            },
+            (crate::data::value::DataValue::Text(a_val), crate::data::value::DataValue::Text(b_val)) => {
+                a_val == b_val
+            },
+            (crate::data::value::DataValue::DateTime(a_val), crate::data::value::DataValue::DateTime(b_val)) => {
+                a_val == b_val
+            },
+            (crate::data::value::DataValue::Null, crate::data::value::DataValue::Null) => true,
+            // 数值类型之间的比较
+            (crate::data::value::DataValue::Integer(a_val), crate::data::value::DataValue::Number(b_val)) => {
+                (*a_val as f64 - b_val).abs() < f64::EPSILON
+            },
+            (crate::data::value::DataValue::Number(a_val), crate::data::value::DataValue::Integer(b_val)) => {
+                (a_val - *b_val as f64).abs() < f64::EPSILON
+            },
+            (crate::data::value::DataValue::Float(a_val), crate::data::value::DataValue::Number(b_val)) => {
+                (a_val - b_val).abs() < f64::EPSILON
+            },
+            (crate::data::value::DataValue::Number(a_val), crate::data::value::DataValue::Float(b_val)) => {
+                (a_val - b_val).abs() < f64::EPSILON
+            },
+            // 字符串类型之间的比较
+            (crate::data::value::DataValue::String(a_val), crate::data::value::DataValue::Text(b_val)) => {
+                a_val == b_val
+            },
+            (crate::data::value::DataValue::Text(a_val), crate::data::value::DataValue::String(b_val)) => {
+                a_val == b_val
+            },
+            _ => false,
+        }
     }
     
     /// 提取记录中的指定字段

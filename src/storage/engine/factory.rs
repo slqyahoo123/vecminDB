@@ -119,12 +119,57 @@ impl IStorageEngine for StorageEngineWrapper {
         Ok(())
     }
     
-    fn write_batch(&mut self, _location: &str, _schema: &Schema, _records: &[Record]) -> Result<()> {
-        // 批量写入功能需要完整的parquet格式化和写入实现，当前返回特征未启用错误
-        // 如需使用批量写入，请集成parquet库或使用StorageEngineImpl的方法
-        Err(Error::feature_not_enabled(
-            "批量写入功能需要完整的parquet格式化和写入实现，当前未集成。请使用StorageEngineImpl的方法或集成parquet库。".to_string()
-        ))
+    fn write_batch(&mut self, location: &str, schema: &Schema, records: &[Record]) -> Result<()> {
+        use std::fs;
+        use std::path::Path;
+        use serde_json;
+        
+        // 确保目录存在
+        let path = Path::new(location);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).map_err(|e| Error::storage(format!("创建目录失败: {}", e)))?;
+        }
+        
+        // 构建要写入的数据结构
+        let mut batch_data = serde_json::Map::new();
+        
+        // 写入 schema 信息
+        let schema_json = serde_json::to_value(schema).map_err(|e| {
+            Error::serialization(format!("序列化 schema 失败: {}", e))
+        })?;
+        batch_data.insert("schema".to_string(), schema_json);
+        
+        // 写入记录数据
+        let mut records_json = Vec::new();
+        for record in records {
+            // 将 Record 转换为 JSON
+            let record_data_value = record.to_data_value().map_err(|e| {
+                Error::processing(format!("转换记录失败: {}", e))
+            })?;
+            let record_json = record_data_value.to_json();
+            records_json.push(record_json);
+        }
+        batch_data.insert("records".to_string(), serde_json::Value::Array(records_json));
+        
+        // 添加元数据
+        batch_data.insert("record_count".to_string(), serde_json::Value::Number(
+            serde_json::Number::from(records.len())
+        ));
+        batch_data.insert("timestamp".to_string(), serde_json::Value::String(
+            chrono::Utc::now().to_rfc3339()
+        ));
+        
+        // 写入 JSON 文件
+        let json_content = serde_json::to_string_pretty(&serde_json::Value::Object(batch_data))
+            .map_err(|e| Error::serialization(format!("序列化数据失败: {}", e)))?;
+        
+        fs::write(location, json_content).map_err(|e| {
+            Error::io_error(format!("写入文件失败: {}", e))
+        })?;
+        
+        log::info!("成功写入 {} 条记录到 {}", records.len(), location);
+        
+        Ok(())
     }
     
     fn close(&self) -> Result<()> {

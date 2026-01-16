@@ -173,30 +173,227 @@ impl FusionModule {
     }
     
     // 注意力融合
-    fn attention_fusion(&self, _features: HashMap<String, CoreTensorData>) -> Result<CoreTensorData> {
-        // 注意力融合需要计算注意力权重矩阵，当前返回特征未启用错误
-        // 如需使用注意力融合，请集成注意力机制实现或使用其他融合策略（如Weighted）
-        Err(Error::feature_not_enabled(
-            "注意力融合需要完整的注意力机制实现，当前未集成。请使用其他融合策略（如Concatenation、Weighted）或集成注意力机制。".to_string()
-        ))
+    fn attention_fusion(&self, features: HashMap<String, CoreTensorData>) -> Result<CoreTensorData> {
+        if features.is_empty() {
+            return Err(Error::invalid_argument("Empty features for attention fusion".to_string()));
+        }
+        
+        // 计算注意力权重（基于特征向量的L2范数）
+        let mut attention_weights = Vec::with_capacity(features.len());
+        let mut feature_vecs: Vec<(String, &CoreTensorData, f32)> = Vec::new();
+        
+        for (name, tensor) in &features {
+            if tensor.shape.len() != 2 || tensor.shape[0] != 1 {
+                return Err(Error::invalid_argument(format!("Invalid tensor shape for attention fusion: {:?}", tensor.shape)));
+            }
+            
+            // 计算L2范数作为注意力分数
+            let norm = tensor.data.iter().map(|x| x * x).sum::<f32>().sqrt();
+            feature_vecs.push((name.clone(), tensor, norm));
+        }
+        
+        // 归一化注意力权重（softmax）
+        let max_norm = feature_vecs.iter().map(|(_, _, norm)| *norm).fold(0.0f32, f32::max);
+        let exp_sum: f32 = feature_vecs.iter()
+            .map(|(_, _, norm)| (norm - max_norm).exp())
+            .sum();
+        
+        for (_, _, norm) in &feature_vecs {
+            let weight = ((norm - max_norm).exp()) / exp_sum;
+            attention_weights.push(weight);
+        }
+        
+        // 确定输出维度
+        let max_dim = feature_vecs.iter()
+            .map(|(_, tensor, _)| tensor.shape[1])
+            .max()
+            .unwrap_or(0);
+        
+        let out_dim = if self.output_dimension > 0 {
+            self.output_dimension.min(max_dim)
+        } else {
+            max_dim
+        };
+        
+        // 应用注意力权重进行加权融合
+        let mut result = vec![0.0; out_dim];
+        for (idx, (_, tensor, _)) in feature_vecs.iter().enumerate() {
+            let weight = attention_weights[idx];
+            let dim = tensor.shape[1].min(out_dim);
+            
+            for i in 0..dim {
+                result[i] += tensor.data[i] * weight;
+            }
+        }
+        
+        // 构建结果
+        let now = chrono::Utc::now();
+        let mut tensor = CoreTensorData {
+            id: uuid::Uuid::new_v4().to_string(),
+            shape: vec![1, out_dim],
+            data: result,
+            dtype: "float32".to_string(),
+            device: "cpu".to_string(),
+            requires_grad: false,
+            metadata: HashMap::new(),
+            created_at: now,
+            updated_at: now,
+        };
+        tensor.metadata.insert("fusion_strategy".to_string(), "attention".to_string());
+        
+        Ok(tensor)
     }
     
     // 门控融合
-    fn gated_fusion(&self, _features: HashMap<String, CoreTensorData>) -> Result<CoreTensorData> {
-        // 门控融合需要门控单元控制信息流，当前返回特征未启用错误
-        // 如需使用门控融合，请集成门控机制实现或使用其他融合策略（如Weighted）
-        Err(Error::feature_not_enabled(
-            "门控融合需要完整的门控机制实现，当前未集成。请使用其他融合策略（如Concatenation、Weighted）或集成门控机制。".to_string()
-        ))
+    fn gated_fusion(&self, features: HashMap<String, CoreTensorData>) -> Result<CoreTensorData> {
+        if features.is_empty() {
+            return Err(Error::invalid_argument("Empty features for gated fusion".to_string()));
+        }
+        
+        // 门控阈值（从配置或使用默认值）
+        let gate_threshold = 0.5;
+        
+        // 确定输出维度
+        let max_dim = features.values()
+            .map(|t| if t.shape.len() == 2 && t.shape[0] == 1 { t.shape[1] } else { 0 })
+            .max()
+            .unwrap_or(0);
+        
+        if max_dim == 0 {
+            return Err(Error::invalid_argument("Invalid tensor shapes for gated fusion".to_string()));
+        }
+        
+        let out_dim = if self.output_dimension > 0 {
+            self.output_dimension.min(max_dim)
+        } else {
+            max_dim
+        };
+        
+        // 初始化输出
+        let mut result = vec![0.0; out_dim];
+        let mut total_gate_weight = 0.0;
+        
+        // 对每个特征应用门控机制
+        for (name, tensor) in &features {
+            if tensor.shape.len() != 2 || tensor.shape[0] != 1 {
+                continue;
+            }
+            
+            // 计算门控值（基于特征均值的sigmoid）
+            let mean_value = if !tensor.data.is_empty() {
+                tensor.data.iter().sum::<f32>() / tensor.data.len() as f32
+            } else {
+                0.0
+            };
+            let gate_value = 1.0 / (1.0 + (-mean_value).exp()); // sigmoid
+            
+            // 如果门控值超过阈值，则应用门控权重
+            if gate_value > gate_threshold {
+                let dim = tensor.shape[1].min(out_dim);
+                for i in 0..dim {
+                    result[i] += tensor.data[i] * gate_value;
+                }
+                total_gate_weight += gate_value;
+            }
+        }
+        
+        // 归一化（如果总权重大于0）
+        if total_gate_weight > 1e-6 {
+            for val in &mut result {
+                *val /= total_gate_weight;
+            }
+        }
+        
+        // 构建结果
+        let now = chrono::Utc::now();
+        let mut tensor = CoreTensorData {
+            id: uuid::Uuid::new_v4().to_string(),
+            shape: vec![1, out_dim],
+            data: result,
+            dtype: "float32".to_string(),
+            device: "cpu".to_string(),
+            requires_grad: false,
+            metadata: HashMap::new(),
+            created_at: now,
+            updated_at: now,
+        };
+        tensor.metadata.insert("fusion_strategy".to_string(), "gated".to_string());
+        tensor.metadata.insert("gate_threshold".to_string(), gate_threshold.to_string());
+        
+        Ok(tensor)
     }
     
     // 张量融合
-    fn tensor_fusion(&self, _features: HashMap<String, CoreTensorData>) -> Result<CoreTensorData> {
-        // 张量融合需要计算外积再降维，当前返回特征未启用错误
-        // 如需使用张量融合，请集成张量运算实现或使用其他融合策略（如Weighted）
-        Err(Error::feature_not_enabled(
-            "张量融合需要完整的张量运算实现（外积和降维），当前未集成。请使用其他融合策略（如Concatenation、Weighted）或集成张量运算库。".to_string()
-        ))
+    fn tensor_fusion(&self, features: HashMap<String, CoreTensorData>) -> Result<CoreTensorData> {
+        if features.is_empty() {
+            return Err(Error::invalid_argument("Empty features for tensor fusion".to_string()));
+        }
+        
+        // 验证所有张量的形状
+        let mut feature_vecs: Vec<Vec<f32>> = Vec::new();
+        let mut max_dim = 0;
+        
+        for (name, tensor) in &features {
+            if tensor.shape.len() != 2 || tensor.shape[0] != 1 {
+                return Err(Error::invalid_argument(format!(
+                    "Invalid tensor shape for tensor fusion: {} has shape {:?}",
+                    name, tensor.shape
+                )));
+            }
+            
+            let dim = tensor.shape[1];
+            if dim > max_dim {
+                max_dim = dim;
+            }
+            feature_vecs.push(tensor.data.clone());
+        }
+        
+        // 如果只有一个特征，直接返回
+        if feature_vecs.len() == 1 {
+            let tensor = features.values().next().unwrap();
+            return Ok(tensor.clone());
+        }
+        
+        // 计算外积（简化版本：逐元素乘积）
+        // 对于多个特征向量，我们计算它们的逐元素乘积的平均值
+        let out_dim = if self.output_dimension > 0 {
+            self.output_dimension.min(max_dim)
+        } else {
+            max_dim
+        };
+        
+        let mut result = vec![1.0; out_dim];
+        
+        // 计算逐元素乘积
+        for feature_vec in &feature_vecs {
+            let dim = feature_vec.len().min(out_dim);
+            for i in 0..dim {
+                result[i] *= feature_vec[i];
+            }
+        }
+        
+        // 归一化（取n次根，其中n是特征数量）
+        let n = feature_vecs.len() as f32;
+        for val in &mut result {
+            *val = val.signum() * val.abs().powf(1.0 / n);
+        }
+        
+        // 构建结果
+        let now = chrono::Utc::now();
+        let mut tensor = CoreTensorData {
+            id: uuid::Uuid::new_v4().to_string(),
+            shape: vec![1, out_dim],
+            data: result,
+            dtype: "float32".to_string(),
+            device: "cpu".to_string(),
+            requires_grad: false,
+            metadata: HashMap::new(),
+            created_at: now,
+            updated_at: now,
+        };
+        tensor.metadata.insert("fusion_strategy".to_string(), "tensor".to_string());
+        
+        Ok(tensor)
     }
     
     // 自定义融合
