@@ -667,7 +667,7 @@ impl DataPipeline {
             let mut field_map = HashMap::new();
             
             for field_name in field_names {
-                if let Some(value) = record.fields.get(*field_name) {
+                if record.fields.contains_key(*field_name) {
                     // 创建临时DataField用于兼容
                     let temp_field = crate::data::record::DataField::simple(
                         field_name.to_string(),
