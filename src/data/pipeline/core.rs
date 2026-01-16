@@ -651,7 +651,7 @@ impl DataPipeline {
     }
     
     /// 根据字段名过滤记录
-    pub fn filter_records_by_field(&self, records: Vec<DataRecord>, field_name: &str, field_value: &DataField) -> Result<Vec<DataRecord>> {
+    pub fn filter_records_by_field(&self, records: Vec<DataRecord>, _field_name: &str, _field_value: &DataField) -> Result<Vec<DataRecord>> {
         // 字段值比较功能需要完整的类型比较实现，当前返回特征未启用错误
         // 如需使用字段过滤，请实现完整的类型比较逻辑或使用其他过滤方法
         Err(Error::feature_not_enabled(

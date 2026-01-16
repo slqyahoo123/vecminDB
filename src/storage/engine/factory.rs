@@ -6,7 +6,6 @@
 use std::collections::HashMap;
 use crate::Result;
 use crate::Error;
-use super::interfaces::StorageEngine;
 use super::core::StorageEngineImpl;
 use crate::storage::config::StorageConfig;
 use crate::data::schema::Schema;
@@ -25,7 +24,6 @@ impl StorageEngineFactory {
     
     /// 创建默认存储引擎
     pub fn create_default(&self) -> Result<Box<dyn IStorageEngine>> {
-        let config = StorageConfig::default();
         self.create("local", &HashMap::new())
     }
     
