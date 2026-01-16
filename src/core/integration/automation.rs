@@ -68,6 +68,19 @@ pub enum ComparisonOperator {
     NotEqual,
 }
 
+impl std::fmt::Display for ComparisonOperator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ComparisonOperator::GreaterThan => write!(f, ">"),
+            ComparisonOperator::LessThan => write!(f, "<"),
+            ComparisonOperator::Equal => write!(f, "=="),
+            ComparisonOperator::GreaterThanOrEqual => write!(f, ">="),
+            ComparisonOperator::LessThanOrEqual => write!(f, "<="),
+            ComparisonOperator::NotEqual => write!(f, "!="),
+        }
+    }
+}
+
 /// 自动化动作
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AutomationAction {

@@ -476,7 +476,7 @@ impl StreamDataLoader {
         let mut row_count = 0;
         
         for result in reader.records() {
-            let record = result.map_err(|e| Error::parse(format!("CSV解析错误: {}", e)))?;
+            let record = result.map_err(|e| Error::invalid_input(format!("CSV解析错误: {}", e)))?;
             
             // 处理一行数据
             let mut row = Vec::new();
@@ -517,7 +517,7 @@ impl StreamDataLoader {
         
         // 解析JSON
         let json_value: Value = serde_json::from_slice(content)
-            .map_err(|e| Error::parse(format!("JSON解析错误: {}", e)))?;
+            .map_err(|e| Error::invalid_input(format!("JSON解析错误: {}", e)))?;
         
         // 初始项目计数
         let mut item_count = 0;
@@ -594,7 +594,7 @@ impl StreamDataLoader {
                 }
             },
             _ => {
-                return Err(Error::unsupported_format(
+                return Err(Error::not_implemented(
                     format!("不支持的自定义文本格式: {}", format_name)
                 ));
             }
@@ -622,7 +622,7 @@ impl StreamDataLoader {
             "float32" => {
                 // 处理32位浮点数数组
                 if content.len() % 4 != 0 {
-                    return Err(Error::parse("float32格式数据长度必须是4的倍数"));
+                    return Err(Error::invalid_input("float32格式数据长度必须是4的倍数"));
                 }
                 
                 let mut i = 0;
@@ -638,7 +638,7 @@ impl StreamDataLoader {
             "int32" => {
                 // 处理32位整数数组
                 if content.len() % 4 != 0 {
-                    return Err(Error::parse("int32格式数据长度必须是4的倍数"));
+                    return Err(Error::invalid_input("int32格式数据长度必须是4的倍数"));
                 }
                 
                 let mut i = 0;
@@ -652,7 +652,7 @@ impl StreamDataLoader {
                 }
             },
             _ => {
-                return Err(Error::unsupported_format(
+                return Err(Error::not_implemented(
                     format!("不支持的自定义二进制格式: {}", format_name)
                 ));
             }
@@ -1030,7 +1030,7 @@ impl DataLoader for StreamDataLoader {
                 
                 // 没有数据则返回错误
                 if features.is_empty() {
-                    return Err(Error::no_data("从流中未加载到数据"));
+                    return Err(Error::invalid_data("从流中未加载到数据".to_string()));
                 }
                 
                 // 创建数据批次

@@ -522,13 +522,12 @@ impl DataLoader for DatabaseLoader {
             },
             ConnectorDatabaseType::PostgreSQL => {
                 // PostgreSQL架构获取实现
-                // 注意：postgres 特性未在 Cargo.toml 中定义，已注释
-        // #[cfg(feature = "postgres")]
+                // 注意：postgres 特性未在 Cargo.toml 中定义，返回默认模式
+                #[cfg(feature = "postgres")]
                 {
                     self.get_postgres_schema(&local_db_config).await?
                 }
-                
-                // #[cfg(not(feature = "postgres"))]
+                #[cfg(not(feature = "postgres"))]
                 {
                     // 返回默认模式
                     let mut schema = DataSchema::new("postgres_default", "1.0");

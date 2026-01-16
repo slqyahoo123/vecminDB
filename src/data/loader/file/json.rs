@@ -143,7 +143,7 @@ impl JSONProcessor {
         let file_path = PathBuf::from(path);
         // 验证文件是否存在
         if !file_path.exists() {
-            return Err(Error::file_not_found(file_path.to_string_lossy().to_string()));
+            return Err(Error::not_found(file_path.to_string_lossy().to_string()));
         }
         
         let processor_options = if let Some(opts) = options {
@@ -319,7 +319,7 @@ impl JSONProcessor {
                 vec.push(data);
                 self.data = Some(vec);
             } else {
-                return Err(Error::parse_error("JSON data is not an array or object".to_string()));
+                return Err(Error::invalid_input("JSON data is not an array or object".to_string()));
             }
         } else {
             // 如果是数组，直接使用
@@ -338,13 +338,13 @@ impl JSONProcessor {
 
         let data = self.data.as_ref().unwrap();
         if data.is_empty() {
-            return Err(Error::parse_error("JSON data is empty, cannot infer schema".to_string()));
+            return Err(Error::invalid_data("JSON data is empty, cannot infer schema".to_string()));
         }
 
         // 使用第一个记录推断基本结构
         let first_record = &data[0];
         if !first_record.is_object() {
-            return Err(Error::parse_error("JSON data must contain objects".to_string()));
+            return Err(Error::invalid_input("JSON data must contain objects".to_string()));
         }
 
         let obj = first_record.as_object().unwrap();
@@ -752,7 +752,7 @@ pub fn infer_json_schema_impl(path: &Path) -> Result<DataSchema> {
     
     // 检查文件是否存在
     if !path.exists() {
-        return Err(Error::file_not_found(path.to_string_lossy().to_string()));
+        return Err(Error::not_found(path.to_string_lossy().to_string()));
     }
     
     // 检查是否为空文件
@@ -1114,12 +1114,12 @@ fn determine_field_type(types: &Vec<FieldType>) -> FieldType {
 /// 返回格式字符串: "array"、"object"或"lines"
 pub fn detect_json_format(path: &Path) -> Result<JsonFormat> {
     // 打开文件
-    let file = File::open(path).map_err(|e| Error::data(&format!("无法打开JSON文件: {}", e)))?;
+    let file = File::open(path).map_err(|e| Error::io_error(format!("无法打开JSON文件: {}", e)))?;
     let mut reader = BufReader::new(file);
     
     // 读取文件前1KB用于格式检测
     let mut buffer = [0; 1024];
-    let bytes_read = reader.read(&mut buffer).map_err(|e| Error::data(&format!("读取JSON文件失败: {}", e)))?;
+    let bytes_read = reader.read(&mut buffer).map_err(|e| Error::io_error(format!("读取JSON文件失败: {}", e)))?;
     
     if bytes_read == 0 {
         return Err(Error::invalid_input("JSON文件为空"));
@@ -1140,7 +1140,7 @@ pub fn detect_json_format(path: &Path) -> Result<JsonFormat> {
     match buffer[start_index] {
         b'[' => {
             // 可能是JSON数组，尝试验证
-            reader.seek(SeekFrom::Start(0)).map_err(|e| Error::data(&format!("重置文件指针失败: {}", e)))?;
+            reader.seek(SeekFrom::Start(0)).map_err(|e| Error::io_error(format!("重置文件指针失败: {}", e)))?;
             
             // 尝试解析为JSON数组
             match serde_json::from_reader::<_, Value>(reader) {
@@ -1166,23 +1166,23 @@ pub fn detect_json_format(path: &Path) -> Result<JsonFormat> {
         },
         b'{' => {
             // 可能是单个JSON对象
-            reader.seek(SeekFrom::Start(0)).map_err(|e| Error::data(&format!("重置文件指针失败: {}", e)))?;
+            reader.seek(SeekFrom::Start(0)).map_err(|e| Error::io_error(format!("重置文件指针失败: {}", e)))?;
             
             // 检查是否为JSONL格式（每行一个JSON对象）
             let mut line = String::new();
-            reader.read_line(&mut line).map_err(|e| Error::data(&format!("读取JSON行失败: {}", e)))?;
+            reader.read_line(&mut line).map_err(|e| Error::io_error(format!("读取JSON行失败: {}", e)))?;
             
             if line.trim().ends_with('}') {
                 // 读取下一行，检查是否有更多对象
                 let mut second_line = String::new();
-                let bytes_read = reader.read_line(&mut second_line).map_err(|e| Error::io(&format!("读取第二行失败: {}", e)))?;
+                let bytes_read = reader.read_line(&mut second_line).map_err(|e| Error::io_error(format!("读取第二行失败: {}", e)))?;
                 
                 if bytes_read > 0 && second_line.trim().starts_with('{') {
                     // 似乎是JSONL格式
                     return Ok(JsonFormat::JSONL);
                 } else {
                     // 尝试验证是否为单个有效JSON对象
-                    reader.seek(SeekFrom::Start(0)).map_err(|e| Error::io(&format!("重置文件指针失败: {}", e)))?;
+                    reader.seek(SeekFrom::Start(0)).map_err(|e| Error::io_error(format!("重置文件指针失败: {}", e)))?;
                     match serde_json::from_reader::<_, Value>(reader) {
                         Ok(value) => {
                             if value.is_object() {
@@ -1204,7 +1204,7 @@ pub fn detect_json_format(path: &Path) -> Result<JsonFormat> {
         },
         _ => {
             // 不是标准JSON开头，检查是否为JSONL格式
-            reader.seek(SeekFrom::Start(0)).map_err(|e| Error::io(&format!("重置文件指针失败: {}", e)))?;
+            reader.seek(SeekFrom::Start(0)).map_err(|e| Error::io_error(format!("重置文件指针失败: {}", e)))?;
             
             // 读取前几行，检查是否每行都是JSON对象
             let mut valid_json_lines = 0;
@@ -1212,7 +1212,7 @@ pub fn detect_json_format(path: &Path) -> Result<JsonFormat> {
             
             for _ in 0..5 {
                 line.clear();
-                let bytes_read = reader.read_line(&mut line).map_err(|e| Error::io(&format!("读取JSON行失败: {}", e)))?;
+                let bytes_read = reader.read_line(&mut line).map_err(|e| Error::io_error(format!("读取JSON行失败: {}", e)))?;
                 if bytes_read == 0 {
                     break;
                 }
@@ -1237,7 +1237,7 @@ pub fn detect_json_format(path: &Path) -> Result<JsonFormat> {
 /// 估计JSON数组的大小（元素数量）
 pub fn estimate_json_array_size(path: &Path) -> Result<usize> {
     // 打开文件
-    let file = File::open(path).map_err(|e| Error::io(&format!("无法打开JSON文件: {}", e)))?;
+    let file = File::open(path).map_err(|e| Error::io_error(format!("无法打开JSON文件: {}", e)))?;
     let reader = BufReader::new(file);
     
     // 检测文件格式
@@ -1393,7 +1393,7 @@ impl JsonLoader {
         
         // 验证文件是否存在
         if !file_path.exists() {
-            return Err(Error::file_not_found(file_path.to_string_lossy().to_string()));
+            return Err(Error::not_found(file_path.to_string_lossy().to_string()));
         }
         
         Ok(Self {

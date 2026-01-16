@@ -53,8 +53,8 @@ fn scan_directory_internal(
     result: &mut Vec<PathBuf>,
 ) -> Result<()> {
     for entry in fs::read_dir(directory)
-        .map_err(|e| Error::io(format!("读取目录失败: {}", e)))? {
-        let entry = entry.map_err(|e| Error::io(format!("读取目录项失败: {}", e)))?;
+        .map_err(|e| Error::io_error(format!("读取目录失败: {}", e)))? {
+        let entry = entry.map_err(|e| Error::io_error(format!("读取目录项失败: {}", e)))?;
         let path = entry.path();
         
         if path.is_dir() && recursive {
@@ -101,7 +101,7 @@ fn detect_file_type_by_content<P: AsRef<Path>>(path: P) -> Result<FileType> {
     let mut file = match File::open(path_ref) {
         Ok(f) => f,
         Err(e) => {
-            return Err(Error::io(format!("无法打开文件 {:?}: {}", path_ref, e)));
+            return Err(Error::io_error(format!("无法打开文件 {:?}: {}", path_ref, e)));
         }
     };
     
@@ -109,7 +109,7 @@ fn detect_file_type_by_content<P: AsRef<Path>>(path: P) -> Result<FileType> {
     let read_count = match file.read(&mut buffer) {
         Ok(count) => count,
         Err(e) => {
-            return Err(Error::io(format!("读取文件 {:?} 失败: {}", path_ref, e)));
+            return Err(Error::io_error(format!("读取文件 {:?} 失败: {}", path_ref, e)));
         }
     };
     
@@ -184,7 +184,7 @@ pub fn save_batch_to_file<P: AsRef<Path>>(
     if let Some(parent) = path.parent() {
         if !parent.exists() {
             fs::create_dir_all(parent)
-                .map_err(|e| Error::io(format!("创建目录失败: {}", e)))?;
+                .map_err(|e| Error::io_error(format!("创建目录失败: {}", e)))?;
         }
     }
     
@@ -199,7 +199,7 @@ pub fn save_batch_to_file<P: AsRef<Path>>(
             save_batch_as_parquet(batch, path)?;
         },
         _ => {
-            return Err(Error::not_supported(format!(
+            return Err(Error::not_implemented(format!(
                 "不支持保存为 {:?} 格式", format
             )));
         }
@@ -216,7 +216,7 @@ fn save_batch_as_csv<P: AsRef<Path>>(
     has_header: bool,
 ) -> Result<()> {
     let writer = File::create(path.as_ref())
-        .map_err(|e| Error::io(format!("无法创建CSV文件: {}", e)))?;
+        .map_err(|e| Error::io_error(format!("无法创建CSV文件: {}", e)))?;
     
     let mut csv_writer = csv::WriterBuilder::new()
         .delimiter(delimiter as u8)
@@ -231,7 +231,7 @@ fn save_batch_as_csv<P: AsRef<Path>>(
             .collect();
         
         csv_writer.write_record(&field_names)
-            .map_err(|e| Error::io(format!("写入CSV标题失败: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("写入CSV标题失败: {}", e)))?;
     }
     
     // 写入记录
@@ -253,11 +253,11 @@ fn save_batch_as_csv<P: AsRef<Path>>(
         };
         
         csv_writer.write_record(&values)
-            .map_err(|e| Error::io(format!("写入CSV记录失败: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("写入CSV记录失败: {}", e)))?;
     }
     
     csv_writer.flush()
-        .map_err(|e| Error::io(format!("刷新CSV写入器失败: {}", e)))?;
+        .map_err(|e| Error::io_error(format!("刷新CSV写入器失败: {}", e)))?;
     
     Ok(())
 }
@@ -270,7 +270,7 @@ fn save_batch_as_json<P: AsRef<Path>>(
     is_array: bool,
 ) -> Result<()> {
     let file = File::create(path.as_ref())
-        .map_err(|e| Error::io(format!("无法创建JSON文件: {}", e)))?;
+        .map_err(|e| Error::io_error(format!("无法创建JSON文件: {}", e)))?;
     
     if is_lines {
         // JSONL格式（每行一个JSON对象）
@@ -283,11 +283,11 @@ fn save_batch_as_json<P: AsRef<Path>>(
                 .map_err(|e| Error::serialization(format!("JSON字符串化失败: {}", e)))?;
             
             writeln!(writer, "{}", json_str)
-                .map_err(|e| Error::io(format!("写入JSONL行失败: {}", e)))?;
+                .map_err(|e| Error::io_error(format!("写入JSONL行失败: {}", e)))?;
         }
         
         writer.flush()
-            .map_err(|e| Error::io(format!("刷新JSONL写入器失败: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("刷新JSONL写入器失败: {}", e)))?;
     } else {
         // 标准JSON格式
         if is_array {
@@ -296,14 +296,14 @@ fn save_batch_as_json<P: AsRef<Path>>(
                 .map_err(|e| Error::serialization(format!("序列化批次记录失败: {}", e)))?;
             
             serde_json::to_writer_pretty(file, &json)
-                .map_err(|e| Error::io(format!("写入JSON数组失败: {}", e)))?;
+                .map_err(|e| Error::io_error(format!("写入JSON数组失败: {}", e)))?;
         } else {
             // 批次对象
             let json = serde_json::to_value(batch)
                 .map_err(|e| Error::serialization(format!("序列化批次失败: {}", e)))?;
             
             serde_json::to_writer_pretty(file, &json)
-                .map_err(|e| Error::io(format!("写入JSON对象失败: {}", e)))?;
+                .map_err(|e| Error::io_error(format!("写入JSON对象失败: {}", e)))?;
         }
     }
     
@@ -408,7 +408,7 @@ fn save_batch_as_parquet<P: AsRef<Path>>(batch: &DataBatch, path: P) -> Result<(
     
     // 创建文件
     let file = File::create(path.as_ref())
-        .map_err(|e| Error::io(format!("创建Parquet文件失败: {}", e)))?;
+        .map_err(|e| Error::io_error(format!("创建Parquet文件失败: {}", e)))?;
     
     let mut writer = SerializedFileWriter::new(file, schema.clone(), props.clone())
         .map_err(|e| Error::serialization(format!("创建Parquet写入器失败: {}", e)))?;
@@ -547,7 +547,7 @@ pub fn export_batch_files<P: AsRef<Path>>(
         fs::create_dir_all(dir_path)
             .map_err(|e| {
                 error!("创建导出目录失败: {}", e);
-                Error::io(format!("创建导出目录失败: {}", e))
+                Error::io_error(format!("创建导出目录失败: {}", e))
             })?;
     }
     
@@ -616,7 +616,7 @@ pub fn split_file<P: AsRef<Path>>(
         fs::create_dir_all(dir_path)
             .map_err(|e| {
                 error!("创建输出目录失败: {}", e);
-                Error::io(format!("创建输出目录失败: {}", e))
+                Error::io_error(format!("创建输出目录失败: {}", e))
             })?;
     }
     
@@ -626,7 +626,7 @@ pub fn split_file<P: AsRef<Path>>(
         DataFormat::Json { .. } => split_json_file(input_path, dir_path, chunk_size, format),
         _ => {
             error!("不支持分割 {:?} 格式的文件", format);
-            Err(Error::not_supported(format!("不支持分割 {:?} 格式的文件", format)))
+            Err(Error::not_implemented(format!("不支持分割 {:?} 格式的文件", format)))
         }
     }
 }
@@ -644,7 +644,7 @@ fn split_csv_file<P: AsRef<Path>>(
     let file = File::open(input_path)
         .map_err(|e| {
             error!("打开CSV文件失败: {}", e);
-            Error::io(format!("打开CSV文件失败: {}", e))
+            Error::io_error(format!("打开CSV文件失败: {}", e))
         })?;
     
     let mut reader = csv::ReaderBuilder::new()
@@ -663,7 +663,7 @@ fn split_csv_file<P: AsRef<Path>>(
     let headers = reader.headers().cloned()
         .map_err(|e| {
             error!("读取CSV头部失败: {}", e);
-            Error::io(format!("读取CSV头部失败: {}", e))
+            Error::io_error(format!("读取CSV头部失败: {}", e))
         })?;
     
     let mut result = Vec::new();
@@ -679,7 +679,7 @@ fn split_csv_file<P: AsRef<Path>>(
     for record in reader.records() {
         let record = record.map_err(|e| {
             error!("读取CSV记录失败: {}", e);
-            Error::io(format!("读取CSV记录失败: {}", e))
+            Error::io_error(format!("读取CSV记录失败: {}", e))
         })?;
         
         // 如果需要创建新的写入器
@@ -702,7 +702,7 @@ fn split_csv_file<P: AsRef<Path>>(
             let writer = File::create(&output_path)
                 .map_err(|e| {
                     error!("创建CSV输出文件失败: {}", e);
-                    Error::io(format!("创建CSV输出文件失败: {}", e))
+                    Error::io_error(format!("创建CSV输出文件失败: {}", e))
                 })?;
             
             let mut csv_writer = csv::WriterBuilder::new()
@@ -717,7 +717,7 @@ fn split_csv_file<P: AsRef<Path>>(
             csv_writer.write_record(&headers)
                 .map_err(|e| {
                     error!("写入CSV标题失败: {}", e);
-                    Error::io(format!("写入CSV标题失败: {}", e))
+                    Error::io_error(format!("写入CSV标题失败: {}", e))
                 })?;
             
             current_writer = Some(csv_writer);
@@ -730,7 +730,7 @@ fn split_csv_file<P: AsRef<Path>>(
             writer.write_record(&record)
                 .map_err(|e| {
                     error!("写入CSV记录失败: {}", e);
-                    Error::io(format!("写入CSV记录失败: {}", e))
+                    Error::io_error(format!("写入CSV记录失败: {}", e))
                 })?;
             
             current_records += 1;
@@ -762,7 +762,7 @@ fn split_json_file<P: AsRef<Path>>(
     let file = File::open(input_path)
         .map_err(|e| {
             error!("打开JSON文件失败: {}", e);
-            Error::io(format!("打开JSON文件失败: {}", e))
+            Error::io_error(format!("打开JSON文件失败: {}", e))
         })?;
     
     let reader = BufReader::new(file);
@@ -794,13 +794,13 @@ fn split_json_file<P: AsRef<Path>>(
         for line in BufReader::new(File::open(input_path)
             .map_err(|e| {
                 error!("打开JSON文件失败: {}", e);
-                Error::io(format!("打开JSON文件失败: {}", e))
+                Error::io_error(format!("打开JSON文件失败: {}", e))
             })?)
             .lines() {
             
             let line = line.map_err(|e| {
                 error!("读取JSON行失败: {}", e);
-                Error::io(format!("读取JSON行失败: {}", e))
+                Error::io_error(format!("读取JSON行失败: {}", e))
             })?;
             
             if !line.trim().is_empty() {
@@ -809,7 +809,7 @@ fn split_json_file<P: AsRef<Path>>(
                     Ok(value) => records.push(value),
                     Err(e) => {
                         error!("解析JSON行失败: {}", e);
-                        return Err(Error::data(format!("解析JSON行失败: {}", e)));
+                        return Err(Error::invalid_input(format!("解析JSON行失败: {}", e)));
                     }
                 }
             }
@@ -849,7 +849,7 @@ fn split_json_file<P: AsRef<Path>>(
         let json_value: serde_json::Value = serde_json::from_reader(reader)
             .map_err(|e| {
                 error!("解析JSON文件失败: {}", e);
-                Error::data(format!("解析JSON文件失败: {}", e))
+                Error::invalid_input(format!("解析JSON文件失败: {}", e))
             })?;
         
         // 确保是数组
@@ -888,7 +888,7 @@ fn split_json_file<P: AsRef<Path>>(
     } else {
         // 处理单个JSON对象
         error!("不支持分割非数组非行JSON格式");
-        return Err(Error::not_supported("不支持分割非数组非行JSON格式"));
+        return Err(Error::not_implemented("不支持分割非数组非行JSON格式"));
     }
     
     Ok(result)
@@ -910,7 +910,7 @@ fn write_json_chunk<P: AsRef<Path>>(
     let file = File::create(&output_path)
         .map_err(|e| {
             error!("创建JSON输出文件失败: {}", e);
-            Error::io(format!("创建JSON输出文件失败: {}", e))
+            Error::io_error(format!("创建JSON输出文件失败: {}", e))
         })?;
     
     let mut writer = BufWriter::new(file);
@@ -927,7 +927,7 @@ fn write_json_chunk<P: AsRef<Path>>(
             writeln!(writer, "{}", line)
                 .map_err(|e| {
                     error!("写入JSON行失败: {}", e);
-                    Error::io(format!("写入JSON行失败: {}", e))
+                    Error::io_error(format!("写入JSON行失败: {}", e))
                 })?;
         }
     } else if is_array {
@@ -935,19 +935,19 @@ fn write_json_chunk<P: AsRef<Path>>(
         serde_json::to_writer_pretty(writer, data)
             .map_err(|e| {
                 error!("写入JSON数组失败: {}", e);
-                Error::io(format!("写入JSON数组失败: {}", e))
+                Error::io_error(format!("写入JSON数组失败: {}", e))
             })?;
     } else {
         // 单个对象，不应该到达这里
         error!("不支持写入非数组非行JSON格式");
-        return Err(Error::not_supported("不支持写入非数组非行JSON格式"));
+        return Err(Error::not_implemented("不支持写入非数组非行JSON格式"));
     }
     
     // 刷新缓冲区
     writer.flush()
         .map_err(|e| {
             error!("刷新JSON写入器失败: {}", e);
-            Error::io(format!("刷新JSON写入器失败: {}", e))
+            Error::io_error(format!("刷新JSON写入器失败: {}", e))
         })?;
     
     Ok(output_path)

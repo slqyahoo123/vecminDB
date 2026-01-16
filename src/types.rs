@@ -38,11 +38,12 @@ impl ModuleCoordinator {
             let module_name = self.module_name.clone();
             let enhanced_system = self.enhanced_event_system.clone();
             
-            self.event_system.subscribe(event_type, Arc::new(move |event| {
+            use crate::event::FunctionCallback;
+            self.event_system.subscribe(event_type, Arc::new(FunctionCallback::new(move |event: &Event| {
                 // 将事件转换为增强事件并发布
                 let enhanced_event = event.clone().into();
                 enhanced_system.publish_enhanced(enhanced_event)
-            }))?;
+            })))?;
         }
         Ok(())
     }

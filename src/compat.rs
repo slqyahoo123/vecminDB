@@ -280,6 +280,7 @@ pub mod tensor {
     
     // TensorData compatibility type - 简化的张量数据结构，用于兼容性
     #[derive(Debug, Clone, Serialize, Deserialize)]
+    #[derive(PartialEq)]
     pub struct TensorData {
         pub data: TensorValues,
         pub shape: Vec<usize>,
@@ -287,7 +288,7 @@ pub mod tensor {
         pub metadata: HashMap<String, String>,
     }
     
-    #[derive(Debug, Clone, Serialize, Deserialize)]
+    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
     pub enum TensorValues {
         F32(Vec<f32>),
         F64(Vec<f64>),
@@ -296,7 +297,7 @@ pub mod tensor {
         U8(Vec<u8>),
     }
     
-    #[derive(Debug, Clone, Serialize, Deserialize)]
+    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
     pub enum DataType {
         Float32,
         Float64,

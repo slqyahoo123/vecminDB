@@ -217,7 +217,7 @@ impl CSVProcessor {
     pub fn new(path: &str, options: Option<HashMap<String, String>>) -> Result<Self> {
         let file_path = Path::new(path);
         if !file_path.exists() {
-            return Err(Error::file_not_found(format!("File not found: {}", path)));
+            return Err(Error::not_found(format!("File not found: {}", path)));
         }
 
         let mut processor_options = HashMap::new();
@@ -335,7 +335,7 @@ impl CSVProcessor {
                 header.iter().map(|s| s.to_string()).collect()
             } else {
                 warn!("CSV文件为空，没有表头: {}", self.path);
-                return Err(Error::data("CSV文件为空，没有表头"));
+                return Err(Error::invalid_data("CSV文件为空，没有表头".to_string()));
             }
         } else {
             // 没有表头，使用默认列名
@@ -344,7 +344,7 @@ impl CSVProcessor {
                 (0..record.len()).map(|i| format!("column_{}", i + 1)).collect()
             } else {
                 warn!("CSV文件为空: {}", self.path);
-                return Err(Error::data("CSV文件为空"));
+                return Err(Error::invalid_data("CSV文件为空".to_string()));
             }
         };
 
@@ -678,7 +678,7 @@ impl CSVProcessor {
                         .unwrap_or(false);
                         
                     if !ignore_errors {
-                        return Err(Error::io(format!("CSV解析错误(行 {}): {}", row_idx, e)));
+                        return Err(Error::io_error(format!("CSV解析错误(行 {}): {}", row_idx, e)));
                     }
                 }
             }
@@ -968,7 +968,7 @@ impl FileProcessor for CSVProcessor {
                     records.push(record);
                 },
                 Err(e) => {
-                    return Err(Error::parse_error(format!("Error reading CSV record: {}", e)));
+                    return Err(Error::invalid_input(format!("Error reading CSV record: {}", e)));
                 }
             }
             
@@ -1006,7 +1006,7 @@ impl CSVProcessor {
             let headers: Vec<String> = if self.has_header {
                 match csv_reader.headers() {
                     Ok(headers) => headers.iter().map(|s| s.to_string()).collect(),
-                    Err(e) => return Err(Error::data(format!("Failed to read CSV headers: {}", e))),
+                    Err(e) => return Err(Error::invalid_data(format!("Failed to read CSV headers: {}", e))),
                 }
             } else {
                 // 如果没有表头，会在读取第一行时处理
@@ -1093,7 +1093,7 @@ impl CSVProcessor {
 
 /// 推断CSV文件的数据模式
 pub fn infer_csv_schema(path: &Path) -> Result<DataSchema> {
-    let path_str = path.to_str().ok_or_else(|| Error::data("无效的文件路径"))?;
+    let path_str = path.to_str().ok_or_else(|| Error::invalid_input("无效的文件路径".to_string()))?;
     
     // 创建CSV处理器
     let mut processor = CSVProcessor::new(path_str, None)?;

@@ -147,7 +147,7 @@ fn load_json<P: AsRef<Path>>(path: P) -> Result<Vec<DataValue>> {
     
     let values: Vec<JsonValue> = serde_json::from_reader(reader).map_err(|e| {
         error!("解析JSON文件失败: {}", e);
-        Error::parse_error(format!("解析JSON失败: {}", e))
+        Error::invalid_input(format!("解析JSON失败: {}", e))
     })?;
     
     debug!("成功解析JSON文件，记录数: {}", values.len());
@@ -206,7 +206,7 @@ fn load_csv<P: AsRef<Path>>(path: P) -> Result<Vec<DataValue>> {
     // 读取标题行
     let headers = reader.headers().map_err(|e| {
         error!("读取CSV标题失败: {}", e);
-        Error::parse_error(format!("读取CSV标题失败: {}", e))
+        Error::invalid_input(format!("读取CSV标题失败: {}", e))
     })?.clone();
     
     debug!("CSV文件标题: {:?}", headers);
@@ -217,7 +217,7 @@ fn load_csv<P: AsRef<Path>>(path: P) -> Result<Vec<DataValue>> {
     for (row_idx, result) in reader.records().enumerate() {
         let record = result.map_err(|e| {
             error!("读取CSV行 {} 失败: {}", row_idx + 1, e);
-            Error::parse_error(format!("读取CSV行 {} 失败: {}", row_idx + 1, e))
+            Error::invalid_input(format!("读取CSV行 {} 失败: {}", row_idx + 1, e))
         })?;
         
         // 创建记录数据
@@ -396,7 +396,7 @@ fn load_parquet<P: AsRef<Path>>(path: P) -> Result<Vec<DataValue>> {
     // 创建Parquet读取器
     let reader = SerializedFileReader::new(file).map_err(|e| {
         error!("创建Parquet读取器失败: {}", e);
-        Error::parse_error(format!("创建Parquet读取器失败: {}", e))
+        Error::invalid_input(format!("创建Parquet读取器失败: {}", e))
     })?;
     
     // 获取文件元数据
@@ -413,7 +413,7 @@ fn load_parquet<P: AsRef<Path>>(path: P) -> Result<Vec<DataValue>> {
     for i in 0..metadata.num_row_groups() {
         let row_group = reader.get_row_group(i).map_err(|e| {
             error!("读取Parquet行组 {} 失败: {}", i, e);
-            Error::parse_error(format!("读取Parquet行组失败: {}", e))
+            Error::invalid_input(format!("读取Parquet行组失败: {}", e))
         })?;
         
         let row_group_metadata = row_group.metadata();
@@ -422,13 +422,13 @@ fn load_parquet<P: AsRef<Path>>(path: P) -> Result<Vec<DataValue>> {
         // 获取并处理行
         let mut row_iter = row_group.get_row_iter(None).map_err(|e| {
             error!("获取Parquet行迭代器失败: {}", e);
-            Error::parse_error(format!("获取行迭代器失败: {}", e))
+            Error::invalid_input(format!("获取行迭代器失败: {}", e))
         })?;
         
         while let Some(row_result) = row_iter.next() {
             let row = row_result.map_err(|e| {
                 error!("读取Parquet行失败: {}", e);
-                Error::parse_error(format!("读取Parquet行失败: {}", e))
+                Error::invalid_input(format!("读取Parquet行失败: {}", e))
             })?;
             let record = convert_parquet_row_to_data_value(&row, schema)?;
             records.push(record);
@@ -510,7 +510,7 @@ fn save_parquet<P: AsRef<Path>>(data: &[DataValue], path: P) -> Result<()> {
     // 解析模式字符串
     let schema_type = parse_message_type(&schema).map_err(|e| {
         error!("解析Parquet模式失败: {}", e);
-        Error::parse_error(format!("解析Parquet模式失败: {}", e))
+        Error::invalid_input(format!("解析Parquet模式失败: {}", e))
     })?;
     
     // 设置写入属性
@@ -726,7 +726,7 @@ fn save_parquet<P: AsRef<Path>>(data: &[DataValue], path: P) -> Result<()> {
 #[cfg(feature = "parquet")]
 fn infer_parquet_schema(data: &[DataValue]) -> Result<String> {
     if data.is_empty() {
-        return Err(Error::parse_error("无法从空数据推断模式"));
+        return Err(Error::invalid_input("无法从空数据推断模式"));
     }
     
     // 提取字段和类型

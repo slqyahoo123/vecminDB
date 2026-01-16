@@ -25,7 +25,7 @@ impl FileDetectionStage {
     /// 检查文件是否存在
     fn check_file_exists(&self, path: &Path) -> Result<()> {
         if !path.exists() {
-            return Err(Error::file_not_found(
+            return Err(Error::not_found(
                 format!("文件不存在: {}", path.display())
             ));
         }

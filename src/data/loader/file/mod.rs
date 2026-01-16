@@ -250,7 +250,7 @@ impl FileDataLoader {
         // 检查文件是否存在
         if !path.exists() {
             error!("文件不存在: {:?}", path);
-            return Err(Error::io(&format!("文件不存在: {:?}", path)));
+            return Err(Error::not_found(format!("文件不存在: {:?}", path)));
         }
         
         // 使用工厂方法创建处理器
@@ -464,7 +464,7 @@ struct GenericFileProcessor {
 impl GenericFileProcessor {
     fn new(path: PathBuf) -> Result<Self> {
         if !path.exists() {
-            return Err(Error::io(&format!("文件不存在: {:?}", path)));
+            return Err(Error::not_found(format!("文件不存在: {:?}", path)));
         }
         
         // 确定文件类型
@@ -498,7 +498,7 @@ impl GenericFileProcessor {
         };
         
         // 打开文件
-        let file = File::open(&path).map_err(|e| Error::io(&format!("无法打开文件: {}", e)))?;
+        let file = File::open(&path).map_err(|e| Error::io_error(format!("无法打开文件: {}", e)))?;
         let file_reader = BufReader::new(file);
         
         Ok(Self {
@@ -522,7 +522,13 @@ impl GenericFileProcessor {
             ImportFileType::Parquet => parquet::infer_parquet_schema_impl(&self.path)?,
             #[cfg(not(feature = "parquet"))]
             ImportFileType::Parquet => Err(Error::feature_not_enabled("parquet"))?,
-            ImportFileType::Excel => excel::infer_excel_schema_impl(&self.path)?,
+            #[cfg(feature = "excel")]
+            ImportFileType::Excel => {
+                use crate::data::loader::file::excel_utils;
+                excel_utils::infer_excel_schema_impl(&self.path)?
+            },
+            #[cfg(not(feature = "excel"))]
+            ImportFileType::Excel => Err(Error::feature_not_enabled("excel"))?,
             ImportFileType::Text => {
                 // 为文本文件创建简单的模式
                 let mut schema = DataSchema::new("text_schema", "1.0");
@@ -666,10 +672,14 @@ impl GenericFileProcessor {
             },
             #[cfg(not(feature = "parquet"))]
             ImportFileType::Parquet => 0,
+            #[cfg(feature = "excel")]
             ImportFileType::Excel => {
                 // 对于Excel，估计表格行数
+                use crate::data::loader::file::excel_utils;
                 excel_utils::estimate_excel_row_count(&self.path)?
             },
+            #[cfg(not(feature = "excel"))]
+            ImportFileType::Excel => 0,
             ImportFileType::Text => {
                 // 对于文本文件，计算行数
                 let estimated = estimate_line_count(&self.path)?;
@@ -809,7 +819,7 @@ impl GenericFileProcessor {
                 }
             },
             _ => {
-                return Err(Error::invalid_format("不支持的JSON格式"));
+                return Err(Error::invalid_input("不支持的JSON格式".to_string()));
             }
         }
         
@@ -906,7 +916,13 @@ impl FileProcessor for GenericFileProcessor {
             ImportFileType::Csv => self.read_csv_rows(count),
             ImportFileType::Json => self.read_json_rows(count),
             ImportFileType::Parquet => self.read_parquet_rows(count),
-            ImportFileType::Excel => excel_utils::read_excel_rows(&self.path, self.current_position, count),
+            #[cfg(feature = "excel")]
+            ImportFileType::Excel => {
+                use crate::data::loader::file::excel_utils;
+                excel_utils::read_excel_rows(&self.path, self.current_position, count)
+            },
+            #[cfg(not(feature = "excel"))]
+            ImportFileType::Excel => Err(Error::feature_not_enabled("excel")),
             ImportFileType::Text => self.read_text_rows(count),
             ImportFileType::Binary | ImportFileType::Other => self.read_binary_rows(count),
         }
@@ -942,13 +958,17 @@ pub fn infer_schema(path: &Path, file_type: LoaderFileType) -> Result<DataSchema
             warn!("Parquet功能未启用，无法推断模式");
             Err(Error::feature_not_enabled("parquet"))
         },
+        #[cfg(feature = "excel")]
         LoaderFileType::Excel => {
             debug!("使用Excel处理器推断模式");
-            excel::infer_excel_schema_impl(path)
+            use crate::data::loader::file::excel_utils;
+            excel_utils::infer_excel_schema_impl(path)
         },
+        #[cfg(not(feature = "excel"))]
+        LoaderFileType::Excel => Err(Error::feature_not_enabled("excel")),
         _ => {
             // 针对未知类型，尝试通用处理
-            Err(Error::schema_error("不支持此文件类型的推断"))
+            Err(Error::not_implemented("不支持此文件类型的推断".to_string()))
         },
     }
 }
@@ -977,7 +997,7 @@ pub fn infer_schema_from_file(path: impl AsRef<Path>) -> Result<DataSchema> {
         ImportFileType::Parquet => LoaderFileType::Parquet,
         ImportFileType::Excel => LoaderFileType::Excel,
         ImportFileType::Binary => LoaderFileType::Other,
-        _ => return Err(Error::schema_error(format!("不支持的文件类型: {:?}", import_file_type))),
+        _ => return Err(Error::not_implemented(format!("不支持的文件类型: {:?}", import_file_type))),
     };
     
     // 调用相应的推断函数
@@ -1344,8 +1364,8 @@ impl FileLineParser {
         let result = reader.deserialize::<Vec<String>>();
         let record = match result.next() {
             Some(Ok(fields)) => fields,
-            Some(Err(e)) => return Err(Error::parsing(&format!("CSV解析错误: {}", e))),
-            None => return Err(Error::parsing("CSV行为空")),
+            Some(Err(e)) => return Err(Error::invalid_input(format!("CSV解析错误: {}", e))),
+            None => return Err(Error::invalid_data("CSV行为空".to_string())),
         };
         
         let mut values = Vec::new();
@@ -1497,7 +1517,7 @@ pub mod excel_utils {
         // 打开Excel文件
         let mut workbook: Xlsx<_> = match open_workbook(path) {
             Ok(wb) => wb,
-            Err(e) => return Err(Error::io(&format!("无法打开Excel文件: {}", e))),
+            Err(e) => return Err(Error::io_error(format!("无法打开Excel文件: {}", e))),
         };
         
         // 获取第一个工作表
@@ -1509,7 +1529,7 @@ pub mod excel_utils {
         let sheet_name = &sheet_names[0];
         let range = match workbook.worksheet_range(sheet_name) {
             Some(Ok(range)) => range,
-            Some(Err(e)) => return Err(Error::io(&format!("无法读取工作表: {}", e))),
+            Some(Err(e)) => return Err(Error::io_error(format!("无法读取工作表: {}", e))),
             None => return Err(Error::invalid_input("无法找到工作表")),
         };
         
@@ -1642,7 +1662,7 @@ pub mod excel_utils {
         // 打开Excel文件
         let mut workbook: Xlsx<_> = match open_workbook(path) {
             Ok(wb) => wb,
-            Err(e) => return Err(Error::io(&format!("无法打开Excel文件: {}", e))),
+            Err(e) => return Err(Error::io_error(format!("无法打开Excel文件: {}", e))),
         };
         
         // 获取第一个工作表
@@ -1654,7 +1674,7 @@ pub mod excel_utils {
         let sheet_name = &sheet_names[0];
         let range = match workbook.worksheet_range(sheet_name) {
             Some(Ok(range)) => range,
-            Some(Err(e)) => return Err(Error::io(&format!("无法读取工作表: {}", e))),
+            Some(Err(e)) => return Err(Error::io_error(format!("无法读取工作表: {}", e))),
             None => return Err(Error::invalid_input("无法找到工作表")),
         };
         
@@ -1672,7 +1692,7 @@ pub mod excel_utils {
         // 打开Excel文件
         let mut workbook: Xlsx<_> = match open_workbook(path) {
             Ok(wb) => wb,
-            Err(e) => return Err(Error::io(&format!("无法打开Excel文件: {}", e))),
+            Err(e) => return Err(Error::io_error(format!("无法打开Excel文件: {}", e))),
         };
         
         // 获取第一个工作表
@@ -1684,7 +1704,7 @@ pub mod excel_utils {
         let sheet_name = &sheet_names[0];
         let range = match workbook.worksheet_range(sheet_name) {
             Some(Ok(range)) => range,
-            Some(Err(e)) => return Err(Error::io(&format!("无法读取工作表: {}", e))),
+            Some(Err(e)) => return Err(Error::io_error(format!("无法读取工作表: {}", e))),
             None => return Err(Error::invalid_input("无法找到工作表")),
         };
         
@@ -1751,7 +1771,7 @@ pub mod excel_utils {
         // 确保输出目录存在
         if let Some(parent) = output_path.parent() {
             std::fs::create_dir_all(parent)
-                .map_err(|e| Error::io(&format!("创建输出目录失败: {}", e)))?;
+                .map_err(|e| Error::io_error(format!("创建输出目录失败: {}", e)))?;
         }
         
         // 创建工作簿
@@ -1814,7 +1834,7 @@ pub mod excel_utils {
         
         // 保存工作簿到文件
         workbook.save(&output_path)
-            .map_err(|e| Error::io(&format!("保存Excel文件失败: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("保存Excel文件失败: {}", e)))?;
         
         info!("成功导出Excel文件: {:?}, 包含 {} 行数据", output_path, data.len());
         Ok(())

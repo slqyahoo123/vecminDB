@@ -96,29 +96,29 @@ impl CompressionUtils {
     pub fn compress_gzip(data: &[u8], level: CompressionLevel) -> Result<Vec<u8>> {
         let mut encoder = GzEncoder::new(Vec::new(), level.to_flate2_level());
         encoder.write_all(data).map_err(|e| Error::io_error(format!("GZIP压缩失败: {}", e)))?;
-        encoder.finish().map_err(|e| Error::io(format!("完成GZIP压缩失败: {}", e)))
+        encoder.finish().map_err(|e| Error::io_error(format!("完成GZIP压缩失败: {}", e)))
     }
     
     /// 解压 GZIP 数据
     pub fn decompress_gzip(data: &[u8]) -> Result<Vec<u8>> {
         let mut decoder = GzDecoder::new(data);
         let mut output = Vec::new();
-        decoder.read_to_end(&mut output).map_err(|e| Error::io(format!("GZIP解压失败: {}", e)))?;
+        decoder.read_to_end(&mut output).map_err(|e| Error::io_error(format!("GZIP解压失败: {}", e)))?;
         Ok(output)
     }
     
     /// 使用 Zlib 压缩数据
     pub fn compress_zlib(data: &[u8], level: CompressionLevel) -> Result<Vec<u8>> {
         let mut encoder = ZlibEncoder::new(Vec::new(), level.to_flate2_level());
-        encoder.write_all(data).map_err(|e| Error::io(format!("Zlib压缩失败: {}", e)))?;
-        encoder.finish().map_err(|e| Error::io(format!("完成Zlib压缩失败: {}", e)))
+        encoder.write_all(data).map_err(|e| Error::io_error(format!("Zlib压缩失败: {}", e)))?;
+        encoder.finish().map_err(|e| Error::io_error(format!("完成Zlib压缩失败: {}", e)))
     }
     
     /// 解压 Zlib 数据
     pub fn decompress_zlib(data: &[u8]) -> Result<Vec<u8>> {
         let mut decoder = ZlibDecoder::new(data);
         let mut output = Vec::new();
-        decoder.read_to_end(&mut output).map_err(|e| Error::io(format!("Zlib解压失败: {}", e)))?;
+        decoder.read_to_end(&mut output).map_err(|e| Error::io_error(format!("Zlib解压失败: {}", e)))?;
         Ok(output)
     }
     
@@ -126,48 +126,32 @@ impl CompressionUtils {
     pub fn compress_brotli(data: &[u8], level: CompressionLevel) -> Result<Vec<u8>> {
         let quality = level.to_brotli_level();
         
-        // 使用正确的Brotli API，创建参数
+        // 使用 Brotli 压缩
         let mut output = Vec::new();
-        let params = brotli::enc::BrotliEncoderParams::default();
-        let params = params.quality(quality as i32);
-        
-        // 使用 BrotliCompress 函数而不是 BrotliEncoderCompress
-        let result = brotli::enc::BrotliCompress(
-            &mut std::io::Cursor::new(data),
-            &mut output,
-            &params
-        );
-        
-        match result {
-            Ok(_) => Ok(output),
-            Err(e) => Err(Error::io(format!("Brotli压缩失败: {}", e)))
-        }
+        let mut writer = brotli::CompressorWriter::new(&mut output, 4096, quality as u32, 22);
+        writer.write_all(data).map_err(|e| Error::io_error(format!("Brotli压缩失败: {}", e)))?;
+        writer.flush().map_err(|e| Error::io_error(format!("Brotli压缩刷新失败: {}", e)))?;
+        drop(writer);
+        Ok(output)
     }
     
     /// 解压 Brotli 数据
     pub fn decompress_brotli(data: &[u8]) -> Result<Vec<u8>> {
         let mut output = Vec::new();
-        let success = brotli::BrotliDecompress(
-            &mut std::io::Cursor::new(data),
-            &mut output
-        ).map_err(|e| Error::io(format!("Brotli解压失败: {}", e)))?;
-        
-        if success {
-            Ok(output)
-        } else {
-            Err(Error::io("Brotli解压失败".to_string()))
-        }
+        let mut reader = brotli::Decompressor::new(std::io::Cursor::new(data), 4096);
+        reader.read_to_end(&mut output).map_err(|e| Error::io_error(format!("Brotli解压失败: {}", e)))?;
+        Ok(output)
     }
     
     /// 使用 Zstandard 压缩数据
     pub fn compress_zstd(data: &[u8], level: CompressionLevel) -> Result<Vec<u8>> {
         let compression_level = level.to_zstd_level();
-        encode_all(data, compression_level).map_err(|e| Error::io(format!("Zstd压缩失败: {}", e)))
+        encode_all(data, compression_level).map_err(|e| Error::io_error(format!("Zstd压缩失败: {}", e)))
     }
     
     /// 解压 Zstandard 数据
     pub fn decompress_zstd(data: &[u8]) -> Result<Vec<u8>> {
-        decode_all(data).map_err(|e| Error::io(format!("Zstd解压失败: {}", e)))
+        decode_all(data).map_err(|e| Error::io_error(format!("Zstd解压失败: {}", e)))
     }
     
     /// 压缩 LZ4 数据（使用Deflate替代）
@@ -175,9 +159,9 @@ impl CompressionUtils {
         // 使用Deflate压缩作为LZ4的替代方案
         let mut encoder = flate2::write::DeflateEncoder::new(Vec::new(), level.to_flate2_level());
         encoder.write_all(data)
-            .map_err(|e| Error::io(format!("Deflate压缩失败: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("Deflate压缩失败: {}", e)))?;
         encoder.finish()
-            .map_err(|e| Error::io(format!("完成Deflate压缩失败: {}", e)))
+            .map_err(|e| Error::io_error(format!("完成Deflate压缩失败: {}", e)))
     }
     
     /// 解压 LZ4 数据（使用Deflate替代）
@@ -186,7 +170,7 @@ impl CompressionUtils {
         let mut decompressed = Vec::new();
         let mut decoder = flate2::read::DeflateDecoder::new(data);
         decoder.read_to_end(&mut decompressed)
-            .map_err(|e| Error::io(format!("Deflate解压失败: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("Deflate解压失败: {}", e)))?;
         Ok(decompressed)
     }
     
@@ -220,12 +204,12 @@ impl CompressionUtils {
         level: CompressionLevel
     ) -> Result<usize> {
         let input = File::open(&input_path)
-            .map_err(|e| Error::io(format!("无法打开输入文件 {}: {}", input_path.as_ref().display(), e)))?;
+            .map_err(|e| Error::io_error(format!("无法打开输入文件 {}: {}", input_path.as_ref().display(), e)))?;
         let output = File::create(&output_path)
-            .map_err(|e| Error::io(format!("无法创建输出文件 {}: {}", output_path.as_ref().display(), e)))?;
+            .map_err(|e| Error::io_error(format!("无法创建输出文件 {}: {}", output_path.as_ref().display(), e)))?;
         
         let input_size = input.metadata()
-            .map_err(|e| Error::io(format!("无法获取输入文件大小: {}", e)))?
+            .map_err(|e| Error::io_error(format!("无法获取输入文件大小: {}", e)))?
             .len() as usize;
             
         let mut reader = BufReader::new(input);
@@ -235,48 +219,44 @@ impl CompressionUtils {
             CompressionAlgorithm::Gzip => {
                 let mut encoder = GzEncoder::new(BufWriter::new(output), level.to_flate2_level());
                 io::copy(&mut reader, &mut encoder)
-                    .map_err(|e| Error::io(format!("GZIP压缩文件失败: {}", e)))?;
+                    .map_err(|e| Error::io_error(format!("GZIP压缩文件失败: {}", e)))?;
                     
-                compressed_size = encoder.finish()
-                    .map_err(|e| Error::io(format!("完成GZIP压缩失败: {}", e)))?
-                    .into_inner()
-                    .map_err(|e| Error::io(format!("获取输出文件失败: {}", e)))?
-                    .into_inner()
-                    .map_err(|e| Error::io(format!("刷新输出缓冲区失败: {}", e)))?
-                    .metadata()
-                    .map_err(|e| Error::io(format!("获取输出文件大小失败: {}", e)))?
+                let writer = encoder.finish()
+                    .map_err(|e| Error::io_error(format!("完成GZIP压缩失败: {}", e)))?;
+                let file = writer.into_inner()
+                    .map_err(|e| Error::io_error(format!("获取输出文件失败: {}", e)))?;
+                compressed_size = file.metadata()
+                    .map_err(|e| Error::io_error(format!("获取输出文件大小失败: {}", e)))?
                     .len() as usize;
             },
             CompressionAlgorithm::Zlib => {
                 let mut encoder = ZlibEncoder::new(BufWriter::new(output), level.to_flate2_level());
                 io::copy(&mut reader, &mut encoder)
-                    .map_err(|e| Error::io(format!("Zlib压缩文件失败: {}", e)))?;
+                    .map_err(|e| Error::io_error(format!("Zlib压缩文件失败: {}", e)))?;
                     
-                compressed_size = encoder.finish()
-                    .map_err(|e| Error::io(format!("完成Zlib压缩失败: {}", e)))?
-                    .into_inner()
-                    .map_err(|e| Error::io(format!("获取输出文件失败: {}", e)))?
-                    .into_inner()
-                    .map_err(|e| Error::io(format!("刷新输出缓冲区失败: {}", e)))?
-                    .metadata()
-                    .map_err(|e| Error::io(format!("获取输出文件大小失败: {}", e)))?
+                let writer = encoder.finish()
+                    .map_err(|e| Error::io_error(format!("完成Zlib压缩失败: {}", e)))?;
+                let file = writer.into_inner()
+                    .map_err(|e| Error::io_error(format!("获取输出文件失败: {}", e)))?;
+                compressed_size = file.metadata()
+                    .map_err(|e| Error::io_error(format!("获取输出文件大小失败: {}", e)))?
                     .len() as usize;
             },
             _ => {
                 // 对于其他算法，先读取整个文件，然后压缩
                 let mut data = Vec::new();
                 reader.read_to_end(&mut data)
-                    .map_err(|e| Error::io(format!("读取输入文件失败: {}", e)))?;
+                    .map_err(|e| Error::io_error(format!("读取输入文件失败: {}", e)))?;
                     
                 let compressed = Self::compress(&data, algorithm, level)?;
                 compressed_size = compressed.len();
                 
                 let mut writer = BufWriter::new(output);
                 writer.write_all(&compressed)
-                    .map_err(|e| Error::io(format!("写入压缩数据失败: {}", e)))?;
+                    .map_err(|e| Error::io_error(format!("写入压缩数据失败: {}", e)))?;
                     
                 writer.flush()
-                    .map_err(|e| Error::io(format!("刷新输出缓冲区失败: {}", e)))?;
+                    .map_err(|e| Error::io_error(format!("刷新输出缓冲区失败: {}", e)))?;
             }
         }
         
@@ -306,12 +286,12 @@ impl CompressionUtils {
         algorithm: CompressionAlgorithm
     ) -> Result<usize> {
         let input = File::open(&input_path)
-            .map_err(|e| Error::io(format!("无法打开输入文件 {}: {}", input_path.as_ref().display(), e)))?;
+            .map_err(|e| Error::io_error(format!("无法打开输入文件 {}: {}", input_path.as_ref().display(), e)))?;
         let output = File::create(&output_path)
-            .map_err(|e| Error::io(format!("无法创建输出文件 {}: {}", output_path.as_ref().display(), e)))?;
+            .map_err(|e| Error::io_error(format!("无法创建输出文件 {}: {}", output_path.as_ref().display(), e)))?;
         
         let input_size = input.metadata()
-            .map_err(|e| Error::io(format!("无法获取输入文件大小: {}", e)))?
+            .map_err(|e| Error::io_error(format!("无法获取输入文件大小: {}", e)))?
             .len() as usize;
             
         let mut reader = BufReader::new(input);
@@ -322,29 +302,29 @@ impl CompressionUtils {
             CompressionAlgorithm::Gzip => {
                 let mut decoder = GzDecoder::new(reader);
                 decompressed_size = io::copy(&mut decoder, &mut writer)
-                    .map_err(|e| Error::io(format!("GZIP解压文件失败: {}", e)))? as usize;
+                    .map_err(|e| Error::io_error(format!("GZIP解压文件失败: {}", e)))? as usize;
             },
             CompressionAlgorithm::Zlib => {
                 let mut decoder = ZlibDecoder::new(reader);
                 decompressed_size = io::copy(&mut decoder, &mut writer)
-                    .map_err(|e| Error::io(format!("Zlib解压文件失败: {}", e)))? as usize;
+                    .map_err(|e| Error::io_error(format!("Zlib解压文件失败: {}", e)))? as usize;
             },
             _ => {
                 // 对于其他算法，先读取整个文件，然后解压
                 let mut data = Vec::new();
                 reader.read_to_end(&mut data)
-                    .map_err(|e| Error::io(format!("读取输入文件失败: {}", e)))?;
+                    .map_err(|e| Error::io_error(format!("读取输入文件失败: {}", e)))?;
                     
                 let decompressed = Self::decompress(&data, algorithm, None)?;
                 decompressed_size = decompressed.len();
                 
                 writer.write_all(&decompressed)
-                    .map_err(|e| Error::io(format!("写入解压数据失败: {}", e)))?;
+                    .map_err(|e| Error::io_error(format!("写入解压数据失败: {}", e)))?;
             }
         }
         
         writer.flush()
-            .map_err(|e| Error::io(format!("刷新输出缓冲区失败: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("刷新输出缓冲区失败: {}", e)))?;
         
         // 计算解压比
         let decompression_ratio = if input_size > 0 {
@@ -440,62 +420,53 @@ impl CompressionUtils {
         // 创建临时TAR文件
         #[cfg(feature = "tempfile")]
         let temp_tar = tempfile::NamedTempFile::new()
-            .map_err(|e| Error::io(format!("创建临时TAR文件失败: {}", e)))?;
-        #[cfg(not(feature = "tempfile"))]
-        return Err(Error::feature_not_enabled("tempfile"));
-        
-        // 创建TAR builder
-        #[cfg(feature = "tempfile")]
-        let mut builder = Builder::new(temp_tar.reopen()
-            .map_err(|e| Error::io(format!("重新打开临时文件失败: {}", e)))?);
-        
-        // 添加目录中的所有文件到TAR
-        #[cfg(feature = "walkdir")]
-        for entry in walkdir::WalkDir::new(&input_dir)
-            .min_depth(1)  // 跳过根目录本身
-            .into_iter()
-            .filter_map(Result::ok)
-        {
-            let path = entry.path();
-            let relative_path = path.strip_prefix(&input_dir)
-                .map_err(|e| Error::io(format!("计算相对路径失败: {}", e)))?;
-                
-            if path.is_file() {
-                let mut file = File::open(path)
-                    .map_err(|e| Error::io(format!("打开文件失败 {}: {}", path.display(), e)))?;
-                
-                let mut header = Header::new_gnu();
-                header.set_path(relative_path)
-                    .map_err(|e| Error::io(format!("设置TAR头路径失败: {}", e)))?;
-                header.set_size(path.metadata()
-                    .map_err(|e| Error::io(format!("获取文件元数据失败: {}", e)))?
-                    .len());
-                header.set_mode(0o644);
-                header.set_mtime(path.metadata()
-                    .map_err(|e| Error::io(format!("获取文件修改时间失败: {}", e)))?
-                    .modified()
-                    .map_err(|e| Error::io(format!("获取文件修改时间失败: {}", e)))?
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map_err(|e| Error::io(format!("计算修改时间戳失败: {}", e)))?
-                    .as_secs() as u64);
-                
-                builder.append_data(&mut header, relative_path, &mut file)
-                    .map_err(|e| Error::io(format!("添加文件到TAR失败: {}", e)))?;
-            } else if path.is_dir() {
-                builder.append_dir(relative_path, path)
-                    .map_err(|e| Error::io(format!("添加目录到TAR失败: {}", e)))?;
-            }
-        }
-        #[cfg(not(feature = "walkdir"))]
-        {
-            return Err(Error::feature_not_enabled("walkdir"));
-        }
-        
-        // 完成TAR文件并压缩
+            .map_err(|e| Error::io_error(format!("创建临时TAR文件失败: {}", e)))?;
         #[cfg(all(feature = "tempfile", feature = "walkdir"))]
         {
+            // 创建TAR builder
+            let mut builder = Builder::new(temp_tar.reopen()
+                .map_err(|e| Error::io_error(format!("重新打开临时文件失败: {}", e)))?);
+            
+            // 添加目录中的所有文件到TAR
+            for entry in walkdir::WalkDir::new(&input_dir)
+                .min_depth(1)  // 跳过根目录本身
+                .into_iter()
+                .filter_map(Result::ok)
+            {
+                let path = entry.path();
+                let relative_path = path.strip_prefix(&input_dir)
+                    .map_err(|e| Error::io_error(format!("计算相对路径失败: {}", e)))?;
+                    
+                if path.is_file() {
+                    let mut file = File::open(path)
+                        .map_err(|e| Error::io_error(format!("打开文件失败 {}: {}", path.display(), e)))?;
+                    
+                    let mut header = Header::new_gnu();
+                    header.set_path(relative_path)
+                        .map_err(|e| Error::io_error(format!("设置TAR头路径失败: {}", e)))?;
+                    header.set_size(path.metadata()
+                        .map_err(|e| Error::io_error(format!("获取文件元数据失败: {}", e)))?
+                        .len());
+                    header.set_mode(0o644);
+                    header.set_mtime(path.metadata()
+                        .map_err(|e| Error::io_error(format!("获取文件修改时间失败: {}", e)))?
+                        .modified()
+                        .map_err(|e| Error::io_error(format!("获取文件修改时间失败: {}", e)))?
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map_err(|e| Error::io_error(format!("计算修改时间戳失败: {}", e)))?
+                        .as_secs() as u64);
+                    
+                    builder.append_data(&mut header, relative_path, &mut file)
+                        .map_err(|e| Error::io_error(format!("添加文件到TAR失败: {}", e)))?;
+                } else if path.is_dir() {
+                    builder.append_dir(relative_path, path)
+                        .map_err(|e| Error::io_error(format!("添加目录到TAR失败: {}", e)))?;
+                }
+            }
+            
+            // 完成TAR文件并压缩
             builder.finish()
-                .map_err(|e| Error::io(format!("完成TAR文件失败: {}", e)))?;
+                .map_err(|e| Error::io_error(format!("完成TAR文件失败: {}", e)))?;
             
             let temp_path = temp_tar.path();
             let compressed_size = Self::compress_file(temp_path, &output_file, algorithm, level)?;
@@ -504,7 +475,7 @@ impl CompressionUtils {
         
         #[cfg(not(all(feature = "tempfile", feature = "walkdir")))]
         {
-            Err(Error::feature_not_enabled("tempfile and walkdir"))
+            return Err(Error::feature_not_enabled("tempfile and walkdir"));
         }
     }
     
@@ -518,7 +489,7 @@ impl CompressionUtils {
         #[cfg(feature = "tempfile")]
         {
             let temp_tar = tempfile::NamedTempFile::new()
-                .map_err(|e| Error::io(format!("创建临时TAR文件失败: {}", e)))?;
+                .map_err(|e| Error::io_error(format!("创建临时TAR文件失败: {}", e)))?;
             let temp_path = temp_tar.path().to_path_buf();
             
             // 解压缩到临时TAR文件
@@ -526,16 +497,16 @@ impl CompressionUtils {
             
             // 确保输出目录存在
             fs::create_dir_all(&output_dir)
-                .map_err(|e| Error::io(format!("创建输出目录失败 {}: {}", output_dir.as_ref().display(), e)))?;
+                .map_err(|e| Error::io_error(format!("创建输出目录失败 {}: {}", output_dir.as_ref().display(), e)))?;
             
             // 打开并解压TAR文件
             let tar_file = File::open(&temp_path)
-                .map_err(|e| Error::io(format!("打开TAR文件失败: {}", e)))?;
+                .map_err(|e| Error::io_error(format!("打开TAR文件失败: {}", e)))?;
             let mut archive = tar::Archive::new(tar_file);
             
             // 解压到目标目录
             archive.unpack(&output_dir)
-                .map_err(|e| Error::io(format!("解压TAR文件失败: {}", e)))?;
+                .map_err(|e| Error::io_error(format!("解压TAR文件失败: {}", e)))?;
             
             // 计算解压后的总大小
             let mut total_size = 0;
@@ -546,7 +517,7 @@ impl CompressionUtils {
             {
                 if entry.path().is_file() {
                     total_size += entry.metadata()
-                        .map_err(|e| Error::io(format!("获取文件元数据失败: {}", e)))?
+                        .map_err(|e| Error::io_error(format!("获取文件元数据失败: {}", e)))?
                         .len() as usize;
                 }
             }

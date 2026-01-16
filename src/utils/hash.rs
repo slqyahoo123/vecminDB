@@ -5,6 +5,7 @@
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+use std::io::Write;
 use sha2::{Sha256, Sha512, Digest};
 use blake3;
 use crc32fast::Hasher as Crc32Hasher;

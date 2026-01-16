@@ -154,7 +154,7 @@ impl ImportConfig {
         // 检查源路径是否存在
         let path = Path::new(&self.source_path);
         if !path.exists() {
-            return Err(Error::file_not_found(&format!("源文件不存在: {:?}", path)));
+            return Err(Error::not_found(&format!("源文件不存在: {:?}", path)));
         }
         
         // 检查批处理大小是否为正数

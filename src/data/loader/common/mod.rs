@@ -301,7 +301,7 @@ impl CommonDataLoader {
                 .map_err(|e| Error::io_error(format!("打开Parquet文件失败: {}, error: {}", path, e)))?;
                 
             let reader = SerializedFileReader::new(file)
-                .map_err(|e| Error::parse_error(format!("创建Parquet读取器失败: {}", e)))?;
+                .map_err(|e| Error::invalid_input(format!("创建Parquet读取器失败: {}", e)))?;
                 
             // 读取元数据
             let metadata = reader.metadata();
@@ -323,9 +323,9 @@ impl CommonDataLoader {
             meta.insert("columns".to_string(), column_names.join(","));
             
             for row in reader.get_row_iter(None)
-                .map_err(|e| Error::parse_error(format!("获取Parquet行迭代器失败: {}", e)))? {
+                .map_err(|e| Error::invalid_input(format!("获取Parquet行迭代器失败: {}", e)))? {
                 
-                let row = row.map_err(|e| Error::parse_error(format!("读取Parquet行失败: {}", e)))?;
+                let row = row.map_err(|e| Error::invalid_input(format!("读取Parquet行失败: {}", e)))?;
                 let mut row_values = Vec::with_capacity(num_columns);
                 
                 for i in 0..num_columns {
@@ -406,7 +406,7 @@ impl CommonDataLoader {
                 
             let reader = BufReader::new(file);
             let avro_reader = Reader::new(reader)
-                .map_err(|e| Error::parse_error(format!("创建Avro读取器失败: {}", e)))?;
+                .map_err(|e| Error::invalid_input(format!("创建Avro读取器失败: {}", e)))?;
                 
             // 获取Schema
             let schema = avro_reader.writer_schema();
@@ -425,7 +425,7 @@ impl CommonDataLoader {
             meta.insert("fields".to_string(), field_names.join(","));
             
             for value in avro_reader {
-                let value = value.map_err(|e| Error::parse_error(format!("读取Avro记录失败: {}", e)))?;
+                let value = value.map_err(|e| Error::invalid_input(format!("读取Avro记录失败: {}", e)))?;
                 
                 if let AvroValue::Record(fields) = value {
                     let row_values = fields.iter()
@@ -1097,7 +1097,7 @@ impl CommonDataLoader {
         // 记录错误到内部错误日志
         self.log_error(source, err_msg);
         
-        Err(Error::data_loading(format!("加载失败: {}", err_msg)))
+        Err(Error::invalid_data(format!("加载失败: {}", err_msg)))
     }
     
     /// 记录内部错误信息
@@ -1991,7 +1991,7 @@ impl ErrorHandler for DefaultErrorHandler {
             Error::Io(_) => {
                 error!("IO错误, 可能需要检查文件路径、权限或磁盘空间");
             },
-            Error::Serialization(_) | Error::Deserialization(_) | Error::DataFormat(_) => {
+            Error::Serialization(_) | Error::Deserialization(_) | Error::InvalidInput(_) => {
                 error!("序列化/反序列化或数据格式错误, 请检查数据源格式是否与配置匹配");
             },
             Error::Validation(_) => {

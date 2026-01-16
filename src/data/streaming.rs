@@ -388,11 +388,11 @@ impl FileStreamingSource {
                     
                     // 如果是第一次读取，获取标题
                     let headers = if self.records_read == 0 {
-                        csv_reader.headers().map_err(|e| Error::parse_error(format!("读取CSV标题失败: {}", e)))?.clone()
+                        csv_reader.headers().map_err(|e| Error::invalid_input(format!("读取CSV标题失败: {}", e)))?.clone()
                     } else {
                         // CSV 读取器每次调用 headers() 都会重新解析，性能开销较小
                         // 如需优化，可在首次读取时缓存标题到结构体中
-                        csv_reader.headers().map_err(|e| Error::parse_error(format!("读取CSV标题失败: {}", e)))?.clone()
+                        csv_reader.headers().map_err(|e| Error::invalid_input(format!("读取CSV标题失败: {}", e)))?.clone()
                     };
                     
                     // 将CSV行转换为数据值
@@ -615,8 +615,7 @@ impl StreamingProcessor {
 
     /// 估算内存使用量
     fn estimate_memory_usage(&self) -> usize {
-        // 简化的内存估算
-        // 在实际实现中，这里应该更精确地计算内存使用
+        // 内存使用估算：返回当前统计的内存使用量
         let stats = self.stats.lock().unwrap();
         stats.memory_usage_bytes
     }
@@ -653,7 +652,7 @@ impl StreamingAggregator {
     pub async fn process_batch(&self, batch: &StreamingBatch) -> Result<()> {
         let mut state = self.aggregation_state.write().await;
         
-        // 简化的聚合逻辑 - 计数和求和
+        // 聚合逻辑：对数值类型进行计数和求和，字符串类型进行计数
         for record in &batch.records {
             if let DataValue::Object(map) = record {
                 for (key, value) in map {

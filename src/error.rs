@@ -341,3 +341,15 @@ impl From<anyhow::Error> for Error {
     }
 }
 
+impl From<regex::Error> for Error {
+    fn from(err: regex::Error) -> Self {
+        Error::InvalidInput(format!("正则表达式错误: {}", err))
+    }
+}
+
+impl From<csv::Error> for Error {
+    fn from(err: csv::Error) -> Self {
+        Error::InvalidInput(format!("CSV处理错误: {}", err))
+    }
+}
+

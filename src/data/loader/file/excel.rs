@@ -40,7 +40,7 @@ impl ExcelProcessor {
         let path = PathBuf::from(path_str);
         // 验证文件是否存在
         if !path.exists() {
-            return Err(Error::file_not_found(path.to_string_lossy().to_string()));
+            return Err(Error::not_found(path.to_string_lossy().to_string()));
         }
         
         Ok(Self {
@@ -344,7 +344,7 @@ impl ExcelLoader {
         
         // 验证文件是否存在
         if !file_path.exists() {
-            return Err(Error::file_not_found(file_path.to_string_lossy().to_string()));
+            return Err(Error::not_found(file_path.to_string_lossy().to_string()));
         }
         
         Ok(Self {

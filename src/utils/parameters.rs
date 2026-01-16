@@ -7,7 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
 /// 通用参数管理接口
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct Parameters {
     /// 参数ID
     pub id: Option<String>,
@@ -158,11 +158,23 @@ impl Parameters {
             for (key, grad) in gradients.iter() {
                 if let Some(param) = tensor_data.get_mut(key) {
                     // 简单的梯度下降更新
-                    for (p, g) in param.data.iter_mut().zip(grad.data.iter()) {
-                        *p -= learning_rate * g;
+                    match (&mut param.data, &grad.data) {
+                        (crate::compat::tensor::TensorValues::F32(param_vec), crate::compat::tensor::TensorValues::F32(grad_vec)) => {
+                            for (p, g) in param_vec.iter_mut().zip(grad_vec.iter()) {
+                                *p -= learning_rate * g;
+                            }
+                        }
+                        (crate::compat::tensor::TensorValues::F64(param_vec), crate::compat::tensor::TensorValues::F64(grad_vec)) => {
+                            for (p, g) in param_vec.iter_mut().zip(grad_vec.iter()) {
+                                *p -= learning_rate as f64 * g;
+                            }
+                        }
+                        _ => {
+                            return Err(Error::invalid_input(format!("Unsupported tensor data type for parameter: {}", key)));
+                        }
                     }
                 } else {
-                    return Err(Error::model(format!("Parameter key not found: {}", key)));
+                    return Err(Error::not_found(format!("Parameter key not found: {}", key)));
                 }
             }
             
@@ -173,7 +185,7 @@ impl Parameters {
             
             Ok(())
         } else {
-            Err(Error::model("No tensor data available for gradient update".to_string()))
+            Err(Error::invalid_state("No tensor data available for gradient update".to_string()))
         }
     }
 
@@ -275,24 +287,24 @@ impl Parameters {
 
     /// 序列化为JSON
     pub fn to_json(&self) -> Result<String> {
-        serde_json::to_string(self).map_err(|e| Error::data(format!("Failed to serialize parameters: {}", e)))
+        serde_json::to_string(self).map_err(|e| Error::serialization(format!("Failed to serialize parameters: {}", e)))
     }
 
     /// 从JSON反序列化
     pub fn from_json(json: &str) -> Result<Self> {
-        serde_json::from_str(json).map_err(|e| Error::data(format!("Failed to deserialize parameters: {}", e)))
+        serde_json::from_str(json).map_err(|e| Error::serialization(format!("Failed to deserialize parameters: {}", e)))
     }
 
     /// 序列化为二进制数据
     pub fn serialize(&self) -> Result<Vec<u8>> {
         bincode::serialize(self)
-            .map_err(|e| Error::data(format!("Failed to serialize parameters: {}", e)))
+            .map_err(|e| Error::serialization(format!("Failed to serialize parameters: {}", e)))
     }
     
     /// 从二进制数据反序列化
     pub fn deserialize(data: &[u8]) -> Result<Self> {
         bincode::deserialize(data)
-            .map_err(|e| Error::data(format!("Failed to deserialize parameters: {}", e)))
+            .map_err(|e| Error::serialization(format!("Failed to deserialize parameters: {}", e)))
     }
 
     /// 合并另一个参数集
@@ -343,13 +355,49 @@ impl Parameters {
     }
 
     /// 转换为模型参数
-    pub fn to_model_parameters(&self, model_id: String) -> Result<crate::model::parameters::ModelParameters> {
-        crate::model::parameters::ModelParameters::from_parameters(self, model_id)
+    pub fn to_model_parameters(&self, _model_id: String) -> Result<crate::compat::ModelParameters> {
+        // 将 Parameters 转换为 ModelParameters
+        let mut data = HashMap::new();
+        if let Some(tensor_data) = &self.tensor_data {
+            for (key, tensor) in tensor_data {
+                match &tensor.data {
+                    crate::compat::tensor::TensorValues::F32(vec) => {
+                        data.insert(key.clone(), vec.clone());
+                    }
+                    _ => {
+                        // 其他类型暂不支持，跳过或转换
+                    }
+                }
+            }
+        }
+        Ok(crate::compat::ModelParameters { data })
     }
     
     /// 从模型参数创建
-    pub fn from_model_parameters(params: &crate::model::parameters::ModelParameters) -> Self {
-        params.to_parameters()
+    pub fn from_model_parameters(params: &crate::compat::ModelParameters) -> Self {
+        // 将 ModelParameters 转换为 Parameters
+        let mut tensor_data = HashMap::new();
+        for (key, vec) in &params.data {
+            tensor_data.insert(key.clone(), crate::compat::tensor::TensorData {
+                data: crate::compat::tensor::TensorValues::F32(vec.clone()),
+                shape: vec![vec.len()],
+                dtype: crate::compat::tensor::DataType::Float32,
+                metadata: HashMap::new(),
+            });
+        }
+        Self {
+            id: None,
+            target_id: None,
+            version: "1.0".to_string(),
+            created_at: None,
+            updated_at: None,
+            data: HashMap::new(),
+            tensor_data: Some(tensor_data),
+            tensors: None,
+            gradients: None,
+            optimizer_state: None,
+            metadata: HashMap::new(),
+        }
     }
 
     /// 获取参数总数量（包括所有类型的参数）
@@ -497,9 +545,9 @@ impl ParameterManager {
     }
 
     /// 转换为模型参数对象
-    pub fn to_model_parameters(&self) -> Result<crate::model::parameters::ModelParameters> {
+    pub fn to_model_parameters(&self, model_id: String) -> Result<crate::compat::ModelParameters> {
         let params = self.parameters.read().map_err(|_| Error::lock("Failed to acquire read lock for parameters"))?;
-        params.to_model_parameters()
+        params.to_model_parameters(model_id)
     }
 }
 

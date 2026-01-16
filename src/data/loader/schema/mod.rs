@@ -101,7 +101,7 @@ impl SchemaInferrer {
         
         // 检查是否有数据
         if features.is_empty() {
-            return Err(Error::no_data("数据批次为空，无法推断模式"));
+            return Err(Error::invalid_data("数据批次为空，无法推断模式".to_string()));
         }
         
         // 确定特征向量维度
@@ -145,7 +145,7 @@ impl SchemaInferrer {
         
         // 检查是否有数据
         if samples.is_empty() {
-            return Err(Error::no_data("样本数据为空，无法推断模式"));
+            return Err(Error::invalid_data("样本数据为空，无法推断模式".to_string()));
         }
         
         // 确定特征向量维度
@@ -176,7 +176,7 @@ impl SchemaInferrer {
         
         // 解析JSON
         let json_value: Value = serde_json::from_str(json_str)
-            .map_err(|e| Error::parse(format!("JSON解析错误: {}", e)))?;
+            .map_err(|e| Error::invalid_input(format!("JSON解析错误: {}", e)))?;
             
         // 创建结果
         let mut schema_metadata = HashMap::new();

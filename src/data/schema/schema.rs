@@ -242,7 +242,7 @@ impl DataSchema {
     pub fn add_field(&mut self, field: FieldDefinition) -> Result<()> {
         // 检查字段名是否已存在
         if self.fields.iter().any(|f| f.name == field.name) {
-            return Err(Error::InvalidArgument(format!(
+            return Err(Error::invalid_argument(format!(
                 "Field {} already exists in schema", field.name
             )));
         }
@@ -264,7 +264,7 @@ impl DataSchema {
         // 验证字段是否存在
         for field in &fields {
             if !self.fields.iter().any(|f| f.name == *field) {
-                return Err(Error::InvalidArgument(format!(
+                return Err(Error::invalid_argument(format!(
                     "Primary key field {} does not exist in schema", field
                 )));
             }
@@ -279,7 +279,7 @@ impl DataSchema {
         // 验证字段是否存在
         for field in &index.fields {
             if !self.fields.iter().any(|f| f.name == *field) {
-                return Err(Error::InvalidArgument(format!(
+                return Err(Error::invalid_argument(format!(
                     "Index field {} does not exist in schema", field
                 )));
             }
@@ -297,7 +297,7 @@ impl DataSchema {
     pub fn add_relationship(&mut self, relationship: SchemaRelationship) -> Result<()> {
         // 验证字段是否存在
         if !self.fields.iter().any(|f| f.name == relationship.from_field) {
-            return Err(Error::InvalidArgument(format!(
+            return Err(Error::invalid_argument(format!(
                 "Relationship field {} does not exist in schema", relationship.from_field
             )));
         }
@@ -424,7 +424,7 @@ impl DataSchema {
                 }
                 
                 // 注意：这里需要使用日期时间库验证格式
-                // 为简化示例，我们跳过日期时间验证
+                // 日期时间验证：当前实现跳过格式验证，仅检查类型匹配
             },
             FieldType::Array(item_type) => {
                 if !value.is_array() {
@@ -456,7 +456,7 @@ impl DataSchema {
                 }
                 
                 // 验证数组元素类型
-                // 为简化示例，我们跳过数组元素类型验证
+                // 数组元素类型验证：当前实现跳过元素类型验证，仅检查数组长度约束
             },
             FieldType::Object(properties) => {
                 if !value.is_object() {
@@ -466,7 +466,7 @@ impl DataSchema {
                 }
                 
                 // 验证对象属性
-                // 为简化示例，我们跳过对象属性验证
+                // 对象属性验证：当前实现跳过属性验证，仅检查类型匹配
             },
             _ => {
                 // 其他类型暂不支持验证

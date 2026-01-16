@@ -184,32 +184,11 @@ impl DataFormatReader for XmlReader {
         let content = std::fs::read_to_string(path)
             .map_err(|e| Error::IoError(format!("读取XML文件失败: {}", e)))?;
         
-        // 简化的XML解析实现
-        let mut records = Vec::new();
-        
-        // 这里应该使用真正的XML解析器，如serde_xml_rs
-        // 为了演示，我们创建一个简单的解析逻辑
-        if content.contains("<record>") {
-            let parts: Vec<&str> = content.split("<record>").collect();
-            for part in parts.iter().skip(1) {
-                if let Some(end) = part.find("</record>") {
-                    let record_content = &part[..end];
-                    let mut data_map = HashMap::new();
-                    
-                    // 简单的标签提取
-                    if let Some(name_start) = record_content.find("<name>") {
-                        if let Some(name_end) = record_content.find("</name>") {
-                            let name = &record_content[name_start + 6..name_end];
-                            data_map.insert("name".to_string(), DataValue::String(name.to_string()));
-                        }
-                    }
-                    
-                    records.push(DataValue::Object(data_map));
-                }
-            }
-        }
-        
-        Ok(records)
+        // XML解析需要完整的XML解析器，当前返回特征未启用错误
+        // 如需使用XML格式，请集成XML解析库（如serde_xml_rs）或使用其他数据格式
+        Err(Error::feature_not_enabled(
+            "XML格式支持需要完整的XML解析器实现，当前未集成XML解析库。请使用其他数据格式（如JSON、CSV）或集成XML解析库。".to_string()
+        ))
     }
 
     fn supported_formats(&self) -> Vec<ExtendedDataFormat> {
@@ -227,7 +206,7 @@ impl DataFormatReader for YamlReader {
         
         // 使用serde_yaml解析
         let yaml_value: serde_yaml::Value = serde_yaml::from_str(&content)
-            .map_err(|e| Error::parse_error(format!("解析YAML失败: {}", e)))?;
+            .map_err(|e| Error::invalid_input(format!("解析YAML失败: {}", e)))?;
         
         let records = self.yaml_to_data_values(&yaml_value)?;
         Ok(records)
@@ -334,7 +313,7 @@ impl DataFormatReader for TomlReader {
         
         // 使用toml解析
         let toml_value: toml::Value = toml::from_str(&content)
-            .map_err(|e| Error::parse_error(format!("解析TOML失败: {}", e)))?;
+            .map_err(|e| Error::invalid_input(format!("解析TOML失败: {}", e)))?;
         
         let record = self.toml_to_data_value(&toml_value)?;
         Ok(vec![record])
@@ -405,14 +384,14 @@ impl DataFormatReader for TsvReader {
             .from_reader(reader);
         
         let headers = csv_reader.headers()
-            .map_err(|e| Error::parse_error(format!("读取TSV标题失败: {}", e)))?
+            .map_err(|e| Error::invalid_input(format!("读取TSV标题失败: {}", e)))?
             .clone();
         
         let mut records = Vec::new();
         
         for result in csv_reader.records() {
             let record = result
-                .map_err(|e| Error::parse_error(format!("读取TSV行失败: {}", e)))?;
+                .map_err(|e| Error::invalid_input(format!("读取TSV行失败: {}", e)))?;
             
             let mut data_map: HashMap<String, DataValue> = HashMap::new();
             

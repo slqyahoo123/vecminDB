@@ -26,7 +26,7 @@ use pbkdf2::pbkdf2_hmac;
 type HmacSha256 = Hmac<Sha256>;
 
 /// 支持的哈希算法类型
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum HashAlgorithm {
     /// MD5（不推荐用于安全用途）
     MD5,
@@ -87,7 +87,7 @@ impl HashResult {
     /// 验证哈希值
     pub fn verify(&self, input: &[u8]) -> Result<bool> {
         let computed = GlobalHasher::hash(self.algorithm, input)?;
-        Ok(computed.bytes == self.bytes)
+        Ok(computed == self.bytes)
     }
 }
 
@@ -137,7 +137,7 @@ impl GlobalHasher {
     pub fn hash(algorithm: HashAlgorithm, input: &[u8]) -> Result<Vec<u8>> {
         match algorithm {
             HashAlgorithm::MD5 => {
-                // 简化MD5实现以避免版本兼容性问题
+                // MD5哈希计算：使用md5库进行哈希计算
                 let digest = md5::compute(input);
                 Ok(digest.0.to_vec())
             },
@@ -205,7 +205,7 @@ pub struct ConsistentHashRing<T> {
     algorithm: HashAlgorithm,
 }
 
-impl<T: Clone + Hash> ConsistentHashRing<T> {
+impl<T: Clone + Hash + Eq> ConsistentHashRing<T> {
     /// 创建新的一致性哈希环
     pub fn new(virtual_nodes: u32) -> Self {
         Self {
@@ -412,15 +412,15 @@ impl PasswordHash {
     pub fn from_string(s: &str) -> Result<Self> {
         let parts: Vec<&str> = s.split(':').collect();
         if parts.len() != 4 {
-            return Err(Error::DataFormat("Invalid password hash format".to_string()));
+            return Err(Error::invalid_input("Invalid password hash format".to_string()));
         }
         
         let salt = hex::decode(parts[2])
-            .map_err(|_| Error::DataFormat("Invalid salt hex encoding".to_string()))?;
+            .map_err(|_| Error::invalid_input("Invalid salt hex encoding".to_string()))?;
         let hash = hex::decode(parts[3])
-            .map_err(|_| Error::DataFormat("Invalid hash hex encoding".to_string()))?;
+            .map_err(|_| Error::invalid_input("Invalid hash hex encoding".to_string()))?;
         let iterations = parts[1].parse::<u32>()
-            .map_err(|_| Error::DataFormat("Invalid iterations".to_string()))?;
+            .map_err(|_| Error::invalid_input("Invalid iterations".to_string()))?;
         
         Ok(Self {
             algorithm: parts[0].to_string(),
@@ -685,10 +685,10 @@ pub mod utils {
                 },
                 HashAlgorithm::BLAKE3 => {
                     let hasher = self.state.downcast_mut::<blake3::Hasher>()
-                        .ok_or_else(|| Error::new("Invalid hasher state"))?;
+                        .ok_or_else(|| Error::invalid_state("Invalid hasher state".to_string()))?;
                     hasher.update(data);
                 },
-                _ => return Err(Error::new("Incremental hashing not supported for this algorithm")),
+                _ => return Err(Error::not_implemented("Incremental hashing not supported for this algorithm".to_string())),
             }
             Ok(())
         }
@@ -697,33 +697,33 @@ pub mod utils {
             let bytes = match self.algorithm {
                 HashAlgorithm::MD5 => {
                     let hasher = *self.state.downcast::<md5::Context>()
-                        .map_err(|_| Error::new("Invalid hasher state"))?;
+                        .map_err(|_| Error::invalid_state("Invalid hasher state".to_string()))?;
                     hasher.compute().to_vec()
                 },
                 HashAlgorithm::SHA1 => {
                     let hasher = *self.state.downcast::<sha1::Sha1>()
-                        .map_err(|_| Error::new("Invalid hasher state"))?;
+                        .map_err(|_| Error::invalid_state("Invalid hasher state".to_string()))?;
                     use sha1::Digest;
                     hasher.finalize().to_vec()
                 },
                 HashAlgorithm::SHA256 => {
                     let hasher = *self.state.downcast::<sha2::Sha256>()
-                        .map_err(|_| Error::new("Invalid hasher state"))?;
+                        .map_err(|_| Error::invalid_state("Invalid hasher state".to_string()))?;
                     use sha2::Digest;
                     hasher.finalize().to_vec()
                 },
                 HashAlgorithm::SHA512 => {
                     let hasher = *self.state.downcast::<sha2::Sha512>()
-                        .map_err(|_| Error::new("Invalid hasher state"))?;
+                        .map_err(|_| Error::invalid_state("Invalid hasher state".to_string()))?;
                     use sha2::Digest;
                     hasher.finalize().to_vec()
                 },
                 HashAlgorithm::BLAKE3 => {
                     let hasher = *self.state.downcast::<blake3::Hasher>()
-                        .map_err(|_| Error::new("Invalid hasher state"))?;
+                        .map_err(|_| Error::invalid_state("Invalid hasher state".to_string()))?;
                     hasher.finalize().as_bytes().to_vec()
                 },
-                _ => return Err(Error::new("Incremental hashing not supported for this algorithm")),
+                _ => return Err(Error::not_implemented("Incremental hashing not supported for this algorithm".to_string())),
             };
             
             Ok(HashResult::new(self.algorithm, bytes, 0))
@@ -781,7 +781,7 @@ impl ModelHasher {
     /// 计算汉明距离
     pub fn hamming_distance(hash1: &[bool], hash2: &[bool]) -> Result<usize> {
         if hash1.len() != hash2.len() {
-            return Err(Error::new("Hash lengths must match"));
+            return Err(Error::invalid_input("Hash lengths must match".to_string()));
         }
         
         Ok(hash1.iter()
@@ -902,7 +902,7 @@ impl HashFactory {
         
         for hash_func in hash_functions {
             if hash_func.len() != vector.len() {
-                return Err(Error::new("Hash function dimension mismatch"));
+                return Err(Error::invalid_input("Hash function dimension mismatch".to_string()));
             }
             
             let dot_product: f32 = vector.iter()

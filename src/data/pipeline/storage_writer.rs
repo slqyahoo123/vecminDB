@@ -70,7 +70,7 @@ impl StorageWriteStage {
             if let Ok(target) = ctx.get_string("target_location") {
                 self.target_location = Some(target);
             } else {
-                return Err(Error::new("缺少存储目标位置"));
+                return Err(Error::invalid_input("缺少存储目标位置".to_string()));
             }
         }
         
@@ -117,17 +117,17 @@ impl PipelineStage for StorageWriteStage {
         
         // 检查目标位置
         let target = stage.target_location.as_ref()
-            .ok_or_else(|| Error::new("未指定存储目标位置"))?;
+            .ok_or_else(|| Error::invalid_input("未指定存储目标位置".to_string()))?;
         
         // 获取数据
         let batch = ctx.get_data::<DataBatch>("processed_data")
-            .map_err(|_| Error::new("上下文中缺少处理后的数据"))?;
+            .map_err(|_| Error::invalid_state("上下文中缺少处理后的数据".to_string()))?;
         
         // 检查目标位置是否已存在数据
         let target_path = Path::new(target);
         if target_path.exists() && !stage.overwrite {
             warn!("目标位置 {} 已存在数据且未设置覆盖选项", target);
-            return Err(Error::new(&format!("目标位置 {} 已存在数据", target)));
+            return Err(Error::already_exists(format!("目标位置 {} 已存在数据", target)));
         }
         
         debug!("写入数据到存储位置: {}", target);

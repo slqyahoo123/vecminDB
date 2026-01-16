@@ -25,7 +25,7 @@ impl FeatureExtractor for ArcToBoxAdapter {
         self.inner.name()
     }
     fn from_config(_config: &TextFeatureConfig) -> Result<Self> where Self: Sized {
-        Err(Error::new("ArcToBoxAdapter cannot be created from config"))
+        Err(Error::not_implemented("ArcToBoxAdapter cannot be created from config".to_string()))
     }
     fn get_output_dimension(&self) -> Result<usize> {
         self.inner.get_output_dimension()
@@ -370,44 +370,20 @@ impl FeatureFusion {
     
     /// PCA降维融合
     fn pca(&self, features: &[Vec<f32>]) -> Result<Vec<f32>> {
-        // 简化版PCA实现
-        // 在实际应用中，应使用完整的PCA算法库
-        if features.is_empty() {
-            return Err(Error::InvalidOperation("没有特征可供融合".to_string()));
-        }
-        
-        // 先拼接所有特征
-        let concatenated = self.concatenate(features)?;
-        
-        // 如果未指定输出维度，则直接返回拼接结果
-        if self.output_dimension.is_none() {
-            return Ok(concatenated);
-        }
-        
-        let output_dim = self.output_dimension.unwrap();
-        if output_dim >= concatenated.len() {
-            return Ok(concatenated);
-        }
-        
-        // 简化的降维方法 - 在实际应用中应使用真正的PCA
-        // 这里只是均匀采样原始特征，作为降维的简化版
-        let stride = concatenated.len() / output_dim;
-        let mut result = Vec::with_capacity(output_dim);
-        
-        for i in 0..output_dim {
-            result.push(concatenated[i * stride]);
-        }
-        
-        Ok(result)
+        // PCA降维需要完整的PCA算法实现，当前返回特征未启用错误
+        // 如需使用PCA降维，请集成PCA算法库（如ndarray-linalg）或使用其他降维方法
+        Err(Error::feature_not_enabled(
+            "PCA降维融合需要完整的PCA算法实现，当前未集成PCA算法库。请使用其他融合策略（如Concatenate、WeightedAverage）或集成PCA算法库。".to_string()
+        ))
     }
     
     /// 堆叠融合
-    fn stacking(&self, features: &[Vec<f32>], _text: &str) -> Result<Vec<f32>> {
-        // 简化版堆叠实现
-        // 在实际应用中，应使用机器学习模型进行二级学习
-        
-        // 暂时实现为加权平均
-        self.weighted_average(features)
+    fn stacking(&self, _features: &[Vec<f32>], _text: &str) -> Result<Vec<f32>> {
+        // 堆叠融合需要机器学习模型进行二级学习，当前返回特征未启用错误
+        // 如需使用堆叠融合，请集成机器学习库或使用其他融合策略
+        Err(Error::feature_not_enabled(
+            "堆叠融合需要机器学习模型进行二级学习，当前未集成机器学习库。请使用其他融合策略（如WeightedAverage、Concatenate）。".to_string()
+        ))
     }
     
     /// 获取融合器名称

@@ -890,7 +890,7 @@ impl EventSystem for DistributedEventSystem {
             
             cache.pending_acks.insert(message_id.clone(), PendingEventAck {
                 event_id: event.id.clone(),
-                target_nodes: target_nodes.clone(),
+                target_nodes: target_nodes.iter().cloned().collect(),
                 acked_nodes: HashSet::new(),
                 sent_at: Instant::now(),
                 retry_count: 0,

@@ -47,7 +47,7 @@ impl CustomBinaryLoader {
         
         // 读取文件头部
         if data.len() < self.header_size {
-            return Err(Error::parse_error("Invalid VecDB file: header too small"));
+            return Err(Error::invalid_input("Invalid VecDB file: header too small"));
         }
         
         // 跳过头部
@@ -168,7 +168,7 @@ impl CustomBinaryLoader {
                     values.push(value);
                 }
             },
-            _ => return Err(Error::parse_error(format!("Unsupported data type: {}", data_type))),
+            _ => return Err(Error::invalid_input(format!("Unsupported data type: {}", data_type))),
         }
         
         // 根据维度重组特征向量
@@ -188,7 +188,7 @@ impl CustomBinaryLoader {
             // 单个特征向量
             vec![values]
         } else {
-            return Err(Error::parse_error("Invalid tensor dimensions"));
+            return Err(Error::invalid_input("Invalid tensor dimensions"));
         };
         
         // 构建元数据
@@ -239,7 +239,7 @@ impl CustomBinaryLoader {
             cursor.read_exact(&mut name_buffer)?;
             
             let column_name = String::from_utf8(name_buffer)
-                .map_err(|e| Error::parse_error(format!("Invalid UTF-8 sequence in column name: {}", e)))?;
+                .map_err(|e| Error::invalid_input(format!("Invalid UTF-8 sequence in column name: {}", e)))?;
                 
             column_names.push(column_name);
         }
@@ -322,7 +322,7 @@ impl CustomBinaryLoader {
                         // 归一化到 0-1 范围
                         (hash_value % 1000) as f32 / 1000.0
                     },
-                    _ => return Err(Error::parse_error(format!("Unsupported column type: {}", type_code))),
+                    _ => return Err(Error::invalid_input(format!("Unsupported column type: {}", type_code))),
                 };
                 
                 row_values.push(value);
@@ -759,11 +759,11 @@ impl std::fmt::Debug for CustomBinaryFormat {
 /// 检查二进制文件是否存在且可读
 pub fn validate_binary_file(path: &Path) -> Result<bool> {
     if !path.exists() {
-        return Err(Error::file_not_found(path.to_string_lossy().to_string()));
+        return Err(Error::not_found(path.to_string_lossy().to_string()));
     }
     
     if !path.is_file() {
-        return Err(Error::invalid_path(format!("路径不是文件: {}", path.display())));
+        return Err(Error::invalid_input(format!("路径不是文件: {}", path.display())));
     }
     
     // 尝试打开文件，验证读取权限
@@ -826,7 +826,7 @@ pub fn normalize_binary_path(path: &str) -> Result<PathBuf> {
     
     // 验证路径
     if !path_buf.exists() {
-        return Err(Error::file_not_found(path.to_string()));
+        return Err(Error::not_found(path.to_string()));
     }
     
     Ok(path_buf)

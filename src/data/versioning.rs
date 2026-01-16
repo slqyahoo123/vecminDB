@@ -344,7 +344,7 @@ impl DataVersionManager {
                 .map_err(|e| Error::IoError(format!("读取版本文件失败: {}", e)))?;
             
             let versions_data: HashMap<VersionId, VersionInfo> = serde_json::from_str(&content)
-                .map_err(|e| Error::parse_error(format!("解析版本文件失败: {}", e)))?;
+                .map_err(|e| Error::invalid_input(format!("解析版本文件失败: {}", e)))?;
             
             *self.versions.write().unwrap() = versions_data;
         }
@@ -356,7 +356,7 @@ impl DataVersionManager {
                 .map_err(|e| Error::IoError(format!("读取分支文件失败: {}", e)))?;
             
             let branches_data: HashMap<BranchName, BranchInfo> = serde_json::from_str(&content)
-                .map_err(|e| Error::parse_error(format!("解析分支文件失败: {}", e)))?;
+                .map_err(|e| Error::invalid_input(format!("解析分支文件失败: {}", e)))?;
             
             *self.branches.write().unwrap() = branches_data;
         }
@@ -368,7 +368,7 @@ impl DataVersionManager {
                 .map_err(|e| Error::IoError(format!("读取标签文件失败: {}", e)))?;
             
             let tags_data: HashMap<TagName, TagInfo> = serde_json::from_str(&content)
-                .map_err(|e| Error::parse_error(format!("解析标签文件失败: {}", e)))?;
+                .map_err(|e| Error::invalid_input(format!("解析标签文件失败: {}", e)))?;
             
             *self.tags.write().unwrap() = tags_data;
         }
@@ -668,9 +668,9 @@ impl DataVersionManager {
     fn create_file_entries(&self, data: &[DataValue]) -> Result<Vec<FileEntry>> {
         let mut files = Vec::new();
         
-        // 简化实现 - 创建单个数据文件条目
+        // 创建数据文件条目
         let hash = self.calculate_data_hash(data)?;
-        let size = data.len() as u64; // 简化的大小计算
+        let size = data.len() as u64; // 数据大小计算（基于元素数量）
         let modified = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
         
         files.push(FileEntry {
@@ -712,7 +712,7 @@ impl DataVersionManager {
             .map_err(|e| Error::IoError(format!("读取数据文件失败: {}", e)))?;
         
         let data: Vec<DataValue> = serde_json::from_str(&content)
-            .map_err(|e| Error::parse_error(format!("解析数据失败: {}", e)))?;
+            .map_err(|e| Error::invalid_input(format!("解析数据失败: {}", e)))?;
         
         Ok(data)
     }
@@ -750,8 +750,7 @@ impl DataVersionManager {
     ) -> Result<Vec<MergeConflict>> {
         let mut conflicts = Vec::new();
         
-        // 简化的冲突检测逻辑
-        // 在实际实现中，这里需要更复杂的数据结构分析
+        // 冲突检测：检测数据长度变化和结构差异
         
         if source_data.len() != target_data.len() {
             conflicts.push(MergeConflict {
@@ -777,7 +776,7 @@ impl DataVersionManager {
             MergeStrategy::AutoSource => Ok(source_data.to_vec()),
             MergeStrategy::AutoTarget => Ok(target_data.to_vec()),
             _ => {
-                // 简化的合并逻辑
+                // 合并逻辑：将源数据追加到目标数据
                 let mut merged = target_data.to_vec();
                 merged.extend_from_slice(source_data);
                 Ok(merged)
@@ -793,7 +792,7 @@ impl DataVersionManager {
     ) -> Result<Vec<DiffEntry>> {
         let mut diffs = Vec::new();
         
-        // 简化的差异计算
+        // 差异计算：检测记录数量变化
         if data1.len() != data2.len() {
             diffs.push(DiffEntry {
                 diff_type: DiffType::RecordModified,

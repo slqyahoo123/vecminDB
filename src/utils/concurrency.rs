@@ -3,13 +3,14 @@
 /// 提供高级并发原语、线程池管理、任务调度、
 /// 分布式锁等功能，用于提升系统并发性能和可靠性
 
-use std::sync::{Arc, Mutex, RwLock, Condvar, mpsc};
+use std::sync::{Arc, Mutex, RwLock, Condvar};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 use std::collections::{HashMap, VecDeque};
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll, Waker};
+use crossbeam_channel::{self, Sender, Receiver, TrySendError, RecvTimeoutError};
 use tokio::sync::{Semaphore, broadcast, oneshot};
 use uuid::Uuid;
 use serde::{Serialize, Deserialize};
@@ -48,6 +49,19 @@ pub struct Task {
     pub work: Box<dyn FnOnce() -> Result<(), String> + Send + 'static>,
     pub created_at: Instant,
     pub timeout: Option<Duration>,
+}
+
+impl std::fmt::Debug for Task {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Task")
+            .field("id", &self.id)
+            .field("name", &self.name)
+            .field("priority", &self.priority)
+            .field("work", &"<closure>")
+            .field("created_at", &self.created_at)
+            .field("timeout", &self.timeout)
+            .finish()
+    }
 }
 
 impl Task {
@@ -147,10 +161,10 @@ pub enum RejectionPolicy {
 pub struct ThreadPool {
     config: ThreadPoolConfig,
     workers: Vec<Worker>,
-    task_sender: mpsc::Sender<Task>,
-    task_receiver: Arc<Mutex<mpsc::Receiver<Task>>>,
-    result_sender: mpsc::Sender<TaskResult>,
-    pub result_receiver: mpsc::Receiver<TaskResult>,
+    task_sender: Sender<Task>,
+    task_receiver: Arc<Mutex<Receiver<Task>>>,
+    result_sender: Sender<TaskResult>,
+    pub result_receiver: Receiver<TaskResult>,
     shutdown: Arc<Mutex<bool>>,
     statistics: Arc<Mutex<PoolStatistics>>,
 }
@@ -160,7 +174,7 @@ struct Worker {
     thread: Option<JoinHandle<()>>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct PoolStatistics {
     pub tasks_submitted: u64,
     pub tasks_completed: u64,
@@ -174,8 +188,8 @@ pub struct PoolStatistics {
 
 impl ThreadPool {
     pub fn new(config: ThreadPoolConfig) -> Self {
-        let (task_sender, task_receiver) = mpsc::channel();
-        let (result_sender, result_receiver) = mpsc::channel();
+        let (task_sender, task_receiver) = crossbeam_channel::unbounded();
+        let (result_sender, result_receiver) = crossbeam_channel::unbounded();
         let task_receiver = Arc::new(Mutex::new(task_receiver));
         let shutdown = Arc::new(Mutex::new(false));
         let statistics = Arc::new(Mutex::new(PoolStatistics::default()));
@@ -220,14 +234,15 @@ impl ThreadPool {
             RejectionPolicy::Reject => {
                 self.task_sender.try_send(task)
                     .map_err(|e| match e {
-                        mpsc::TrySendError::Full(_) => "任务队列已满".to_string(),
-                        mpsc::TrySendError::Disconnected(_) => "线程池已关闭".to_string(),
+                        TrySendError::Full(_) => "任务队列已满".to_string(),
+                        TrySendError::Disconnected(_) => "线程池已关闭".to_string(),
                     })?;
             }
             RejectionPolicy::DiscardOldest => {
-                // 简化实现：如果队列满了就拒绝
-                self.task_sender.try_send(task)
-                    .map_err(|_| "无法提交任务".to_string())?;
+                // 对于无界队列，DiscardOldest策略等同于Block
+                // 如果需要真正的DiscardOldest行为，需要使用有界队列并手动管理
+                self.task_sender.send(task)
+                    .map_err(|_| "线程池已关闭".to_string())?;
             }
         }
 
@@ -244,7 +259,7 @@ impl ThreadPool {
     }
 
     pub fn get_statistics(&self) -> PoolStatistics {
-        self.statistics.lock().unwrap().clone()
+        (*self.statistics.lock().unwrap()).clone()
     }
 
     pub fn shutdown(self) {
@@ -288,8 +303,8 @@ impl ThreadPool {
 impl Worker {
     fn new(
         id: usize,
-        receiver: Arc<Mutex<mpsc::Receiver<Task>>>,
-        result_sender: mpsc::Sender<TaskResult>,
+        receiver: Arc<Mutex<Receiver<Task>>>,
+        result_sender: Sender<TaskResult>,
         shutdown: Arc<Mutex<bool>>,
         statistics: Arc<Mutex<PoolStatistics>>,
     ) -> Worker {
@@ -364,8 +379,13 @@ impl Worker {
                                 let current_avg = stats.average_execution_time;
                                 let total_completed = stats.tasks_completed + stats.tasks_failed;
                                 if total_completed > 0 {
+                                    let current_avg_ms = current_avg.as_millis();
+                                    let exec_time_ms = exec_time.as_millis();
+                                    let total_completed_u128 = total_completed as u128;
                                     stats.average_execution_time = 
-                                        (current_avg * (total_completed - 1) + exec_time) / total_completed as u32;
+                                        Duration::from_millis(
+                                            ((current_avg_ms * (total_completed_u128 - 1) + exec_time_ms) / total_completed_u128) as u64
+                                        );
                                 }
                             }
                         }
@@ -375,11 +395,11 @@ impl Worker {
                             warn!("无法发送任务结果");
                         }
                     }
-                    Err(mpsc::RecvTimeoutError::Timeout) => {
+                    Err(RecvTimeoutError::Timeout) => {
                         // 超时，继续下一次循环
                         continue;
                     }
-                    Err(mpsc::RecvTimeoutError::Disconnected) => {
+                    Err(RecvTimeoutError::Disconnected) => {
                         // 通道已断开，退出
                         break;
                     }
@@ -399,12 +419,13 @@ impl Worker {
 /// 异步任务调度器
 pub struct AsyncTaskScheduler {
     semaphore: Arc<Semaphore>,
+    max_permits: usize,
     shutdown_sender: broadcast::Sender<()>,
     _shutdown_receiver: broadcast::Receiver<()>,
     statistics: Arc<Mutex<AsyncSchedulerStats>>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct AsyncSchedulerStats {
     pub active_tasks: u64,
     pub completed_tasks: u64,
@@ -416,9 +437,11 @@ pub struct AsyncSchedulerStats {
 impl AsyncTaskScheduler {
     pub fn new(max_concurrent_tasks: usize) -> Self {
         let (shutdown_sender, shutdown_receiver) = broadcast::channel(1);
+        let max_permits = max_concurrent_tasks;
         
         Self {
             semaphore: Arc::new(Semaphore::new(max_concurrent_tasks)),
+            max_permits,
             shutdown_sender,
             _shutdown_receiver: shutdown_receiver,
             statistics: Arc::new(Mutex::new(AsyncSchedulerStats::default())),
@@ -468,8 +491,8 @@ impl AsyncTaskScheduler {
     }
 
     pub fn get_statistics(&self) -> AsyncSchedulerStats {
-        let mut stats = self.statistics.lock().unwrap().clone();
-        stats.total_permits = self.semaphore.max_permits();
+        let mut stats = (*self.statistics.lock().unwrap()).clone();
+        stats.total_permits = self.max_permits;
         stats.available_permits = self.semaphore.available_permits();
         stats
     }
@@ -949,18 +972,24 @@ impl ErrorMonitor {
 
     /// 获取错误统计
     pub fn get_error_stats(&self) -> HashMap<String, u64> {
-        self.error_count.lock().unwrap_or_else(|_| {
-            error!("获取错误统计失败");
-            HashMap::new()
-        }).clone()
+        match self.error_count.lock() {
+            Ok(guard) => guard.clone(),
+            Err(_) => {
+                error!("获取错误统计失败：锁中毒");
+                HashMap::new()
+            }
+        }
     }
 
     /// 获取关键错误
     pub fn get_critical_errors(&self) -> Vec<CriticalError> {
-        self.critical_errors.lock().unwrap_or_else(|_| {
-            error!("获取关键错误失败");
-            VecDeque::new()
-        }).iter().cloned().collect()
+        match self.critical_errors.lock() {
+            Ok(guard) => guard.iter().cloned().collect(),
+            Err(_) => {
+                error!("获取关键错误失败：锁中毒");
+                Vec::new()
+            }
+        }
     }
 }
 

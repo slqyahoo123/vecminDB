@@ -676,10 +676,10 @@ impl MemoryDataLoader {
         use crate::data::schema::schema::{FieldDefinition, FieldType as SchemaFieldType};
         
         let json_str = String::from_utf8(data.to_vec())
-            .map_err(|e| Error::parse_error(format!("无法解析UTF-8数据: {}", e)))?;
+            .map_err(|e| Error::invalid_input(format!("无法解析UTF-8数据: {}", e)))?;
 
         let json_value: serde_json::Value = serde_json::from_str(&json_str)
-            .map_err(|e| Error::parse_error(format!("无法解析JSON: {}", e)))?;
+            .map_err(|e| Error::invalid_input(format!("无法解析JSON: {}", e)))?;
 
         let mut fields = Vec::new();
 
@@ -735,12 +735,12 @@ impl MemoryDataLoader {
                         }
                     },
                     _ => {
-                        return Err(Error::parse_error("不支持的JSON数据格式".to_string()));
+                        return Err(Error::invalid_input("不支持的JSON数据格式".to_string()));
                     }
                 }
             },
             _ => {
-                return Err(Error::parse_error("JSON数据必须是数组格式".to_string()));
+                return Err(Error::invalid_input("JSON数据必须是数组格式".to_string()));
             }
         }
 
@@ -761,7 +761,7 @@ impl MemoryDataLoader {
         use crate::data::schema::schema::{FieldDefinition, FieldType as SchemaFieldType};
         
         let csv_str = String::from_utf8(data.to_vec())
-            .map_err(|e| Error::parse_error(format!("无法解析UTF-8数据: {}", e)))?;
+            .map_err(|e| Error::invalid_input(format!("无法解析UTF-8数据: {}", e)))?;
 
         let mut lines = csv_str.lines();
         let mut fields = Vec::new();
@@ -851,7 +851,7 @@ impl MemoryDataLoader {
         }
 
         if fields.is_empty() {
-            return Err(Error::parse_error("无法从CSV数据中推断schema".to_string()));
+            return Err(Error::invalid_input("无法从CSV数据中推断schema".to_string()));
         }
 
         Ok(DataSchema {

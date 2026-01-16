@@ -128,7 +128,7 @@ impl FileProcessorFactory {
     pub fn create_processor(path: &Path) -> Result<Arc<dyn FileProcessor>> {
         // 检查文件是否存在
         if !path.exists() {
-            return Err(Error::file_not_found(path.to_string_lossy().to_string()));
+            return Err(Error::not_found(path.to_string_lossy().to_string()));
         }
         
         // 获取文件扩展名
@@ -547,7 +547,7 @@ impl FileProcessorFactory {
     /// 判断文件是否为空
     fn is_empty_file(path: &Path) -> Result<bool> {
         let metadata = fs::metadata(path)
-            .map_err(|e| Error::io(format!("获取文件元数据失败: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("获取文件元数据失败: {}", e)))?;
         Ok(metadata.len() == 0)
     }
 } 
