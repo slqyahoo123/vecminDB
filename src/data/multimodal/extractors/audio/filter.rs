@@ -238,7 +238,7 @@ pub fn mel_filter_bank(
     f_max: f32
 ) -> Result<Array2<f32>> {
     if n_freqs == 0 || n_mels == 0 || sample_rate <= 0.0 {
-        return Err(crate::error::Error::data("无效的参数".to_string()));
+        return Err(crate::error::Error::invalid_data("无效的参数".to_string()));
     }
     
     // 设置频率上下限
@@ -246,7 +246,7 @@ pub fn mel_filter_bank(
     let fmin = if f_min < 0.0 { 0.0 } else { f_min };
     
     if fmax <= fmin {
-        return Err(crate::error::Error::data("最大频率必须大于最小频率".to_string()));
+        return Err(crate::error::Error::invalid_data("最大频率必须大于最小频率".to_string()));
     }
     
     // 创建梅尔刻度上的均匀点
@@ -321,7 +321,7 @@ pub fn create_chroma_filterbank(
     sample_rate: u32
 ) -> Result<Array2<f32>> {
     if n_freqs == 0 || n_chroma == 0 || sample_rate == 0 {
-        return Err(crate::error::Error::data("无效的参数".to_string()));
+        return Err(crate::error::Error::invalid_data("无效的参数".to_string()));
     }
     
     // 创建频率数组 (Hz)

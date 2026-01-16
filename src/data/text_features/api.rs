@@ -125,7 +125,7 @@ pub fn compare_texts(text1: &str, text2: &str, method: TextFeatureMethod) -> Res
     
     // 计算余弦相似度
     vector::feature_similarity(&features1, &features2)
-        .map_err(|e| Error::data(format!("计算相似度失败: {}", e)))
+        .map_err(|e| Error::invalid_data(format!("计算相似度失败: {}", e)))
 }
 
 /// 创建特征提取器配置

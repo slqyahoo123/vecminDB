@@ -621,7 +621,7 @@ impl DataValueAdapter {
     {
         let json_value = value.to_json();
         serde_json::from_value(json_value)
-            .map_err(|e| Error::DeserializationError(format!("Failed to convert DataValue: {}", e)))
+            .map_err(|e| Error::serialization(format!("Failed to convert DataValue: {}", e)))
     }
 }
 

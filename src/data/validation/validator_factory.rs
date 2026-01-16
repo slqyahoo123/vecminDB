@@ -42,12 +42,12 @@ pub fn create_validator(
 						// 提取规则类型
 						let rule_type = rule_map.get("type")
 							.and_then(|v| v.as_str())
-							.ok_or_else(|| Error::InvalidArgument("规则必须指定类型".to_string()))?;
+							.ok_or_else(|| Error::invalid_argument("规则必须指定类型".to_string()))?;
 						
 						// 提取字段名
 						let field_name = rule_map.get("field")
 							.and_then(|v| v.as_str())
-							.ok_or_else(|| Error::InvalidArgument("规则必须指定字段名".to_string()))?;
+							.ok_or_else(|| Error::invalid_argument("规则必须指定字段名".to_string()))?;
 						
 						// 解析规则类型
 						let rule_type = match rule_type {
@@ -59,7 +59,7 @@ pub fn create_validator(
 							"regex" => RuleType::Regex,
 							"enum" => RuleType::Enum,
 							"expression" => RuleType::Expression,
-							_ => return Err(Error::InvalidArgument(format!("不支持的规则类型: {}", rule_type))),
+							_ => return Err(Error::invalid_argument(format!("不支持的规则类型: {}", rule_type))),
 						};
 						
 						// 创建规则
@@ -81,7 +81,7 @@ pub fn create_validator(
 			let validator = CustomValidator::with_rules(name, schema, rules);
 			Ok(Box::new(validator))
 		},
-		_ => Err(Error::InvalidArgument(format!("未知的验证器类型: {}", validator_type)))
+		_ => Err(Error::invalid_argument(format!("未知的验证器类型: {}", validator_type)))
 	}
 }
 

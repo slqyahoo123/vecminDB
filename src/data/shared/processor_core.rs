@@ -28,7 +28,7 @@ pub mod text {
         if use_regex {
             match Regex::new(pattern) {
                 Ok(re) => Ok(re.replace_all(text, replacement).to_string()),
-                Err(e) => Err(Error::InvalidArgument(format!("无效的正则表达式: {}", e))),
+                Err(e) => Err(Error::invalid_argument(format!("无效的正则表达式: {}", e))),
             }
         } else {
             Ok(text.replace(pattern, replacement))

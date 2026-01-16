@@ -325,7 +325,7 @@ impl MultiObjectiveOptimizer for MOSAOptimizer {
     ) -> Result<MultiObjectiveResult> {
         // 验证输入
         if objective_functions.len() != self.config.objectives_count {
-            return Err(Error::InvalidArgument(format!(
+            return Err(Error::invalid_argument(format!(
                 "预期的目标函数数量为 {}，但实际提供了 {}", 
                 self.config.objectives_count, 
                 objective_functions.len()
@@ -333,7 +333,7 @@ impl MultiObjectiveOptimizer for MOSAOptimizer {
         }
         
         if bounds.is_empty() {
-            return Err(Error::InvalidArgument("参数边界不能为空".to_string()));
+            return Err(Error::invalid_argument("参数边界不能为空".to_string()));
         }
         
         // 记录开始时间
@@ -569,7 +569,7 @@ impl MultiObjectiveOptimizer for MOSAOptimizer {
                 .parameters()
                 .any(|p| p.name() == name.as_str());
             if !exists {
-                return Err(Error::InvalidArgument(format!("Unknown parameter: {}", name)));
+                return Err(Error::invalid_argument(format!("Unknown parameter: {}", name)));
             }
         }
         
@@ -700,7 +700,7 @@ impl MultiObjectiveOptimizer for MOSAOptimizer {
         }
         
         if bounds.is_empty() {
-            return Err(Error::InvalidArgument("参数空间为空".to_string()));
+            return Err(Error::invalid_argument("参数空间为空".to_string()));
         }
         
         // 生成初始样本并评估

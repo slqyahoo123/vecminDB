@@ -120,7 +120,7 @@ impl interface::MultimodalProcessor for super::MultiModalExtractor {
                 updated_at: now,
             }
         } else {
-            return Err(Error::data("融合模块未配置".to_string()));
+            return Err(Error::invalid_data("融合模块未配置".to_string()));
         };
         
         // 获取当前权重
@@ -187,7 +187,7 @@ impl interface::MultimodalProcessor for super::MultiModalExtractor {
     
     fn update_config(&mut self, config: serde_json::Value) -> Result<()> {
         let new_config: MultiModalConfig = serde_json::from_value(config)
-            .map_err(|e| Error::InvalidArgument(format!("无效的多模态配置: {}", e)))?;
+            .map_err(|e| Error::invalid_argument(format!("无效的多模态配置: {}", e)))?;
             
         // 替换现有配置（实际可能需要更复杂的实现）
         *self = super::MultiModalExtractor::new(new_config)?;

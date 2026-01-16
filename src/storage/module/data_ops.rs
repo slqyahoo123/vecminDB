@@ -24,7 +24,7 @@ impl DataOperations for Storage {
         let key = format!("{}{}", DATA_RAW_PREFIX, data_id);
         if let Some(value) = self.get(key.as_bytes())? {
             let data: Vec<String> = serde_json::from_slice(&value)
-                .map_err(|e| Error::Deserialization(e.to_string()))?;
+                .map_err(|e| Error::serialization(e.to_string()))?;
             Ok(Some(data))
         } else {
             Ok(None)
@@ -43,7 +43,7 @@ impl DataOperations for Storage {
         let key = format!("{}{}", DATA_PROCESSED_PREFIX, data_id);
         if let Some(value) = self.get(key.as_bytes())? {
             let data: Vec<String> = serde_json::from_slice(&value)
-                .map_err(|e| Error::Deserialization(e.to_string()))?;
+                .map_err(|e| Error::serialization(e.to_string()))?;
             Ok(Some(data))
         } else {
             Ok(None)
@@ -73,7 +73,7 @@ impl DataOperations for Storage {
             DataFormat::JSON | DataFormat::Json => {
                 // JSON格式：解析为JSON数组，每行一个JSON对象
                 let json_value: Value = serde_json::from_str(&file_content)
-                    .map_err(|e| Error::Deserialization(format!("解析JSON失败: {}", e)))?;
+                    .map_err(|e| Error::serialization(format!("解析JSON失败: {}", e)))?;
                 
                 match json_value {
                     Value::Array(arr) => {

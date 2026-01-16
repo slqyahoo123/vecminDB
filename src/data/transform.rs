@@ -43,7 +43,7 @@ impl std::error::Error for TransformError {}
 
 impl From<TransformError> for Error {
     fn from(err: TransformError) -> Self {
-        Error::DataError(format!("{}", err))
+        Error::invalid_data(format!("{}", err))
     }
 }
 

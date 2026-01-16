@@ -108,7 +108,7 @@ impl MongoDBClient {
                     }
                     results.push(doc);
                 }
-                Err(e) => return Err(Error::data(format!("MongoDB查询错误: {}", e))),
+                Err(e) => return Err(Error::invalid_data(format!("MongoDB查询错误: {}", e))),
             }
         }
         
@@ -618,7 +618,7 @@ impl DatabaseConnector for MongoDBConnector {
                         }
                         results.push(map);
                     }
-                    Err(e) => return Err(Error::data(format!("MongoDB查询错误: {}", e))),
+                    Err(e) => return Err(Error::invalid_data(format!("MongoDB查询错误: {}", e))),
                 }
             }
             

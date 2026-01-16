@@ -70,7 +70,7 @@ impl<'a> StorageTransaction<'a> {
         let key = format!("{}{}", DATA_RAW_PREFIX, data_id);
         if let Some(value) = self.db.get(key.as_bytes())? {
             let data: Vec<String> = serde_json::from_slice(&value)
-                .map_err(|e| Error::Deserialization(e.to_string()))?;
+                .map_err(|e| Error::serialization(e.to_string()))?;
             Ok(Some(data))
         } else {
             Ok(None)
@@ -91,7 +91,7 @@ impl<'a> StorageTransaction<'a> {
         let key = format!("{}{}", DATA_PROCESSED_PREFIX, data_id);
         if let Some(value) = self.db.get(key.as_bytes())? {
             let data: Vec<String> = serde_json::from_slice(&value)
-                .map_err(|e| Error::Deserialization(e.to_string()))?;
+                .map_err(|e| Error::serialization(e.to_string()))?;
             Ok(Some(data))
         } else {
             Ok(None)
@@ -124,7 +124,7 @@ impl<'a> StorageTransaction<'a> {
         let key = format!("{}{}", VERSION_PREFIX, version_id);
         if let Some(value) = self.db.get(key.as_bytes())? {
             let version_data: Value = serde_json::from_slice(&value)
-                .map_err(|e| Error::Deserialization(e.to_string()))?;
+                .map_err(|e| Error::serialization(e.to_string()))?;
             Ok(Some(version_data))
         } else {
             Ok(None)

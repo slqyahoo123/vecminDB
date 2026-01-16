@@ -867,7 +867,7 @@ fn create_processor_from_config(config: &ProcessingStageConfig) -> Result<Box<dy
                 
                 Ok(Box::new(regex_cleaner))
                 */
-                Err(Error::data("RegexCleaner未实现".to_string()))
+                Err(Error::invalid_data("RegexCleaner未实现".to_string()))
             } else if config.processor_config.contains_key("remove_html") {
                 // HTML标签清洗
                 let html_cleaner = HtmlCleaner::new();
@@ -932,7 +932,7 @@ fn create_processor_from_config(config: &ProcessingStageConfig) -> Result<Box<dy
                             let tokenizer = RegexTokenizer::new(pattern, Some(config.name.clone()))?;
                             Ok(Box::new(tokenizer))
                             */
-                            Err(Error::data("RegexTokenizer未实现".to_string()))
+                            Err(Error::invalid_data("RegexTokenizer未实现".to_string()))
                         } else {
                             Err(Error::invalid_argument("正则分词器需要指定pattern参数"))
                         }
@@ -982,14 +982,14 @@ fn create_processor_from_config(config: &ProcessingStageConfig) -> Result<Box<dy
                 let lemmatizer = LemmatizerTransformer::new(Some(config.name.clone()));
                 Ok(Box::new(lemmatizer))
                 */
-                Err(Error::data("LemmatizerTransformer未实现".to_string()))
+                Err(Error::invalid_data("LemmatizerTransformer未实现".to_string()))
             } else if config.processor_config.contains_key("stem") {
                 // 词干提取
                 /* 暂时注释未实现的转换处理器
                 let stemmer = StemmerTransformer::new(Some(config.name.clone()));
                 Ok(Box::new(stemmer))
                 */
-                Err(Error::data("StemmerTransformer未实现".to_string()))
+                Err(Error::invalid_data("StemmerTransformer未实现".to_string()))
             } else {
                 Err(Error::invalid_argument("转换处理器配置不完整"))
             }
@@ -1004,14 +1004,14 @@ fn create_processor_from_config(config: &ProcessingStageConfig) -> Result<Box<dy
                         let augmentor = SynonymAugmentor::new(Some(config.name.clone()));
                         Ok(Box::new(augmentor))
                         */
-                        Err(Error::data("SynonymAugmentor未实现".to_string()))
+                        Err(Error::invalid_data("SynonymAugmentor未实现".to_string()))
                     },
                     "backtranslation" => {
                         /* 暂时注释未实现的增强处理器
                         let augmentor = BackTranslationAugmentor::new(Some(config.name.clone()));
                         Ok(Box::new(augmentor))
                         */
-                        Err(Error::data("BackTranslationAugmentor未实现".to_string()))
+                        Err(Error::invalid_data("BackTranslationAugmentor未实现".to_string()))
                     },
                     _ => Err(Error::invalid_argument(format!("不支持的增强方法: {}", method)))
                 }
@@ -1028,14 +1028,14 @@ fn create_processor_from_config(config: &ProcessingStageConfig) -> Result<Box<dy
                 let analyzer = SentimentAnalyzer::new(Some(config.name.clone()));
                 Ok(Box::new(analyzer))
                 */
-                Err(Error::data("SentimentAnalyzer未实现".to_string()))
+                Err(Error::invalid_data("SentimentAnalyzer未实现".to_string()))
             } else if config.processor_config.contains_key("language") {
                 // 语言检测
                 /* 暂时注释未实现的分析处理器
                 let detector = LanguageDetector::new(Some(config.name.clone()));
                 Ok(Box::new(detector))
                 */
-                Err(Error::data("LanguageDetector未实现".to_string()))
+                Err(Error::invalid_data("LanguageDetector未实现".to_string()))
             } else {
                 Err(Error::invalid_argument("分析处理器配置不完整"))
             }
@@ -1056,7 +1056,7 @@ fn create_processor_from_config(config: &ProcessingStageConfig) -> Result<Box<dy
                             )?;
                             Ok(Box::new(custom_processor))
                             */
-                            Err(Error::data("CustomRegexProcessor未实现".to_string()))
+                            Err(Error::invalid_data("CustomRegexProcessor未实现".to_string()))
                         } else {
                             Err(Error::invalid_argument("自定义正则处理器需要指定pattern参数"))
                         }

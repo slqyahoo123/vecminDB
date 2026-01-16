@@ -293,7 +293,7 @@ impl NgramTokenizer {
     /// 创建新的N-Gram分词器
     pub fn new(min_n: usize, max_n: usize) -> Result<Self> {
         if min_n > max_n || min_n == 0 {
-            return Err(Error::InvalidArgument(
+            return Err(Error::invalid_argument(
                 format!("无效的n-gram范围: {} - {}", min_n, max_n)
             ));
         }
@@ -342,7 +342,7 @@ impl CharNgramTokenizer {
     /// 创建新的字符N-Gram分词器
     pub fn new(min_n: usize, max_n: usize) -> Result<Self> {
         if min_n > max_n || min_n == 0 {
-            return Err(Error::InvalidArgument(
+            return Err(Error::invalid_argument(
                 format!("无效的字符n-gram范围: {} - {}", min_n, max_n)
             ));
         }

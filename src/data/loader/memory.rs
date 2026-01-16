@@ -435,7 +435,7 @@ impl DataLoader for MemoryDataLoader {
         let features = match format {
             crate::data::loader::types::DataFormat::Json { .. } => self.parse_json_data(&data)?,
             crate::data::loader::types::DataFormat::Csv { .. } => self.parse_csv_data(&data)?,
-            _ => return Err(Error::unsupported_format(format!("不支持的格式: {:?}", format))),
+            _ => return Err(Error::unsupported_file_type(format!("不支持的格式: {:?}", format))),
         };
 
         // 创建数据批次 - 使用正确的构造函数
@@ -486,7 +486,7 @@ impl DataLoader for MemoryDataLoader {
             crate::data::loader::types::DataFormat::Csv { .. } => {
                 self.infer_csv_schema(&data)
             },
-            _ => Err(Error::unsupported_format(format!("不支持的格式进行schema推断: {:?}", format))),
+            _ => Err(Error::unsupported_file_type(format!("不支持的格式进行schema推断: {:?}", format))),
         }
     }
 
@@ -583,10 +583,10 @@ impl MemoryDataLoader {
     /// 解析JSON数据
     fn parse_json_data(&self, data: &[u8]) -> Result<Vec<Vec<f32>>> {
         let json_str = String::from_utf8(data.to_vec())
-            .map_err(|e| Error::ParseError(format!("无法解析UTF-8数据: {}", e)))?;
+            .map_err(|e| Error::invalid_input(format!("无法解析UTF-8数据: {}", e)))?;
 
         let json_value: serde_json::Value = serde_json::from_str(&json_str)
-            .map_err(|e| Error::ParseError(format!("无法解析JSON: {}", e)))?;
+            .map_err(|e| Error::invalid_input(format!("无法解析JSON: {}", e)))?;
 
         match json_value {
             serde_json::Value::Array(arr) => {
@@ -627,20 +627,20 @@ impl MemoryDataLoader {
                             features.push(feature_row);
                         },
                         _ => {
-                            return Err(Error::ParseError("不支持的JSON数据格式".to_string()));
+                            return Err(Error::invalid_input("不支持的JSON数据格式".to_string()));
                         }
                     }
                 }
                 Ok(features)
             },
-            _ => Err(Error::ParseError("JSON数据必须是数组格式".to_string())),
+            _ => Err(Error::invalid_input("JSON数据必须是数组格式".to_string())),
         }
     }
 
     /// 解析CSV数据
     fn parse_csv_data(&self, data: &[u8]) -> Result<Vec<Vec<f32>>> {
         let csv_str = String::from_utf8(data.to_vec())
-            .map_err(|e| Error::ParseError(format!("无法解析UTF-8数据: {}", e)))?;
+            .map_err(|e| Error::invalid_input(format!("无法解析UTF-8数据: {}", e)))?;
 
         let mut features = Vec::new();
         let mut lines = csv_str.lines();

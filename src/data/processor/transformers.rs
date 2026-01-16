@@ -30,7 +30,7 @@ impl NumericTransformer {
 impl DataTransformer for NumericTransformer {
     fn transform(&self, value: &str) -> Result<f32> {
         let num = value.parse::<f32>()
-            .map_err(|e| Error::data(format!("Failed to parse numeric value '{}': {}", value, e)))?;
+            .map_err(|e| Error::invalid_data(format!("Failed to parse numeric value '{}': {}", value, e)))?;
         Ok(num * self.scale + self.offset)
     }
 
@@ -99,14 +99,14 @@ impl DataTransformer for CategoricalTransformer {
     fn transform(&self, value: &str) -> Result<f32> {
         self.categories.get(value)
             .map(|&i| i as f32)
-            .ok_or_else(|| Error::data(format!("Unknown category: {}", value)))
+            .ok_or_else(|| Error::invalid_data(format!("Unknown category: {}", value)))
     }
 
     fn inverse_transform(&self, value: f32) -> Result<String> {
         let index = value.round() as usize;
         self.inverse_categories.get(&index)
             .cloned()
-            .ok_or_else(|| Error::data(format!("Invalid category index: {}", value)))
+            .ok_or_else(|| Error::invalid_data(format!("Invalid category index: {}", value)))
     }
 }
 
@@ -137,7 +137,7 @@ impl DateTimeTransformer {
 impl DataTransformer for DateTimeTransformer {
     fn transform(&self, value: &str) -> Result<f32> {
         let date = NaiveDateTime::parse_from_str(value, &self.format)
-            .map_err(|e| Error::data(format!("Failed to parse date '{}': {}", value, e)))?;
+            .map_err(|e| Error::invalid_data(format!("Failed to parse date '{}': {}", value, e)))?;
         let duration = date.signed_duration_since(self.reference_date);
         Ok(duration.num_seconds() as f32)
     }

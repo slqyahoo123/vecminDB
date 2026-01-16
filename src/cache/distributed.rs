@@ -754,7 +754,7 @@ impl ClusteredCache {
             .map_err(|_| Error::locks_poison("集群缓存哈希环锁被污染"))?;
         
         ring.get_node(key)
-            .ok_or_else(|| Error::resource_exhausted("没有可用的缓存后端"))
+            .ok_or_else(|| Error::resource("没有可用的缓存后端"))
     }
 }
 

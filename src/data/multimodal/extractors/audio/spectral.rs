@@ -217,7 +217,7 @@ pub fn compute_chroma(
     
     // 创建色度滤波器组
     let chroma_filters = create_chroma_filterbank(n_fft_val / 2 + 1, n_chroma_val, sample_rate as u32)
-        .map_err(|e| Error::data(format!("创建色度滤波器组失败: {}", e)))?;
+        .map_err(|e| Error::invalid_data(format!("创建色度滤波器组失败: {}", e)))?;
     
     // 应用色度滤波器组
     let n_frames = power_spec.len_of(Axis(0));

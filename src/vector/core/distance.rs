@@ -207,7 +207,7 @@ pub fn create_distance(name: &str) -> Result<Box<dyn Distance + Send + Sync>> {
         "dot" => Ok(Box::new(DotProductDistance)),
         "manhattan" => Ok(Box::new(ManhattanDistance)),
         "chebyshev" => Ok(Box::new(ChebyshevDistance)),
-        _ => Err(Error::InvalidArgument(format!("Unsupported distance function: {}", name))),
+        _ => Err(Error::invalid_argument(format!("Unsupported distance function: {}", name))),
     }
 }
 

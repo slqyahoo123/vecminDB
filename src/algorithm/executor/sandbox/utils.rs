@@ -258,7 +258,7 @@ pub fn copy_input_to_memory(instance: &wasmtime::Instance, store: &mut wasmtime:
     
     // 提取分配的内存指针
     let input_ptr = match result[0].unwrap_i32() {
-        0 => return Err(Error::resource_exhausted("内存分配失败，返回空指针")),
+        0 => return Err(Error::resource("内存分配失败，返回空指针")),
         ptr => ptr as u32,
     };
     

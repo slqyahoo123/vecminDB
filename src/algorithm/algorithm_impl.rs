@@ -147,7 +147,7 @@ impl Algorithm {
         if let Some(required_params) = self.get_required_parameters() {
             for req_param in required_params {
                 if !params.contains_key(&req_param) {
-                    return Err(crate::error::Error::InvalidArgument(format!(
+                    return Err(crate::error::Error::invalid_argument(format!(
                         "Missing required parameter: {}",
                         req_param
                     )));
@@ -157,7 +157,7 @@ impl Algorithm {
 
         if let Some(lr_str) = params.get("learning_rate") {
             if lr_str.parse::<f64>().is_err() {
-                return Err(crate::error::Error::InvalidArgument(
+                return Err(crate::error::Error::invalid_argument(
                     "Parameter 'learning_rate' is not a valid float".to_string(),
                 ));
             }
@@ -168,13 +168,13 @@ impl Algorithm {
 
     pub fn validate(&self) -> Result<()> {
         if self.name.is_empty() {
-            return Err(crate::error::Error::InvalidArgument(
+            return Err(crate::error::Error::invalid_argument(
                 "Algorithm name is missing".to_string(),
             ));
         }
 
         if self.code.is_empty() {
-            return Err(crate::error::Error::InvalidArgument(
+            return Err(crate::error::Error::invalid_argument(
                 "Algorithm code is missing".to_string(),
             ));
         }
@@ -193,13 +193,13 @@ impl Algorithm {
         algorithm_type_str: String,
     ) -> Result<Self> {
         if id.trim().is_empty() {
-            return Err(Error::InvalidArgument("Algorithm ID cannot be empty".to_string()));
+            return Err(Error::invalid_argument("Algorithm ID cannot be empty".to_string()));
         }
         if name.trim().is_empty() {
-            return Err(Error::InvalidArgument("Algorithm name cannot be empty".to_string()));
+            return Err(Error::invalid_argument("Algorithm name cannot be empty".to_string()));
         }
         if description.trim().is_empty() {
-            return Err(Error::InvalidArgument("Algorithm description cannot be empty".to_string()));
+            return Err(Error::invalid_argument("Algorithm description cannot be empty".to_string()));
         }
 
         let algorithm_type = match algorithm_type_str.to_lowercase().as_str() {
@@ -215,7 +215,7 @@ impl Algorithm {
             "wasm" => AlgorithmType::Wasm,
             "dsl" | "custom" => AlgorithmType::Custom,
             _ => {
-                return Err(Error::InvalidArgument(
+                return Err(Error::invalid_argument(
                     format!("Unsupported algorithm type: {}", algorithm_type_str)
                 ));
             }
@@ -444,10 +444,10 @@ pub fn execute_algorithm(input_data: &[u8]) -> Result<Vec<u8>, String> {{
     // Execute methods
     fn execute_classification(&self, input: &[u8]) -> Result<Vec<u8>> {
         let input_str = std::str::from_utf8(input)
-            .map_err(|e| Error::InvalidArgument(format!("Could not parse input data: {}", e)))?;
+            .map_err(|e| Error::invalid_argument(format!("Could not parse input data: {}", e)))?;
         
         let _input_data: HashMap<String, serde_json::Value> = serde_json::from_str(input_str)
-            .map_err(|e| Error::InvalidArgument(format!("JSON parsing error: {}", e)))?;
+            .map_err(|e| Error::invalid_argument(format!("JSON parsing error: {}", e)))?;
         
         let result = HashMap::from([
             ("algorithm", serde_json::Value::String(self.name.clone())),
@@ -458,17 +458,17 @@ pub fn execute_algorithm(input_data: &[u8]) -> Result<Vec<u8>, String> {{
         ]);
         
         let output = serde_json::to_vec(&result)
-            .map_err(|e| Error::InvalidArgument(format!("Could not serialize output: {}", e)))?;
+            .map_err(|e| Error::invalid_argument(format!("Could not serialize output: {}", e)))?;
         
         Ok(output)
     }
 
     fn execute_regression(&self, input: &[u8]) -> Result<Vec<u8>> {
         let input_str = std::str::from_utf8(input)
-            .map_err(|e| Error::InvalidArgument(format!("Could not parse input data: {}", e)))?;
+            .map_err(|e| Error::invalid_argument(format!("Could not parse input data: {}", e)))?;
         
         let _input_data: HashMap<String, serde_json::Value> = serde_json::from_str(input_str)
-            .map_err(|e| Error::InvalidArgument(format!("JSON parsing error: {}", e)))?;
+            .map_err(|e| Error::invalid_argument(format!("JSON parsing error: {}", e)))?;
         
         let result = HashMap::from([
             ("algorithm", serde_json::Value::String(self.name.clone())),
@@ -478,17 +478,17 @@ pub fn execute_algorithm(input_data: &[u8]) -> Result<Vec<u8>, String> {{
         ]);
         
         let output = serde_json::to_vec(&result)
-            .map_err(|e| Error::InvalidArgument(format!("Could not serialize output: {}", e)))?;
+            .map_err(|e| Error::invalid_argument(format!("Could not serialize output: {}", e)))?;
         
         Ok(output)
     }
 
     fn execute_clustering(&self, input: &[u8]) -> Result<Vec<u8>> {
         let input_str = std::str::from_utf8(input)
-            .map_err(|e| Error::InvalidArgument(format!("Could not parse input data: {}", e)))?;
+            .map_err(|e| Error::invalid_argument(format!("Could not parse input data: {}", e)))?;
         
         let _input_data: HashMap<String, serde_json::Value> = serde_json::from_str(input_str)
-            .map_err(|e| Error::InvalidArgument(format!("JSON parsing error: {}", e)))?;
+            .map_err(|e| Error::invalid_argument(format!("JSON parsing error: {}", e)))?;
         
         let result = HashMap::from([
             ("algorithm", serde_json::Value::String(self.name.clone())),
@@ -502,17 +502,17 @@ pub fn execute_algorithm(input_data: &[u8]) -> Result<Vec<u8>, String> {{
         ]);
         
         let output = serde_json::to_vec(&result)
-            .map_err(|e| Error::InvalidArgument(format!("Could not serialize output: {}", e)))?;
+            .map_err(|e| Error::invalid_argument(format!("Could not serialize output: {}", e)))?;
         
         Ok(output)
     }
 
     fn execute_custom(&self, input: &[u8]) -> Result<Vec<u8>> {
         let input_str = std::str::from_utf8(input)
-            .map_err(|e| Error::InvalidArgument(format!("Could not parse input data: {}", e)))?;
+            .map_err(|e| Error::invalid_argument(format!("Could not parse input data: {}", e)))?;
         
         let _input_data: HashMap<String, serde_json::Value> = serde_json::from_str(input_str)
-            .map_err(|e| Error::InvalidArgument(format!("JSON parsing error: {}", e)))?;
+            .map_err(|e| Error::invalid_argument(format!("JSON parsing error: {}", e)))?;
         
         let result = HashMap::from([
             ("algorithm", serde_json::Value::String(self.name.clone())),
@@ -522,7 +522,7 @@ pub fn execute_algorithm(input_data: &[u8]) -> Result<Vec<u8>, String> {{
         ]);
         
         let output = serde_json::to_vec(&result)
-            .map_err(|e| Error::InvalidArgument(format!("Could not serialize output: {}", e)))?;
+            .map_err(|e| Error::invalid_argument(format!("Could not serialize output: {}", e)))?;
         
         Ok(output)
     }

@@ -214,7 +214,7 @@ impl VideoFeatureExtractor {
     pub fn extract_from_source(&self, source: VideoSource) -> Result<FeatureVector> {
         match source {
             VideoSource::Base64(data) => {
-                let decoded = general_purpose::STANDARD.decode(&data).map_err(|e| Error::data(format!("Failed to decode base64 video data: {}", e)))?;
+                let decoded = general_purpose::STANDARD.decode(&data).map_err(|e| Error::invalid_data(format!("Failed to decode base64 video data: {}", e)))?;
                 self.process_video(&decoded)
             },
             VideoSource::Url(url) => {
@@ -222,10 +222,10 @@ impl VideoFeatureExtractor {
                 #[cfg(feature = "multimodal")]
                 {
                     let response = reqwest::blocking::get(&url)
-                        .map_err(|e| Error::data(format!("下载视频失败: {}", e)))?;
+                        .map_err(|e| Error::invalid_data(format!("下载视频失败: {}", e)))?;
                     
                     let bytes = response.bytes()
-                        .map_err(|e| Error::data(format!("读取视频数据失败: {}", e)))?;
+                        .map_err(|e| Error::invalid_data(format!("读取视频数据失败: {}", e)))?;
                     
                     self.process_video(&bytes)
                 }
@@ -234,11 +234,11 @@ impl VideoFeatureExtractor {
             },
             VideoSource::FilePath(path) => {
                 let mut file = File::open(&path)
-                    .map_err(|e| Error::data(format!("打开视频文件失败 {}: {}", path.display(), e)))?;
+                    .map_err(|e| Error::invalid_data(format!("打开视频文件失败 {}: {}", path.display(), e)))?;
                 
                 let mut buffer = Vec::new();
                 io::copy(&mut file, &mut buffer)
-                    .map_err(|e| Error::data(format!("读取视频文件失败: {}", e)))?;
+                    .map_err(|e| Error::invalid_data(format!("读取视频文件失败: {}", e)))?;
                 
                 self.process_video(&buffer)
             },
@@ -421,7 +421,7 @@ impl VideoFeatureExtractor {
     fn process_frames(&self, frames: Vec<DynamicImage>) -> Result<FeatureVector> {
         let frame_count = frames.len();
         if frame_count == 0 {
-            return Err(Error::data("没有可用的视频帧".to_string()));
+            return Err(Error::invalid_data("没有可用的视频帧".to_string()));
         }
         
         info!("处理 {} 帧视频", frame_count);
@@ -464,7 +464,7 @@ impl VideoFeatureExtractor {
         }
         
         if frame_features.is_empty() {
-            return Err(Error::data("无法从任何帧提取特征".to_string()));
+            return Err(Error::invalid_data("无法从任何帧提取特征".to_string()));
         }
         
         // 聚合帧特征
@@ -537,10 +537,10 @@ impl VideoFeatureExtractor {
                 // 如果维度大于6，使用图像模型提取深度特征补充
                 if self.config.dimension > 6 {
                     let tensor = self.image_model.image_to_tensor(frame)
-                        .map_err(|e| Error::data(format!("图像转换失败: {}", e)))?;
+                        .map_err(|e| Error::invalid_data(format!("图像转换失败: {}", e)))?;
                     
                     let deep_features = self.image_model.extract_features(&tensor)
-                        .map_err(|e| Error::data(format!("图像模型特征提取失败: {}", e)))?;
+                        .map_err(|e| Error::invalid_data(format!("图像模型特征提取失败: {}", e)))?;
                     
                     // 取前 (dimension - 6) 个深度特征
                     let remaining = (self.config.dimension - 6).min(deep_features.len());
@@ -561,10 +561,10 @@ impl VideoFeatureExtractor {
                 // 光流特征需要相邻帧，单帧无法提取
                 // 使用图像模型提取深度特征作为替代
                 let tensor = self.image_model.image_to_tensor(frame)
-                    .map_err(|e| Error::data(format!("图像转换失败: {}", e)))?;
+                    .map_err(|e| Error::invalid_data(format!("图像转换失败: {}", e)))?;
                 
                 let features = self.image_model.extract_features(&tensor)
-                    .map_err(|e| Error::data(format!("图像模型特征提取失败: {}", e)))?;
+                    .map_err(|e| Error::invalid_data(format!("图像模型特征提取失败: {}", e)))?;
                 
                 if features.len() != self.config.dimension {
                     warn!("特征维度不匹配: 期望 {}, 获得 {}", self.config.dimension, features.len());
@@ -576,10 +576,10 @@ impl VideoFeatureExtractor {
                 // 运动特征需要时间序列，单帧无法提取
                 // 使用图像模型提取深度特征作为替代
                 let tensor = self.image_model.image_to_tensor(frame)
-                    .map_err(|e| Error::data(format!("图像转换失败: {}", e)))?;
+                    .map_err(|e| Error::invalid_data(format!("图像转换失败: {}", e)))?;
                 
                 let features = self.image_model.extract_features(&tensor)
-                    .map_err(|e| Error::data(format!("图像模型特征提取失败: {}", e)))?;
+                    .map_err(|e| Error::invalid_data(format!("图像模型特征提取失败: {}", e)))?;
                 
                 if features.len() != self.config.dimension {
                     warn!("特征维度不匹配: 期望 {}, 获得 {}", self.config.dimension, features.len());
@@ -590,10 +590,10 @@ impl VideoFeatureExtractor {
             VideoFeatureType::ObjectDetection => {
                 // 物体检测特征需要使用检测模型，这里使用图像模型提取深度特征
                 let tensor = self.image_model.image_to_tensor(frame)
-                    .map_err(|e| Error::data(format!("图像转换失败: {}", e)))?;
+                    .map_err(|e| Error::invalid_data(format!("图像转换失败: {}", e)))?;
                 
                 let features = self.image_model.extract_features(&tensor)
-                    .map_err(|e| Error::data(format!("图像模型特征提取失败: {}", e)))?;
+                    .map_err(|e| Error::invalid_data(format!("图像模型特征提取失败: {}", e)))?;
                 
                 if features.len() != self.config.dimension {
                     warn!("特征维度不匹配: 期望 {}, 获得 {}", self.config.dimension, features.len());
@@ -604,10 +604,10 @@ impl VideoFeatureExtractor {
             VideoFeatureType::SceneClassification => {
                 // 场景分类特征需要使用分类模型，这里使用图像模型提取深度特征
                 let tensor = self.image_model.image_to_tensor(frame)
-                    .map_err(|e| Error::data(format!("图像转换失败: {}", e)))?;
+                    .map_err(|e| Error::invalid_data(format!("图像转换失败: {}", e)))?;
                 
                 let features = self.image_model.extract_features(&tensor)
-                    .map_err(|e| Error::data(format!("图像模型特征提取失败: {}", e)))?;
+                    .map_err(|e| Error::invalid_data(format!("图像模型特征提取失败: {}", e)))?;
                 
                 if features.len() != self.config.dimension {
                     warn!("特征维度不匹配: 期望 {}, 获得 {}", self.config.dimension, features.len());
@@ -619,10 +619,10 @@ impl VideoFeatureExtractor {
                 // 时间差异特征需要相邻帧，单帧无法提取
                 // 使用图像模型提取深度特征作为替代
                 let tensor = self.image_model.image_to_tensor(frame)
-                    .map_err(|e| Error::data(format!("图像转换失败: {}", e)))?;
+                    .map_err(|e| Error::invalid_data(format!("图像转换失败: {}", e)))?;
                 
                 let features = self.image_model.extract_features(&tensor)
-                    .map_err(|e| Error::data(format!("图像模型特征提取失败: {}", e)))?;
+                    .map_err(|e| Error::invalid_data(format!("图像模型特征提取失败: {}", e)))?;
                 
                 if features.len() != self.config.dimension {
                     warn!("特征维度不匹配: 期望 {}, 获得 {}", self.config.dimension, features.len());
@@ -634,11 +634,11 @@ impl VideoFeatureExtractor {
                 // 使用图像模型提取深度特征
                 // 先将 DynamicImage 转换为 TensorData
                 let tensor = self.image_model.image_to_tensor(frame)
-                    .map_err(|e| Error::data(format!("图像转换失败: {}", e)))?;
+                    .map_err(|e| Error::invalid_data(format!("图像转换失败: {}", e)))?;
                 
                 // 提取特征
                 let features = self.image_model.extract_features(&tensor)
-                    .map_err(|e| Error::data(format!("图像模型特征提取失败: {}", e)))?;
+                    .map_err(|e| Error::invalid_data(format!("图像模型特征提取失败: {}", e)))?;
                 
                 // 验证维度
                 if features.len() != self.config.dimension {
@@ -653,7 +653,7 @@ impl VideoFeatureExtractor {
     /// 聚合多帧特征
     fn aggregate_frame_features(&self, frame_features: &[Vec<f32>]) -> Result<Vec<f32>> {
         if frame_features.is_empty() {
-            return Err(Error::data("没有帧特征可聚合".to_string()));
+            return Err(Error::invalid_data("没有帧特征可聚合".to_string()));
         }
         
         let feature_dim = frame_features[0].len();
@@ -661,7 +661,7 @@ impl VideoFeatureExtractor {
         // 确保所有特征维度一致
         for (i, features) in frame_features.iter().enumerate() {
             if features.len() != feature_dim {
-                return Err(Error::data(format!(
+                return Err(Error::invalid_data(format!(
                     "帧特征维度不一致: 第一帧 {} vs 第 {} 帧 {}", 
                     feature_dim, i, features.len()
                 )));
@@ -847,17 +847,17 @@ impl ModalityExtractor for VideoFeatureExtractor {
         let video_data = match data {
             serde_json::Value::String(base64_data) => {
                 general_purpose::STANDARD.decode(base64_data)
-                    .map_err(|e| Error::InvalidArgument(format!("Base64 decode error: {}", e)))?
+                    .map_err(|e| Error::invalid_argument(format!("Base64 decode error: {}", e)))?
             },
             serde_json::Value::Object(obj) => {
                 if let Some(serde_json::Value::String(base64_data)) = obj.get("data") {
                     general_purpose::STANDARD.decode(base64_data)
-                        .map_err(|e| Error::InvalidArgument(format!("Base64 decode error: {}", e)))?
+                        .map_err(|e| Error::invalid_argument(format!("Base64 decode error: {}", e)))?
                 } else {
-                    return Err(Error::InvalidArgument("Video data not found in JSON object".to_string()));
+                    return Err(Error::invalid_argument("Video data not found in JSON object".to_string()));
                 }
             },
-            _ => return Err(Error::InvalidArgument("Invalid video data format".to_string())),
+            _ => return Err(Error::invalid_argument("Invalid video data format".to_string())),
         };
         
         // 提取特征
@@ -925,7 +925,7 @@ impl FeatureExtractor for VideoFeatureExtractor {
         }
         
         if results.is_empty() {
-            return Err(Error::data("批处理中所有视频提取均失败".to_string()));
+            return Err(Error::invalid_data("批处理中所有视频提取均失败".to_string()));
         }
         
         Ok(results)
@@ -954,7 +954,7 @@ pub fn create_default_video_extractor() -> Result<VideoFeatureExtractor> {
         model_path: None,
     };
     let image_model = Arc::new(ResNetFeatureModel::new(resnet_config)
-        .map_err(|e| Error::data(format!("创建图像模型失败: {}", e)))?);
+        .map_err(|e| Error::invalid_data(format!("创建图像模型失败: {}", e)))?);
     
     Ok(VideoFeatureExtractor::new(config, image_model))
 }

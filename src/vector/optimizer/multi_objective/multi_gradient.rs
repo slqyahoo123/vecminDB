@@ -554,7 +554,7 @@ impl MultiObjectiveOptimizer for MultiGradientOptimizer {
                 .parameters()
                 .any(|p| p.name() == name.as_str());
             if !exists {
-                return Err(Error::InvalidArgument(format!("Unknown parameter: {}", name)));
+                return Err(Error::invalid_argument(format!("Unknown parameter: {}", name)));
             }
         }
         
@@ -679,7 +679,7 @@ impl MultiObjectiveOptimizer for MultiGradientOptimizer {
         }
         
         if bounds.is_empty() {
-            return Err(Error::InvalidArgument("参数空间为空".to_string()));
+            return Err(Error::invalid_argument("参数空间为空".to_string()));
         }
         
         // 构建目标函数（查询时间和索引大小）

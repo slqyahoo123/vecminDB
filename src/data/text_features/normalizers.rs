@@ -67,7 +67,7 @@ impl TextProcessor for TextCaseNormalizer {
 // 确保TextCaseNormalizer也实现TextNormalizer trait，以便兼容性
 impl TextNormalizer for TextCaseNormalizer {
     fn normalize(&self, text: &str) -> crate::Result<String> {
-        self.process(text).map_err(|e| crate::Error::data(format!("文本规范化处理失败: {}", e)))
+        self.process(text).map_err(|e| crate::Error::invalid_data(format!("文本规范化处理失败: {}", e)))
     }
     
     fn name(&self) -> &str {
@@ -122,7 +122,7 @@ impl TextProcessor for AccentNormalizer {
 // 确保AccentNormalizer也实现TextNormalizer trait，以便兼容性
 impl TextNormalizer for AccentNormalizer {
     fn normalize(&self, text: &str) -> crate::Result<String> {
-        self.process(text).map_err(|e| crate::Error::data(format!("文本规范化处理失败: {}", e)))
+        self.process(text).map_err(|e| crate::Error::invalid_data(format!("文本规范化处理失败: {}", e)))
     }
     
     fn name(&self) -> &str {

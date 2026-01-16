@@ -409,7 +409,7 @@ impl SyncProtocol {
             })?;
             
             if sessions.len() >= self.max_sessions {
-                return Err(Error::resource_exhausted("Maximum number of sync sessions reached"));
+                return Err(Error::resource("Maximum number of sync sessions reached"));
             }
         }
         

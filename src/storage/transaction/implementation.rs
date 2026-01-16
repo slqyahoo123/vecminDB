@@ -680,7 +680,7 @@ impl Transaction {
         
         // 检查资源限制
         if self.operations.len() > 10000 {
-            return Err(Error::resource_exhausted("事务操作数量过多"));
+            return Err(Error::resource("事务操作数量过多"));
         }
         
         Ok(())
@@ -1052,13 +1052,13 @@ impl TransactionManager {
             .create(true)
             .append(true)
             .open(log_file_path)
-            .map_err(|e| Error::io(format!("无法打开事务日志文件: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("无法打开事务日志文件: {}", e)))?;
         
         file.write_all(log_entry.as_bytes())
-            .map_err(|e| Error::io(format!("无法写入事务日志: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("无法写入事务日志: {}", e)))?;
         
         file.flush()
-            .map_err(|e| Error::io(format!("无法刷新事务日志: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("无法刷新事务日志: {}", e)))?;
         
         Ok(())
     }
@@ -1071,7 +1071,7 @@ impl TransactionManager {
         }
         
         let content = fs::read_to_string(log_file_path)
-            .map_err(|e| Error::io(format!("无法读取事务日志: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("无法读取事务日志: {}", e)))?;
         
         let mut recovered = 0;
         let mut pending_transactions = HashMap::new();

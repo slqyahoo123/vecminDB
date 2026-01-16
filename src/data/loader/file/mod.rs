@@ -1779,13 +1779,13 @@ pub mod excel_utils {
         let worksheet = workbook.add_worksheet();
         worksheet
             .set_name("Sheet1")
-            .map_err(|e| Error::Data(format!("设置工作表名称失败: {}", e)))?;
+            .map_err(|e| Error::invalid_data(format!("设置工作表名称失败: {}", e)))?;
         
         // 写入标题行
         for (col_idx, header) in headers.iter().enumerate() {
             worksheet
                 .write_string(0, col_idx as u16, header)
-                .map_err(|e| Error::Data(format!("写入标题单元格失败 (列 {}): {}", col_idx, e)))?;
+                .map_err(|e| Error::invalid_data(format!("写入标题单元格失败 (列 {}): {}", col_idx, e)))?;
         }
         
         // 写入数据行
@@ -1795,7 +1795,7 @@ pub mod excel_utils {
                 if let Ok(int_val) = cell_value.parse::<i64>() {
                     worksheet
                         .write_number(row_idx as u32 + 1, col_idx as u16, int_val as f64)
-                        .map_err(|e| Error::Data(format!(
+                        .map_err(|e| Error::invalid_data(format!(
                             "写入数字单元格失败 (行 {}, 列 {}): {}",
                             row_idx + 1,
                             col_idx,
@@ -1804,7 +1804,7 @@ pub mod excel_utils {
                 } else if let Ok(float_val) = cell_value.parse::<f64>() {
                     worksheet
                         .write_number(row_idx as u32 + 1, col_idx as u16, float_val)
-                        .map_err(|e| Error::Data(format!(
+                        .map_err(|e| Error::invalid_data(format!(
                             "写入浮点单元格失败 (行 {}, 列 {}): {}",
                             row_idx + 1,
                             col_idx,
@@ -1813,7 +1813,7 @@ pub mod excel_utils {
                 } else if let Ok(bool_val) = cell_value.parse::<bool>() {
                     worksheet
                         .write_boolean(row_idx as u32 + 1, col_idx as u16, bool_val)
-                        .map_err(|e| Error::Data(format!(
+                        .map_err(|e| Error::invalid_data(format!(
                             "写入布尔单元格失败 (行 {}, 列 {}): {}",
                             row_idx + 1,
                             col_idx,
@@ -1822,7 +1822,7 @@ pub mod excel_utils {
                 } else {
                     worksheet
                         .write_string(row_idx as u32 + 1, col_idx as u16, cell_value)
-                        .map_err(|e| Error::Data(format!(
+                        .map_err(|e| Error::invalid_data(format!(
                             "写入字符串单元格失败 (行 {}, 列 {}): {}",
                             row_idx + 1,
                             col_idx,

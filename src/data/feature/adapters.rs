@@ -329,7 +329,7 @@ impl AudioFeatureExtractorAdapter {
         // 尝试作为文件路径读取
         if std::path::Path::new(input).exists() {
             return std::fs::read(input)
-                .map_err(|e| Error::io(format!("读取音频文件失败: {}", e)));
+                .map_err(|e| Error::io_error(format!("读取音频文件失败: {}", e)));
         }
         
         // 默认返回空数据

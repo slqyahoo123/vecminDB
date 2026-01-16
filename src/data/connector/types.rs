@@ -170,13 +170,13 @@ impl DatabaseConnectorFactory {
             },
             // 下面这些数据库类型依赖尚未启用的外部驱动，实现占位错误返回，避免 cfg(feature=...) 警告
             DatabaseType::MongoDB => {
-                Err(Error::Data("MongoDB connector feature is not enabled".to_string()))
+                Err(Error::invalid_data("MongoDB connector feature is not enabled".to_string()))
             },
             DatabaseType::Elasticsearch => {
-                Err(Error::Data("Elasticsearch connector feature is not enabled".to_string()))
+                Err(Error::invalid_data("Elasticsearch connector feature is not enabled".to_string()))
             },
             DatabaseType::Neo4j => {
-                Err(Error::Data("Neo4j connector feature is not enabled".to_string()))
+                Err(Error::invalid_data("Neo4j connector feature is not enabled".to_string()))
             },
             _ => Err(Error::not_implemented(format!("不支持的数据库类型: {:?}", config.db_type)))
         }

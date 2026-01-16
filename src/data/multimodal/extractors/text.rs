@@ -92,10 +92,10 @@ impl ModalityExtractor for TextFeatureExtractor {
                 if let Some(serde_json::Value::String(s)) = obj.get("text") {
                     s.clone()
                 } else {
-                    return Err(Error::InvalidArgument("Text data not found in JSON object".to_string()));
+                    return Err(Error::invalid_argument("Text data not found in JSON object".to_string()));
                 }
             },
-            _ => return Err(Error::InvalidArgument("Invalid text data format".to_string())),
+            _ => return Err(Error::invalid_argument("Invalid text data format".to_string())),
         };
         
         // 提取特征
@@ -105,7 +105,7 @@ impl ModalityExtractor for TextFeatureExtractor {
             .block_on(async {
                 self.extract(input, None)
                     .await
-                    .map_err(|e| Error::data(format!("Failed to extract text features: {}", e)))
+                    .map_err(|e| Error::invalid_data(format!("Failed to extract text features: {}", e)))
             })?;
         
         // 转换为CoreTensorData

@@ -100,7 +100,7 @@ impl MemoryBlock {
         
         let ptr = unsafe { alloc(layout) };
         if ptr.is_null() {
-            return Err(Error::resource_exhausted("Failed to allocate memory block"));
+            return Err(Error::resource("Failed to allocate memory block"));
         }
         
         let now = Instant::now();
@@ -211,7 +211,7 @@ impl MemoryPool {
         // 检查是否可以创建新块
         if self.current_capacity.load(Ordering::Relaxed) >= self.max_capacity {
             self.stats.increment_miss();
-            return Err(Error::resource_exhausted("Memory pool at capacity"));
+            return Err(Error::resource("Memory pool at capacity"));
         }
         
         // 创建新块

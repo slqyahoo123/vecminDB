@@ -345,7 +345,7 @@ impl DataShardManager {
                 
                 // 计算记录哈希值：将记录序列化为JSON字符串，然后计算哈希
                 let record_json = serde_json::to_string(&record)
-                    .map_err(|e| Error::data(format!("序列化记录失败: {}", e)))?;
+                    .map_err(|e| Error::invalid_data(format!("序列化记录失败: {}", e)))?;
                 let hash_bytes = record_json.as_bytes();
                 let hash = compute_hash(hash_bytes);
                 

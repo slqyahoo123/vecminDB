@@ -27,7 +27,7 @@ impl BertExtractor {
         
         // 模型路径校验
         if model_path.is_none() {
-            return Err(Error::InvalidArgument("BERT提取器需要提供模型路径".to_string()));
+            return Err(Error::invalid_argument("BERT提取器需要提供模型路径".to_string()));
         }
         
         let vector_size = config.word_vector_dimension; // BERT基本模型维度是768
@@ -74,7 +74,7 @@ impl BertExtractor {
     fn load_model(&mut self) -> Result<()> {
         if let Some(path) = &self.model_path {
             if !Path::new(path).exists() {
-                return Err(Error::InvalidArgument(format!("BERT模型路径不存在: {}", path)));
+                return Err(Error::invalid_argument(format!("BERT模型路径不存在: {}", path)));
             }
             
             // 在实际实现中，这里应该加载真实的BERT模型
@@ -86,7 +86,7 @@ impl BertExtractor {
             
             Ok(())
         } else {
-            Err(Error::InvalidArgument("未指定BERT模型路径".to_string()))
+            Err(Error::invalid_argument("未指定BERT模型路径".to_string()))
         }
     }
     

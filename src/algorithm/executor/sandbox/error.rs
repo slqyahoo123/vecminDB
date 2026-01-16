@@ -138,7 +138,7 @@ impl From<std::string::FromUtf8Error> for SandboxError {
 impl From<SandboxError> for Error {
     fn from(error: SandboxError) -> Self {
         match error {
-            SandboxError::ResourceExceeded(msg) => Error::resource_exhausted(msg),
+            SandboxError::ResourceExceeded(msg) => Error::resource(msg),
             SandboxError::Timeout(ms) => Error::deadline_exceeded(format!("执行超时: {}ms", ms)),
             SandboxError::SecurityViolation(msg) => Error::permission_denied(msg),
             SandboxError::Cancelled(msg) => Error::cancelled(msg),

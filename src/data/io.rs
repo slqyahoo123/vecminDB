@@ -73,11 +73,11 @@ pub fn load_from_file<P: AsRef<Path>>(path: P) -> Result<Vec<DataValue>> {
         },
         Some(ext) => {
             error!("不支持的文件格式: {}", ext);
-            Err(Error::unsupported_format(format!("不支持的文件格式: {:?}", path)))
+            Err(Error::unsupported_file_type(format!("不支持的文件格式: {:?}", path)))
         },
         None => {
             error!("无法确定文件格式: {:?}", path);
-            Err(Error::unsupported_format(format!("不支持的文件格式: {:?}", path)))
+            Err(Error::unsupported_file_type(format!("不支持的文件格式: {:?}", path)))
         }
     }
 }
@@ -126,11 +126,11 @@ pub fn save_to_file<P: AsRef<Path>>(data: &[DataValue], path: P) -> Result<()> {
         },
         Some(ext) => {
             error!("不支持的文件格式: {}", ext);
-            Err(Error::unsupported_format(format!("不支持的文件格式: {:?}", path)))
+            Err(Error::unsupported_file_type(format!("不支持的文件格式: {:?}", path)))
         },
         None => {
             error!("无法确定文件格式: {:?}", path);
-            Err(Error::unsupported_format(format!("不支持的文件格式: {:?}", path)))
+            Err(Error::unsupported_file_type(format!("不支持的文件格式: {:?}", path)))
         }
     }
 }

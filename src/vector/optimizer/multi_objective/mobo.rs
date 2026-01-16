@@ -311,10 +311,10 @@ impl MultiObjectiveOptimizer for MOBO {
         use rand::Rng;
 
         if objective_functions.is_empty() {
-            return Err(Error::InvalidArgument("MOBO 需要至少一个目标函数".to_string()));
+            return Err(Error::invalid_argument("MOBO 需要至少一个目标函数".to_string()));
         }
         if bounds.is_empty() {
-            return Err(Error::InvalidArgument("MOBO 需要至少一个参数维度".to_string()));
+            return Err(Error::invalid_argument("MOBO 需要至少一个参数维度".to_string()));
         }
 
         let dim = bounds.len();
@@ -666,7 +666,7 @@ impl MultiObjectiveOptimizer for MOBO {
                 .any(|p| p.name() == name.as_str());
 
             if !exists {
-                return Err(Error::InvalidArgument(format!(
+                return Err(Error::invalid_argument(format!(
                     "Unknown parameter: {}", name
                 )));
             }

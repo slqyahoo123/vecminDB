@@ -193,7 +193,7 @@ impl PermissionManager {
         // 复用现有的基于路径的构造逻辑
         let path_str = temp_dir
             .to_str()
-            .ok_or_else(|| Error::Configuration("Invalid temp permissions path".to_string()))?;
+            .ok_or_else(|| Error::config("Invalid temp permissions path".to_string()))?;
         Self::new(path_str)
     }
     

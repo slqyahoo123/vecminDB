@@ -81,7 +81,7 @@ impl AudioFeatureExtractor {
         match source {
             AudioSource::Base64(data) => {
                 let decoded = BASE64.decode(data.as_bytes())
-                    .map_err(|e| Error::data(format!("Base64解码失败: {}", e)))?;
+                    .map_err(|e| Error::invalid_data(format!("Base64解码失败: {}", e)))?;
                     
                 let (samples, sample_rate) = self.decode_audio(&decoded)?;
                 self.process_audio(&samples, sample_rate)
@@ -91,14 +91,14 @@ impl AudioFeatureExtractor {
                 #[cfg(feature = "multimodal")]
                 {
                     let client = self.http_client.as_ref()
-                        .ok_or_else(|| Error::data("HTTP客户端未初始化".to_string()))?;
+                        .ok_or_else(|| Error::invalid_data("HTTP客户端未初始化".to_string()))?;
                     
                     let response = client.get(url)
                         .send()
-                        .map_err(|e| Error::data(format!("HTTP请求失败: {}", e)))?;
+                        .map_err(|e| Error::invalid_data(format!("HTTP请求失败: {}", e)))?;
                 
                     let bytes = response.bytes()
-                        .map_err(|e| Error::data(format!("读取响应数据失败: {}", e)))?;
+                        .map_err(|e| Error::invalid_data(format!("读取响应数据失败: {}", e)))?;
                     
                     let (samples, sample_rate) = self.decode_audio(&bytes)?;
                     self.process_audio(&samples, sample_rate)
@@ -111,11 +111,11 @@ impl AudioFeatureExtractor {
             
             AudioSource::File(path) => {
                 if !path.exists() {
-                    return Err(Error::data("音频文件不存在".to_string()));
+                    return Err(Error::invalid_data("音频文件不存在".to_string()));
                 }
                 
                 let bytes = std::fs::read(path)
-                    .map_err(|e| Error::data(format!("读取音频文件失败: {}", e)))?;
+                    .map_err(|e| Error::invalid_data(format!("读取音频文件失败: {}", e)))?;
                     
                 let (samples, sample_rate) = self.decode_audio(&bytes)?;
                 self.process_audio(&samples, sample_rate)
@@ -150,26 +150,26 @@ impl AudioFeatureExtractor {
             // 探测并获取格式读取器
             let probed = symphonia::default::get_probe()
                 .format(&hint, mss, &format_opts, &metadata_opts)
-                .map_err(|e| Error::data(format!("音频解码失败: {}", e)))?;
+                .map_err(|e| Error::invalid_data(format!("音频解码失败: {}", e)))?;
                 
             let mut format = probed.format;
             
             // 获取默认音轨
             let track = format.default_track()
-                .ok_or_else(|| Error::data("没有找到默认音轨".to_string()))?;
+                .ok_or_else(|| Error::invalid_data("没有找到默认音轨".to_string()))?;
                 
             let sample_rate = track.codec_params.sample_rate
-                .ok_or_else(|| Error::data("无法获取采样率".to_string()))?;
+                .ok_or_else(|| Error::invalid_data("无法获取采样率".to_string()))?;
                 
             // 获取解码器
             let mut decoder = symphonia::default::get_codecs()
                 .make(&track.codec_params, &decoder_opts)
-                .map_err(|e| Error::data(format!("创建解码器失败: {}", e)))?;
+                .map_err(|e| Error::invalid_data(format!("创建解码器失败: {}", e)))?;
                 
             // 解码所有音频帧并收集样本
             let mut samples = Vec::new();
             let channels = track.codec_params.channels
-                .ok_or_else(|| Error::data("无法获取通道数".to_string()))?
+                .ok_or_else(|| Error::invalid_data("无法获取通道数".to_string()))?
                 .count();
                 
             loop {
@@ -397,7 +397,7 @@ impl AudioFeatureExtractor {
         
         // 创建特征向量并添加元数据
         let feature_values = feature_data.to_vec()
-            .map_err(|e| Error::data(format!("无法转换特征数据: {}", e)))?;
+            .map_err(|e| Error::invalid_data(format!("无法转换特征数据: {}", e)))?;
         let feature_name = format!("audio-{:?}", self.config.feature_type);
         let mut feature_vector = FeatureVector::new(feature_values, &feature_name);
         // 添加特征名称到元数据
@@ -566,13 +566,13 @@ impl AudioFeatureExtractor {
         use super::extractors::{apply_fft, compute_power_spectrum, apply_hanning_window, frame_signal};
         
         if samples.len() < self.config.frame_length {
-            return Err(Error::data("音频太短，无法提取谐波/噪声比特征".to_string()));
+            return Err(Error::invalid_data("音频太短，无法提取谐波/噪声比特征".to_string()));
         }
         
         // 1. 分帧
         let frames = frame_signal(samples, self.config.frame_length, self.config.hop_length);
         if frames.is_empty() {
-            return Err(Error::data("无法从音频中提取足够的帧".to_string()));
+            return Err(Error::invalid_data("无法从音频中提取足够的帧".to_string()));
         }
         
         // 2. 对每一帧计算谐波/噪声比
@@ -789,7 +789,7 @@ impl AudioFeatureExtractor {
             "zcr" => self.extract_zero_crossing_rate(samples, sample_rate),
             "energy" => self.extract_energy(samples, sample_rate),
             "temporal" => self.extract_temporal_features(samples, sample_rate),
-            _ => Err(Error::data(format!("未知的自定义特征类型: {}", name))),
+            _ => Err(Error::invalid_data(format!("未知的自定义特征类型: {}", name))),
         }
     }
 

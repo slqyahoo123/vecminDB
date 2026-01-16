@@ -99,7 +99,7 @@ impl LocalAlgorithmStorage {
     pub fn load_from_file(&self, path: &Path) -> Result<Algorithm> {
         debug!("从文件加载算法: {:?}", path);
         let data = std::fs::read_to_string(path)
-            .map_err(|e| Error::io(format!("无法读取算法文件: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("无法读取算法文件: {}", e)))?;
         
         let algorithm: Algorithm = serde_json::from_str(&data)
             .map_err(|e| Error::invalid_input(format!("无法解析算法文件: {}", e)))?;
@@ -112,14 +112,14 @@ impl LocalAlgorithmStorage {
         debug!("保存算法到文件: {:?}", path);
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)
-                .map_err(|e| Error::io(format!("无法创建目录: {}", e)))?;
+                .map_err(|e| Error::io_error(format!("无法创建目录: {}", e)))?;
         }
         
         let data = serde_json::to_string_pretty(algorithm)
             .map_err(|e| Error::internal(format!("无法序列化算法: {}", e)))?;
         
         std::fs::write(path, data)
-            .map_err(|e| Error::io(format!("无法写入算法文件: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("无法写入算法文件: {}", e)))?;
         
         Ok(())
     }
@@ -294,7 +294,7 @@ impl AsyncAlgorithmStorage for FileSystemAlgorithmStorage {
             .map_err(|e| Error::internal(format!("无法序列化算法: {}", e)))?;
         
         fs::write(path, data).await
-            .map_err(|e| Error::io(format!("无法写入算法文件: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("无法写入算法文件: {}", e)))?;
         
         // 更新缓存
         {
@@ -358,7 +358,7 @@ impl AsyncAlgorithmStorage for FileSystemAlgorithmStorage {
         // 从文件系统删除
         let path = self.algorithm_path(id);
         fs::remove_file(path).await
-            .map_err(|e| Error::io(format!("无法删除算法文件: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("无法删除算法文件: {}", e)))?;
         
         // 从缓存中删除
         {
@@ -390,7 +390,7 @@ impl AsyncAlgorithmStorage for FileSystemAlgorithmStorage {
     async fn list_algorithms(&self) -> Result<Vec<String>> {
         debug!("异步列出所有算法");
         let mut entries = fs::read_dir(&self.base_path).await
-            .map_err(|e| Error::io(format!("无法读取算法目录: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("无法读取算法目录: {}", e)))?;
         
         let mut algorithm_ids = Vec::new();
         while let Ok(Some(entry)) = entries.next_entry().await {
@@ -426,7 +426,7 @@ impl AsyncAlgorithmStorage for FileSystemAlgorithmStorage {
         if let Some(parent) = export_path.parent() {
             if !parent.exists() {
                 fs::create_dir_all(parent).await
-                    .map_err(|e| Error::io(format!("无法创建导出目录: {}", e)))?;
+                    .map_err(|e| Error::io_error(format!("无法创建导出目录: {}", e)))?;
                 debug!("创建导出目录: {:?}", parent);
             }
         }
@@ -439,7 +439,7 @@ impl AsyncAlgorithmStorage for FileSystemAlgorithmStorage {
             .map_err(|e| Error::internal(format!("无法序列化元数据: {}", e)))?;
             
         fs::write(&export_path, json_data).await
-            .map_err(|e| Error::io(format!("无法写入元数据文件: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("无法写入元数据文件: {}", e)))?;
             
         info!("成功导出算法元数据: {}, 路径: {:?}", id, export_path);
         
@@ -464,7 +464,7 @@ impl AsyncAlgorithmStorage for FileSystemAlgorithmStorage {
         if let Some(parent) = task_path.parent() {
             if !parent.exists() {
                 fs::create_dir_all(parent).await
-                    .map_err(|e| Error::io(format!("无法创建任务目录: {}", e)))?;
+                    .map_err(|e| Error::io_error(format!("无法创建任务目录: {}", e)))?;
                 debug!("创建任务目录: {:?}", parent);
             }
         }
@@ -474,7 +474,7 @@ impl AsyncAlgorithmStorage for FileSystemAlgorithmStorage {
             .map_err(|e| Error::internal(format!("无法序列化任务: {}", e)))?;
             
         fs::write(&task_path, json_data).await
-            .map_err(|e| Error::io(format!("无法写入任务文件: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("无法写入任务文件: {}", e)))?;
             
         info!("成功导入算法任务: {}, 路径: {:?}", task.id, task_path);
         
@@ -495,7 +495,7 @@ impl AsyncAlgorithmStorage for FileSystemAlgorithmStorage {
         if let Some(parent) = index_path.parent() {
             if !parent.exists() {
                 fs::create_dir_all(parent).await
-                    .map_err(|e| Error::io(format!("无法创建索引目录: {}", e)))?;
+                    .map_err(|e| Error::io_error(format!("无法创建索引目录: {}", e)))?;
                 debug!("创建索引目录: {:?}", parent);
             }
         }
@@ -526,7 +526,7 @@ impl AsyncAlgorithmStorage for FileSystemAlgorithmStorage {
             .map_err(|e| Error::internal(format!("无法序列化索引: {}", e)))?;
             
         fs::write(&index_path, json_data).await
-            .map_err(|e| Error::io(format!("无法写入索引文件: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("无法写入索引文件: {}", e)))?;
             
         debug!("成功更新任务索引");
         

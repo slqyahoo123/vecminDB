@@ -68,7 +68,7 @@ impl CassandraSession {
                 
                 // 执行查询（使用query方法，与loader/common/mod.rs保持一致）
                 let result = session.query(query, &scylla_params).await
-                    .map_err(|e| crate::Error::data(format!("Cassandra查询失败: {}", e)))?;
+                    .map_err(|e| crate::Error::invalid_data(format!("Cassandra查询失败: {}", e)))?;
                 
                 // 转换结果
                 let mut results = Vec::new();
@@ -103,13 +103,13 @@ impl CassandraSession {
                 
                 Ok(results)
             } else {
-                Err(crate::Error::data("Cassandra会话未初始化".to_string()))
+                Err(crate::Error::invalid_data("Cassandra会话未初始化".to_string()))
             }
         }
         
         #[cfg(not(feature = "cassandra"))]
         {
-            Err(crate::Error::data(
+            Err(crate::Error::invalid_data(
                 "Cassandra功能未启用，请在Cargo.toml中启用'cassandra' feature".to_string()
             ))
         }
@@ -145,19 +145,19 @@ impl CassandraSession {
                 
                 // 执行语句（使用query方法，因为execute可能不存在）
                 let result = session.query(query, &scylla_params).await
-                    .map_err(|e| crate::Error::data(format!("Cassandra执行失败: {}", e)))?;
+                    .map_err(|e| crate::Error::invalid_data(format!("Cassandra执行失败: {}", e)))?;
                 
                 // 对于INSERT/UPDATE/DELETE语句，返回受影响的行数
                 // 注意：Cassandra不返回受影响的行数，我们返回1表示成功
                 Ok(1)
             } else {
-                Err(crate::Error::data("Cassandra会话未初始化".to_string()))
+                Err(crate::Error::invalid_data("Cassandra会话未初始化".to_string()))
             }
         }
         
         #[cfg(not(feature = "cassandra"))]
         {
-            Err(crate::Error::data(
+            Err(crate::Error::invalid_data(
                 "Cassandra功能未启用，请在Cargo.toml中启用'cassandra' feature".to_string()
             ))
         }
@@ -181,7 +181,7 @@ impl CassandraSession {
                 params.push(scylla::frame::response::result::CqlValue::Text(table.to_string()));
                 
                 let result = session.query(&query, &params).await
-                    .map_err(|e| crate::Error::data(format!("查询表结构失败: {}", e)))?;
+                    .map_err(|e| crate::Error::invalid_data(format!("查询表结构失败: {}", e)))?;
                 
                 let mut fields = Vec::new();
                 if let Some(rows) = result.rows {
@@ -233,7 +233,7 @@ impl CassandraSession {
                 
                 Ok(fields)
             } else {
-                Err(crate::Error::data("Cassandra会话未初始化".to_string()))
+                Err(crate::Error::invalid_data("Cassandra会话未初始化".to_string()))
             }
         }
         

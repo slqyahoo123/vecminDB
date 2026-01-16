@@ -1387,8 +1387,12 @@ impl Default for Storage {
         match Self::open(config) {
             Ok(storage) => storage,
             Err(e) => {
-                log::error!("Storage::default() 创建失败: {}", e);
-                panic!("Storage::default() 创建失败: {}。请使用 Storage::new() 或 Storage::new_in_memory() 代替。", e)
+                let error_msg = format!(
+                    "Storage::default() 创建失败: {}。请使用 Storage::new() 或 Storage::new_in_memory() 代替。",
+                    e
+                );
+                log::error!("{}", error_msg);
+                panic!("{}", error_msg)
             }
         }
     }

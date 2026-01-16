@@ -287,7 +287,7 @@ impl DistributedIndexManager {
             operation: ClusterOperation::UpdateNodeStatus(node_id, status),
         };
         
-        self.event_sender.send(event).await.map_err(|e| Error::io(e.to_string()))?;
+        self.event_sender.send(event).await.map_err(|e| Error::io_error(e.to_string()))?;
         
         Ok(())
     }
@@ -329,7 +329,7 @@ impl DistributedIndexManager {
                 operation: ClusterOperation::AddShard(shard_info),
             };
             
-            self.event_sender.send(event).await.map_err(|e| Error::io(e.to_string()))?;
+            self.event_sender.send(event).await.map_err(|e| Error::io_error(e.to_string()))?;
             
             // 更新节点的分片列表
             if let Ok(node_info) = self.node_info.read() {

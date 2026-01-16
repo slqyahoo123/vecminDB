@@ -177,7 +177,7 @@ impl LegacyProcessorAdapter {
             Error::IoError(format!("读取数据文件失败: {}", e)))?;
         
         let data: HashMap<String, DataValue> = serde_json::from_str(&data_json).map_err(|e| 
-            Error::DeserializationError(format!("数据反序列化失败: {}", e)))?;
+            Error::serialization(format!("数据反序列化失败: {}", e)))?;
         
         // 读取处理后的元数据
         let metadata_file = output_dir.join("metadata.json");
@@ -185,7 +185,7 @@ impl LegacyProcessorAdapter {
             Error::IoError(format!("读取元数据文件失败: {}", e)))?;
         
         let metadata: HashMap<String, String> = serde_json::from_str(&metadata_json).map_err(|e| 
-            Error::DeserializationError(format!("元数据反序列化失败: {}", e)))?;
+            Error::serialization(format!("元数据反序列化失败: {}", e)))?;
         
         debug!("从临时文件读取结果: 数据键数量={}, 元数据键数量={}", data.len(), metadata.len());
         Ok(ProcessorResult { data, metadata })

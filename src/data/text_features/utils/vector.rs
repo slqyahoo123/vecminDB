@@ -6,7 +6,7 @@ use crate::Result;
 /// 使用余弦相似度计算两个特征向量之间的相似度
 pub fn feature_similarity(vec1: &[f32], vec2: &[f32]) -> Result<f32> {
     if vec1.len() != vec2.len() {
-        return Err(Error::InvalidArgument(
+        return Err(Error::invalid_argument(
             format!("特征向量长度不同: {} vs {}", vec1.len(), vec2.len())
         ));
     }
@@ -55,7 +55,7 @@ pub fn normalize_vector(vec: &mut [f32]) -> Result<()> {
 /// 向量平均
 pub fn vector_average(vectors: &[Vec<f32>]) -> Result<Vec<f32>> {
     if vectors.is_empty() {
-        return Err(Error::InvalidArgument("向量列表为空".to_string()));
+        return Err(Error::invalid_argument("向量列表为空".to_string()));
     }
     
     let dim = vectors[0].len();
@@ -63,7 +63,7 @@ pub fn vector_average(vectors: &[Vec<f32>]) -> Result<Vec<f32>> {
     
     for vec in vectors {
         if vec.len() != dim {
-            return Err(Error::InvalidArgument("向量维度不一致".to_string()));
+            return Err(Error::invalid_argument("向量维度不一致".to_string()));
         }
         
         for (i, &val) in vec.iter().enumerate() {

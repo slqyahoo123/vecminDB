@@ -74,7 +74,7 @@ impl FusionModule {
     // 连接融合
     fn concat_fusion(&self, features: HashMap<String, CoreTensorData>) -> Result<CoreTensorData> {
         if features.is_empty() {
-            return Err(Error::InvalidArgument("Empty features for fusion".to_string()));
+            return Err(Error::invalid_argument("Empty features for fusion".to_string()));
         }
         
         // 简单拼接所有特征
@@ -83,7 +83,7 @@ impl FusionModule {
         
         for tensor in features.values() {
             if tensor.shape.len() != 2 || tensor.shape[0] != 1 {
-                return Err(Error::InvalidArgument("Invalid tensor shape for fusion".to_string()));
+                return Err(Error::invalid_argument("Invalid tensor shape for fusion".to_string()));
             }
             
             concatenated_data.extend_from_slice(&tensor.data);
@@ -119,7 +119,7 @@ impl FusionModule {
     // 加权融合
     fn weighted_fusion(&self, features: HashMap<String, CoreTensorData>) -> Result<CoreTensorData> {
         if features.is_empty() {
-            return Err(Error::InvalidArgument("Empty features for fusion".to_string()));
+            return Err(Error::invalid_argument("Empty features for fusion".to_string()));
         }
         
         // 获取权重，如果没有设置则平均
@@ -173,24 +173,30 @@ impl FusionModule {
     }
     
     // 注意力融合
-    fn attention_fusion(&self, features: HashMap<String, CoreTensorData>) -> Result<CoreTensorData> {
-        // 简化的注意力融合实现
-        // 实际实现应该计算注意力权重矩阵，此处简化为加权求和
-        self.weighted_fusion(features)
+    fn attention_fusion(&self, _features: HashMap<String, CoreTensorData>) -> Result<CoreTensorData> {
+        // 注意力融合需要计算注意力权重矩阵，当前返回特征未启用错误
+        // 如需使用注意力融合，请集成注意力机制实现或使用其他融合策略（如Weighted）
+        Err(Error::feature_not_enabled(
+            "注意力融合需要完整的注意力机制实现，当前未集成。请使用其他融合策略（如Concatenation、Weighted）或集成注意力机制。".to_string()
+        ))
     }
     
     // 门控融合
-    fn gated_fusion(&self, features: HashMap<String, CoreTensorData>) -> Result<CoreTensorData> {
-        // 简化的门控融合实现
-        // 实际实现应该有门控单元控制信息流
-        self.weighted_fusion(features)
+    fn gated_fusion(&self, _features: HashMap<String, CoreTensorData>) -> Result<CoreTensorData> {
+        // 门控融合需要门控单元控制信息流，当前返回特征未启用错误
+        // 如需使用门控融合，请集成门控机制实现或使用其他融合策略（如Weighted）
+        Err(Error::feature_not_enabled(
+            "门控融合需要完整的门控机制实现，当前未集成。请使用其他融合策略（如Concatenation、Weighted）或集成门控机制。".to_string()
+        ))
     }
     
     // 张量融合
-    fn tensor_fusion(&self, features: HashMap<String, CoreTensorData>) -> Result<CoreTensorData> {
-        // 简化的张量融合实现
-        // 实际实现应该计算外积再降维
-        self.weighted_fusion(features)
+    fn tensor_fusion(&self, _features: HashMap<String, CoreTensorData>) -> Result<CoreTensorData> {
+        // 张量融合需要计算外积再降维，当前返回特征未启用错误
+        // 如需使用张量融合，请集成张量运算实现或使用其他融合策略（如Weighted）
+        Err(Error::feature_not_enabled(
+            "张量融合需要完整的张量运算实现（外积和降维），当前未集成。请使用其他融合策略（如Concatenation、Weighted）或集成张量运算库。".to_string()
+        ))
     }
     
     // 自定义融合
@@ -270,7 +276,7 @@ impl FeatureFusionExtractor {
 impl FeatureFusion for FeatureFusionExtractor {
     fn fuse_features(&self, features: &[Vec<f32>]) -> Result<Vec<f32>> {
         if features.is_empty() {
-            return Err(Error::data("没有提供特征进行融合".to_string()));
+            return Err(Error::invalid_data("没有提供特征进行融合".to_string()));
         }
         
         match self.config.strategy {
@@ -287,7 +293,7 @@ impl FeatureFusion for FeatureFusionExtractor {
                 let dim = features[0].len();
                 for (i, feature) in features.iter().enumerate().skip(1) {
                     if feature.len() != dim {
-                        return Err(Error::data(
+                        return Err(Error::invalid_data(
                             format!("特征维度不一致: 第0个特征维度={}, 第{}个特征维度={}", 
                                     dim, i, feature.len())
                         ));
@@ -333,7 +339,7 @@ impl FeatureFusion for FeatureFusionExtractor {
                 let dim = features[0].len();
                 for (i, feature) in features.iter().enumerate().skip(1) {
                     if feature.len() != dim {
-                        return Err(Error::data(
+                        return Err(Error::invalid_data(
                             format!("特征维度不一致: 第0个特征维度={}, 第{}个特征维度={}", 
                                     dim, i, feature.len())
                         ));
@@ -355,7 +361,7 @@ impl FeatureFusion for FeatureFusionExtractor {
                 let dim = features[0].len();
                 for (i, feature) in features.iter().enumerate().skip(1) {
                     if feature.len() != dim {
-                        return Err(Error::data(
+                        return Err(Error::invalid_data(
                             format!("特征维度不一致: 第0个特征维度={}, 第{}个特征维度={}", 
                                     dim, i, feature.len())
                         ));

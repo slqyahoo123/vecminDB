@@ -362,7 +362,7 @@ impl MultiModalExtractor {
         
         // If no features were extracted, return error
         if modality_features.is_empty() {
-            return Err(Error::Data("Failed to extract features from all modalities".to_string()));
+            return Err(Error::invalid_data("Failed to extract features from all modalities".to_string()));
         }
         
         // Perform feature alignment (if alignment module is configured)
@@ -513,7 +513,7 @@ impl extractors::interface::ModalityExtractor for TextModalityExtractor {
         // 从 JSON 中提取文本数据并处理
         let text = data.get("text")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| Error::InvalidArgument("缺少文本数据".to_string()))?;
+            .ok_or_else(|| Error::invalid_argument("缺少文本数据".to_string()))?;
         
         // 使用配置创建文本特征提取器并提取特征
         use crate::data::text_features::extractors::create_extractor_from_config;
@@ -527,10 +527,10 @@ impl extractors::interface::ModalityExtractor for TextModalityExtractor {
         };
         
         let extractor = create_extractor_from_config(&text_config)
-            .map_err(|e| Error::InvalidArgument(format!("创建文本特征提取器失败: {}", e)))?;
+            .map_err(|e| Error::invalid_argument(format!("创建文本特征提取器失败: {}", e)))?;
         
         let features = extractor.extract(text)
-            .map_err(|e| Error::InvalidArgument(format!("提取文本特征失败: {}", e)))?;
+            .map_err(|e| Error::invalid_argument(format!("提取文本特征失败: {}", e)))?;
         
         Ok(extractors::interface::TensorData {
             id: Uuid::new_v4().to_string(),
@@ -604,20 +604,20 @@ impl extractors::interface::ModalityExtractor for ImageModalityExtractor {
             
             let image_data = if let Some(serde_json::Value::String(base64_data)) = data.get("data") {
                 BASE64.decode(base64_data.as_bytes())
-                    .map_err(|e| Error::InvalidArgument(format!("Base64解码失败: {}", e)))?
+                    .map_err(|e| Error::invalid_argument(format!("Base64解码失败: {}", e)))?
             } else if let Some(serde_json::Value::String(path)) = data.get("path") {
                 std::fs::read(path)
-                    .map_err(|e| Error::InvalidArgument(format!("读取图像文件失败: {}", e)))?
+                    .map_err(|e| Error::invalid_argument(format!("读取图像文件失败: {}", e)))?
             } else {
-                return Err(Error::InvalidArgument("缺少图像数据（需要 'data' 或 'path' 字段）".to_string()));
+                return Err(Error::invalid_argument("缺少图像数据（需要 'data' 或 'path' 字段）".to_string()));
             };
             
             // 使用图像特征提取器提取特征
             let extractor = ImageFeatureExtractor::new(self.config.clone())
-                .map_err(|e| Error::InvalidArgument(format!("创建图像特征提取器失败: {}", e)))?;
+                .map_err(|e| Error::invalid_argument(format!("创建图像特征提取器失败: {}", e)))?;
             
             let features = extractor.extract_features_from_bytes(&image_data)
-                .map_err(|e| Error::InvalidArgument(format!("提取图像特征失败: {}", e)))?;
+                .map_err(|e| Error::invalid_argument(format!("提取图像特征失败: {}", e)))?;
             
             Ok(extractors::interface::TensorData {
                 id: Uuid::new_v4().to_string(),
@@ -702,14 +702,14 @@ impl extractors::interface::ModalityExtractor for AudioModalityExtractor {
             } else if let Some(serde_json::Value::String(url)) = data.get("url") {
                 AudioSource::URL(url.clone())
             } else {
-                return Err(Error::InvalidArgument("缺少音频数据（需要 'data'、'path' 或 'url' 字段）".to_string()));
+                return Err(Error::invalid_argument("缺少音频数据（需要 'data'、'path' 或 'url' 字段）".to_string()));
             };
             
             // 使用音频特征提取器提取特征
             let extractor = AudioFeatureExtractor::new(self.config.clone());
             
             let feature_vector = extractor.extract_from_source(&audio_source)
-                .map_err(|e| Error::InvalidArgument(format!("提取音频特征失败: {}", e)))?;
+                .map_err(|e| Error::invalid_argument(format!("提取音频特征失败: {}", e)))?;
             
             Ok(extractors::interface::TensorData {
                 id: Uuid::new_v4().to_string(),

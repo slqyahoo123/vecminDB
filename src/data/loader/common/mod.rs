@@ -402,7 +402,7 @@ impl CommonDataLoader {
             
             // 打开Avro文件
             let file = File::open(path)
-                .map_err(|e| Error::io(format!("打开Avro文件失败: {}, error: {}", path, e)))?;
+                .map_err(|e| Error::io_error(format!("打开Avro文件失败: {}, error: {}", path, e)))?;
                 
             let reader = BufReader::new(file);
             let avro_reader = Reader::new(reader)
@@ -1857,11 +1857,11 @@ impl DataSourceConnector for NullDataSourceConnector {
     }
 
     fn read(&self, _query: &str) -> Result<DataBatch> {
-        Err(Error::NotSupported("NullDataSourceConnector 不支持读取操作".to_string()))
+        Err(Error::not_implemented("NullDataSourceConnector 不支持读取操作".to_string()))
     }
 
     fn write(&self, _data: &DataBatch, _destination: &str) -> Result<()> {
-        Err(Error::NotSupported("NullDataSourceConnector 不支持写入操作".to_string()))
+        Err(Error::not_implemented("NullDataSourceConnector 不支持写入操作".to_string()))
     }
 }
 
@@ -1896,7 +1896,7 @@ impl DataCache for MemoryCache {
     
     fn put(&self, key: &str, value: DataBatch) -> Result<()> {
         if self.cache.len() >= self.max_size {
-            return Err(Error::resource_exhausted("缓存已满"));
+            return Err(Error::resource("缓存已满"));
         }
         
         let mut cache = self.cache.clone();
@@ -1991,7 +1991,7 @@ impl ErrorHandler for DefaultErrorHandler {
             Error::Io(_) => {
                 error!("IO错误, 可能需要检查文件路径、权限或磁盘空间");
             },
-            Error::Serialization(_) | Error::Deserialization(_) | Error::InvalidInput(_) => {
+            Error::Serialization(_) | Error::Serialization(_) | Error::InvalidInput(_) => {
                 error!("序列化/反序列化或数据格式错误, 请检查数据源格式是否与配置匹配");
             },
             Error::Validation(_) => {
@@ -2003,7 +2003,7 @@ impl ErrorHandler for DefaultErrorHandler {
         }
 
         // 不直接克隆传入的 &Error，而是包装为带上下文的 Data 错误
-        Err(Error::Data(format!("数据加载错误(源={}): {}", source, error)))
+        Err(Error::invalid_data(format!("数据加载错误(源={}): {}", source, error)))
     }
     
     fn log_error(&self, source: &str, message: &str) {

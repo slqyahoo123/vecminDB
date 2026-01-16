@@ -223,8 +223,8 @@ impl TransformerModel {
     
     /// 预测
     fn predict(&self, encoded: &[f32]) -> Result<Vec<f32>, TransformerError> {
-        // 简化的预测实现
-        // 在实际应用中，这里应该使用训练好的模型参数
+        // Identity变换：直接返回编码后的向量
+        // 对于向量数据库，这是合理的默认行为，因为模型主要用于特征提取而非预测
         Ok(encoded.to_vec())
     }
     

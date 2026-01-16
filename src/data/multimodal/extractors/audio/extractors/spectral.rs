@@ -142,7 +142,7 @@ impl ChromaExtractor {
         // 2. 分帧
         let frames = frame_signal(&preemphasized, self.frame_size, self.hop_size);
         if frames.is_empty() {
-            return Err(Error::data(
+            return Err(Error::invalid_data(
                 "音频太短，无法提取足够的帧".to_string()
             ));
         }
@@ -267,7 +267,7 @@ impl SpectralCentroidExtractor {
         // 2. 分帧
         let frames = frame_signal(&preemphasized, self.frame_size, self.hop_size);
         if frames.is_empty() {
-            return Err(Error::data(
+            return Err(Error::invalid_data(
                 "音频太短，无法提取足够的帧".to_string()
             ));
         }
@@ -400,7 +400,7 @@ impl SpectralRolloffExtractor {
         // 2. 分帧
         let frames = frame_signal(&preemphasized, self.frame_size, self.hop_size);
         if frames.is_empty() {
-            return Err(Error::data(
+            return Err(Error::invalid_data(
                 "音频太短，无法提取足够的帧".to_string()
             ));
         }
@@ -506,7 +506,7 @@ impl ZeroCrossingRateExtractor {
         // 1. 分帧
         let frames = frame_signal(samples, self.frame_size, self.hop_size);
         if frames.is_empty() {
-            return Err(Error::data(
+            return Err(Error::invalid_data(
                 "音频太短，无法提取足够的帧".to_string()
             ));
         }
@@ -602,7 +602,7 @@ impl EnergyExtractor {
         // 1. 分帧
         let frames = frame_signal(samples, self.frame_size, self.hop_size);
         if frames.is_empty() {
-            return Err(Error::data(
+            return Err(Error::invalid_data(
                 "音频太短，无法提取足够的帧".to_string()
             ));
         }

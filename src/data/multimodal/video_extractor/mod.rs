@@ -144,7 +144,7 @@ impl VideoFeatureExtractor {
     pub fn new(config: VideoFeatureConfig) -> Result<Self> {
         // 验证配置
         config.validate().map_err(|e| {
-            Error::Data(format!("配置验证失败: {}", e))
+            Error::invalid_data(format!("配置验证失败: {}", e))
         })?;
         
         Ok(Self {
@@ -176,7 +176,7 @@ impl VideoFeatureExtractor {
         if !util::check_video_file(video_path) {
             let error = VideoExtractionError::FileError(format!("视频文件不存在或无法访问: {}", video_path));
             self.last_error = Some(error.clone());
-            return Err(Error::Data(format!("{}", error)));
+            return Err(Error::invalid_data(format!("{}", error)));
         }
         
         // 尝试从缓存获取
@@ -193,7 +193,7 @@ impl VideoFeatureExtractor {
         let result = processing::extract_features_from_file(video_path, &self.config)
             .map_err(|e| {
                 self.last_error = Some(e.clone());
-                Error::Data(format!("{}", e))
+                Error::invalid_data(format!("{}", e))
             })?;
         
         // 更新统计信息
@@ -274,13 +274,13 @@ impl VideoFeatureExtractor {
         if !util::check_video_file(video_path) {
             let error = VideoExtractionError::FileError(format!("视频文件不存在或无法访问: {}", video_path));
             self.last_error = Some(error.clone());
-            return Err(Error::Data(format!("{}", error)));
+            return Err(Error::invalid_data(format!("{}", error)));
         }
         
         // 获取视频元数据
         let metadata = processing::extract_video_metadata(video_path).map_err(|e| {
             self.last_error = Some(e.clone());
-            Error::Data(format!("{}", e))
+            Error::invalid_data(format!("{}", e))
         })?;
         
         let mut results = HashMap::new();
@@ -335,34 +335,34 @@ impl VideoFeatureExtractor {
         
         if frame_count == 0 {
             warn!("时间段过短，无法提取帧: {:?}", interval);
-            return Err(Error::Data(format!("时间段过短，无法提取帧: {:?}", interval)));
+            return Err(Error::invalid_data(format!("时间段过短，无法提取帧: {:?}", interval)));
         }
         
         // 根据特征类型选择提取器
         let feature_type = self.config.feature_types.first().ok_or_else(|| {
-            Error::Data(format!("{}", VideoExtractionError::ConfigError("未指定特征类型".to_string())))
+            Error::invalid_data(format!("{}", VideoExtractionError::ConfigError("未指定特征类型".to_string())))
         })?;
         
         // 初始化提取器
         let mut extractor: Box<dyn processing::FeatureExtractor> = match feature_type {
             VideoFeatureType::RGB => Box::new(processing::RGBFeatureExtractor::new(&self.config)),
             VideoFeatureType::OpticalFlow => Box::new(processing::OpticalFlowExtractor::new(&self.config)),
-            VideoFeatureType::I3D => return Err(Error::Data(format!("{}", VideoExtractionError::NotImplementedError(
+            VideoFeatureType::I3D => return Err(Error::invalid_data(format!("{}", VideoExtractionError::NotImplementedError(
                 "I3D特征提取尚未实现".to_string()
             )))),
-            VideoFeatureType::SlowFast => return Err(Error::Data(format!("{}", VideoExtractionError::NotImplementedError(
+            VideoFeatureType::SlowFast => return Err(Error::invalid_data(format!("{}", VideoExtractionError::NotImplementedError(
                 "SlowFast特征提取尚未实现".to_string()
             )))),
-            VideoFeatureType::Audio => return Err(Error::Data(format!("{}", VideoExtractionError::NotImplementedError(
+            VideoFeatureType::Audio => return Err(Error::invalid_data(format!("{}", VideoExtractionError::NotImplementedError(
                 "音频特征提取尚未实现".to_string()
             )))),
-            VideoFeatureType::Custom(_) => return Err(Error::Data(format!("{}", VideoExtractionError::NotImplementedError(
+            VideoFeatureType::Custom(_) => return Err(Error::invalid_data(format!("{}", VideoExtractionError::NotImplementedError(
                 "自定义特征提取尚未实现".to_string()
             )))),
         };
         
         // 初始化提取器
-        extractor.initialize().map_err(|e| Error::Data(format!("{}", e)))?;
+        extractor.initialize().map_err(|e| Error::invalid_data(format!("{}", e)))?;
         
         // 使用ffmpeg直接提取指定时间段的帧（依赖未启用，暂时统一走模拟帧逻辑）
         // 原始 ffmpeg 实现保留在此处以便未来启用相关特性时参考。
@@ -380,7 +380,7 @@ impl VideoFeatureExtractor {
             self.config.frame_height,
             interval.start,
             interval.end
-        ).map_err(|e| Error::Data(format!("{}", e)))?;
+        ).map_err(|e| Error::invalid_data(format!("{}", e)))?;
         
         Self::process_frames_and_extract_features(frames, extractor, metadata, interval, &self.config)
     }
@@ -397,7 +397,7 @@ impl VideoFeatureExtractor {
         
         // 如果没有足够的帧，则返回错误
         if frames.is_empty() {
-            return Err(Error::Data(format!("{}", VideoExtractionError::ProcessingError(
+            return Err(Error::invalid_data(format!("{}", VideoExtractionError::ProcessingError(
                 format!("时间段 [{:.2}-{:.2}] 未提取到任何帧", interval.start, interval.end)
             ))));
         }
@@ -407,12 +407,12 @@ impl VideoFeatureExtractor {
         // 处理每个帧并提取特征
         let frame_features = frames.iter().map(|frame| {
             extractor.process_frame(frame)
-        }).collect::<Result<Vec<_>, _>>().map_err(|e| Error::Data(format!("{}", e)))?;
+        }).collect::<Result<Vec<_>, _>>().map_err(|e| Error::invalid_data(format!("{}", e)))?;
         
         // 时间池化
         let temporal_pooling_type = config.temporal_pooling;
         let pooled_features = extractor.temporal_pooling(&frame_features, &temporal_pooling_type)
-            .map_err(|e| Error::Data(format!("{}", e)))?;
+            .map_err(|e| Error::invalid_data(format!("{}", e)))?;
         
         // 计算处理时间
         let processing_time_ms = start_time.elapsed().as_millis() as u64;
@@ -705,14 +705,14 @@ impl VideoFeatureExtractor {
         };
         
         export::export_features(vec![result], output_path.as_ref(), options)
-            .map_err(|e| Error::Data(format!("{}", e)))
+            .map_err(|e| Error::invalid_data(format!("{}", e)))
             .map(|_| output_path.as_ref().to_path_buf())
     }
     
     /// 导出特征带自定义选项
     pub fn export_features_with_options(&self, result: &VideoFeatureResult, output_path: impl AsRef<Path>, options: &ExportOptions) -> Result<PathBuf> {
         export::export_features(vec![result], output_path.as_ref(), options.clone())
-            .map_err(|e| Error::Data(format!("{}", e)))
+            .map_err(|e| Error::invalid_data(format!("{}", e)))
             .map(|_| output_path.as_ref().to_path_buf())
     }
     
@@ -728,13 +728,13 @@ impl VideoFeatureExtractor {
         };
         
         export::export_features_batch(results, output_dir.as_ref(), &options)
-            .map_err(|e| Error::Data(format!("{}", e)))
+            .map_err(|e| Error::invalid_data(format!("{}", e)))
     }
     
     /// 批量导出特征(带自定义选项)
     pub fn export_features_batch_with_options(&self, results: &[VideoFeatureResult], output_dir: impl AsRef<Path>, options: &ExportOptions) -> Result<Vec<PathBuf>> {
         export::export_features_batch(results, output_dir.as_ref(), options)
-            .map_err(|e| Error::Data(format!("{}", e)))
+            .map_err(|e| Error::invalid_data(format!("{}", e)))
     }
     
     /// 直接提取并导出特征
@@ -770,7 +770,7 @@ impl VideoFeatureExtractor {
     /// 执行批处理任务
     pub fn batch_process(&mut self, video_paths: Vec<String>) -> Result<batch::BatchSummary> {
         let mut executor = self.create_batch_executor();
-        executor.execute(video_paths).map_err(|e| Error::Data(format!("{}", e)))
+        executor.execute(video_paths).map_err(|e| Error::invalid_data(format!("{}", e)))
     }
     
     /// 执行批处理任务并提供进度回调
@@ -781,7 +781,7 @@ impl VideoFeatureExtractor {
     {
         let mut executor = self.create_batch_executor();
         executor.execute_with_callback(video_paths, Some(progress_callback))
-            .map_err(|e| Error::Data(format!("{}", e)))
+            .map_err(|e| Error::invalid_data(format!("{}", e)))
     }
     
     /// 创建批处理计划
@@ -841,7 +841,7 @@ impl VideoFeatureExtractor {
         let label_map = None;
         
         export::export_to_tensorboard(results, log_dir, label_map)
-            .map_err(|e| Error::Data(format!("{}", e)))
+            .map_err(|e| Error::invalid_data(format!("{}", e)))
     }
     
     /// 导出特征到TensorBoard可视化(带标签)
@@ -851,7 +851,7 @@ impl VideoFeatureExtractor {
         labels: HashMap<String, String>
     ) -> Result<PathBuf> {
         export::export_to_tensorboard(results, log_dir, Some(labels))
-            .map_err(|e| Error::Data(format!("{}", e)))
+            .map_err(|e| Error::invalid_data(format!("{}", e)))
     }
     
     /// 获取可用的导出格式
@@ -882,7 +882,7 @@ impl VideoFeatureExtractor {
     /// 配置提取器
     pub fn configure(&mut self, config: VideoFeatureConfig) -> Result<()> {
         // 验证新配置
-        config.validate().map_err(|e| Error::Data(format!("配置验证失败: {}", e)))?;
+        config.validate().map_err(|e| Error::invalid_data(format!("配置验证失败: {}", e)))?;
         
         // 如果缓存配置发生变化，需要调整缓存
         if self.config.cache_size != config.cache_size {

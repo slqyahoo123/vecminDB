@@ -64,7 +64,7 @@ impl MemoryStorage {
     /// 验证模型ID
     fn validate_model_id(&self, model_id: &str) -> Result<()> {
         if model_id.is_empty() {
-            return Err(Error::InvalidArgument("模型ID不能为空".to_string()));
+            return Err(Error::invalid_argument("模型ID不能为空".to_string()));
         }
         Ok(())
     }
@@ -258,7 +258,7 @@ impl StorageService for MemoryStorage {
         self.validate_model_id(model_id)?;
         
         if inference_id.is_empty() {
-            return Err(Error::InvalidArgument("推理ID不能为空".to_string()));
+            return Err(Error::invalid_argument("推理ID不能为空".to_string()));
         }
         
         // 创建增强的推理结果

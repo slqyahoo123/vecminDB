@@ -117,7 +117,7 @@ impl MelSpectrogramExtractor {
         // 2. 分帧
         let frames = frame_signal(&preemphasized, self.frame_size, self.hop_size);
         if frames.is_empty() {
-            return Err(Error::data("音频太短，无法提取足够的帧".to_string()));
+            return Err(Error::invalid_data("音频太短，无法提取足够的帧".to_string()));
         }
         
         // 3. 加窗

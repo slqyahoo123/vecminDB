@@ -348,7 +348,7 @@ impl RemoteCache for HttpRemoteCache {
                     .map_err(|e| Error::NetworkError(format!("读取大小响应失败: {}", e)))?;
                 
                 size_str.parse::<usize>()
-                    .map_err(|e| Error::ParseError(format!("解析缓存大小失败: {}", e)))
+                    .map_err(|e| Error::invalid_input(format!("解析缓存大小失败: {}", e)))
             } else {
                 Err(Error::NetworkError(format!("获取远程缓存大小失败: {}", response.status())))
             }

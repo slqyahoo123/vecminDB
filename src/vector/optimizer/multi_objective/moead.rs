@@ -23,17 +23,17 @@ impl MOEADOptimizer {
     pub fn new(config: MultiObjectiveConfig) -> Result<Self> {
         // 验证配置
         if config.algorithm != MultiObjectiveAlgorithm::MoeaD {
-            return Err(Error::InvalidArgument("Configuration must specify MOEA/D algorithm".to_string()));
+            return Err(Error::invalid_argument("Configuration must specify MOEA/D algorithm".to_string()));
         }
         
         // 检查目标数量
         if config.objectives_count < 2 {
-            return Err(Error::InvalidArgument("Multi-objective optimization requires at least 2 objectives".to_string()));
+            return Err(Error::invalid_argument("Multi-objective optimization requires at least 2 objectives".to_string()));
         }
         
         // 检查种群大小
         if config.population_size < 10 {
-            return Err(Error::InvalidArgument("Population size should be at least 10".to_string()));
+            return Err(Error::invalid_argument("Population size should be at least 10".to_string()));
         }
         
         // 创建随机数生成器
@@ -836,7 +836,7 @@ impl MultiObjectiveOptimizer for MOEADOptimizer {
         
         // 验证输入
         if objective_functions.len() != self.config.objectives_count {
-            return Err(Error::InvalidArgument(format!(
+            return Err(Error::invalid_argument(format!(
                 "Expected {} objective functions but got {}", 
                 self.config.objectives_count, 
                 objective_functions.len()
@@ -844,7 +844,7 @@ impl MultiObjectiveOptimizer for MOEADOptimizer {
         }
         
         if bounds.is_empty() {
-            return Err(Error::InvalidArgument("Bounds cannot be empty".to_string()));
+            return Err(Error::invalid_argument("Bounds cannot be empty".to_string()));
         }
         
         let dimension = bounds.len();

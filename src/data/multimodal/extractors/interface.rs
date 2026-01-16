@@ -175,27 +175,27 @@ pub fn create_modality_extractor(
     match modality_type {
         ModalityType::Text => {
             let text_config = serde_json::from_value(config)
-                .map_err(|e| Error::InvalidArgument(format!("无效的文本特征配置: {}", e)))?;
+                .map_err(|e| Error::invalid_argument(format!("无效的文本特征配置: {}", e)))?;
             let extractor = TextModalityExtractor::new(text_config)?;
             Ok(Box::new(extractor))
         },
         ModalityType::Image => {
             let image_config = serde_json::from_value(config)
-                .map_err(|e| Error::InvalidArgument(format!("无效的图像特征配置: {}", e)))?;
+                .map_err(|e| Error::invalid_argument(format!("无效的图像特征配置: {}", e)))?;
             let extractor = ImageModalityExtractor::new(image_config)?;
             Ok(Box::new(extractor))
         },
         ModalityType::Audio => {
             let audio_config = serde_json::from_value(config)
-                .map_err(|e| Error::InvalidArgument(format!("无效的音频特征配置: {}", e)))?;
+                .map_err(|e| Error::invalid_argument(format!("无效的音频特征配置: {}", e)))?;
             let extractor = AudioModalityExtractor::new(audio_config)?;
             Ok(Box::new(extractor))
         },
         ModalityType::Custom(name) => {
-            Err(Error::InvalidArgument(format!("暂不支持自定义模态类型: {}", name)))
+            Err(Error::invalid_argument(format!("暂不支持自定义模态类型: {}", name)))
         },
         _ => {
-            Err(Error::InvalidArgument(format!("不支持的模态类型: {:?}", modality_type)))
+            Err(Error::invalid_argument(format!("不支持的模态类型: {:?}", modality_type)))
         }
     }
 } 

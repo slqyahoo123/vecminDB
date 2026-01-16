@@ -175,7 +175,7 @@ impl RegexFilter {
     /// 创建新的正则表达式过滤器
     pub fn new(pattern: &str, keep_matches: bool) -> Result<Self> {
         let regex = regex::Regex::new(pattern)
-            .map_err(|e| Error::InvalidArgument(format!("无效的正则表达式: {}", e)))?;
+            .map_err(|e| Error::invalid_argument(format!("无效的正则表达式: {}", e)))?;
         
         Ok(Self {
             regex,

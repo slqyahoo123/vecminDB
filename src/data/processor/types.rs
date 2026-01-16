@@ -1589,17 +1589,17 @@ impl ExportConfig {
     /// 验证配置
     pub fn validate(&self) -> Result<()> {
         if self.format.is_empty() {
-            return Err(Error::Configuration("导出格式不能为空".to_string()));
+            return Err(Error::config("导出格式不能为空".to_string()));
         }
 
         if self.output_path.is_empty() {
-            return Err(Error::Configuration("导出路径不能为空".to_string()));
+            return Err(Error::config("导出路径不能为空".to_string()));
         }
 
         // 验证格式支持
         match self.format.to_lowercase().as_str() {
             "csv" | "json" | "parquet" | "excel" | "xml" => {},
-            _ => return Err(Error::Configuration(format!("不支持的导出格式: {}", self.format))),
+            _ => return Err(Error::config(format!("不支持的导出格式: {}", self.format))),
         }
 
         Ok(())

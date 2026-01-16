@@ -135,7 +135,7 @@ impl TaskManager {
         })?;
         
         if running_tasks.len() >= self.config.max_concurrent_tasks {
-            return Err(Error::resource_exhausted("超过最大并发任务数限制"));
+            return Err(Error::resource("超过最大并发任务数限制"));
         }
         
         // 更新任务状态

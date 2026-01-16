@@ -658,7 +658,7 @@ impl ProcessMonitor {
         
         // 检查CPU使用率
         if status.cpu_usage > self.cpu_threshold {
-            return Err(Error::resource_exhausted(
+            return Err(Error::resource(
                 format!("CPU使用率超过阈值: {:.2}% > {:.2}%", status.cpu_usage, self.cpu_threshold)
             ));
         }
@@ -666,21 +666,21 @@ impl ProcessMonitor {
         // 检查内存使用率
         let memory_percent = (status.memory_usage as f64 / status.virtual_memory_size as f64) * 100.0;
         if memory_percent > self.memory_threshold {
-            return Err(Error::resource_exhausted(
+            return Err(Error::resource(
                 format!("内存使用率超过阈值: {:.2}% > {:.2}%", memory_percent, self.memory_threshold)
             ));
         }
         
         // 检查文件描述符
         if status.fd_count > self.fd_threshold {
-            return Err(Error::resource_exhausted(
+            return Err(Error::resource(
                 format!("文件描述符数量超过阈值: {} > {}", status.fd_count, self.fd_threshold)
             ));
         }
         
         // 检查线程数量
         if status.thread_count > self.thread_threshold {
-            return Err(Error::resource_exhausted(
+            return Err(Error::resource(
                 format!("线程数量超过阈值: {} > {}", status.thread_count, self.thread_threshold)
             ));
         }
@@ -689,7 +689,7 @@ impl ProcessMonitor {
         let total_syscalls: usize = status.syscall_count.values().sum();
         let syscall_rate = (total_syscalls as f64 / status.run_time) as usize;
         if syscall_rate > self.syscall_rate_threshold {
-            return Err(Error::resource_exhausted(
+            return Err(Error::resource(
                 format!("系统调用频率超过阈值: {} > {} 每秒", syscall_rate, self.syscall_rate_threshold)
             ));
         }

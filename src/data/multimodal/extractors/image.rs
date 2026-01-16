@@ -156,11 +156,11 @@ impl ImageFeatureExtractor {
         
         // 解码Base64
         let image_data = BASE64_STANDARD.decode(base64_clean)
-            .map_err(|e| Error::data(format!("无法解码Base64图像数据: {}", e)))?;
+            .map_err(|e| Error::invalid_data(format!("无法解码Base64图像数据: {}", e)))?;
         
         // 解析为图像
         let img = image::load_from_memory(&image_data)
-            .map_err(|e| Error::data(format!("无法加载图像: {}", e)))?;
+            .map_err(|e| Error::invalid_data(format!("无法加载图像: {}", e)))?;
         
         Ok(img)
     }
@@ -463,7 +463,7 @@ impl FeatureExtractor for ImageFeatureExtractor {
         
         // 解析图像数据
         let img = image::load_from_memory(data)
-            .map_err(|e| Error::data(format!("无法加载图像数据: {}", e)))?;
+            .map_err(|e| Error::invalid_data(format!("无法加载图像数据: {}", e)))?;
         
         // 提取特征
         let features = self.extract_features_from_image(&img)?;
@@ -481,7 +481,7 @@ impl FeatureExtractor for ImageFeatureExtractor {
         let mut images = Vec::with_capacity(data_batch.len());
         for data in data_batch {
             let img = image::load_from_memory(data)
-                .map_err(|e| Error::data(format!("无法加载图像数据: {}", e)))?;
+                .map_err(|e| Error::invalid_data(format!("无法加载图像数据: {}", e)))?;
             images.push(img);
         }
         

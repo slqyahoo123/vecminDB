@@ -353,3 +353,9 @@ impl From<csv::Error> for Error {
     }
 }
 
+impl From<String> for Error {
+    fn from(msg: String) -> Self {
+        Error::InvalidInput(msg)
+    }
+}
+

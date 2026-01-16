@@ -119,7 +119,7 @@ impl VectorStorageManager {
 
         // 保存元数据
         let metadata_json = serde_json::to_string(&metadata)
-            .map_err(|e| Error::data(format!("Failed to serialize collection metadata: {}", e)))?;
+            .map_err(|e| Error::invalid_data(format!("Failed to serialize collection metadata: {}", e)))?;
         self.storage.put(&key, metadata_json.as_bytes()).await?;
 
         // 更新缓存
@@ -165,7 +165,7 @@ impl VectorStorageManager {
             .ok_or_else(|| Error::not_found(format!("Collection '{}' not found", name)))?;
 
         let metadata: CollectionMetadata = serde_json::from_slice(&data)
-            .map_err(|e| Error::data(format!("Failed to deserialize collection metadata: {}", e)))?;
+            .map_err(|e| Error::invalid_data(format!("Failed to deserialize collection metadata: {}", e)))?;
 
         // 更新缓存
         {
@@ -203,7 +203,7 @@ impl VectorStorageManager {
 
         // 序列化向量
         let vector_json = serde_json::to_string(&vector_with_id)
-            .map_err(|e| Error::data(format!("Failed to serialize vector: {}", e)))?;
+            .map_err(|e| Error::invalid_data(format!("Failed to serialize vector: {}", e)))?;
 
         // 存储向量
         self.storage.put(&key, vector_json.as_bytes()).await?;
@@ -247,7 +247,7 @@ impl VectorStorageManager {
 
             // 序列化向量
             let vector_json = serde_json::to_string(&vector_with_id)
-                .map_err(|e| Error::data(format!("Failed to serialize vector: {}", e)))?;
+                .map_err(|e| Error::invalid_data(format!("Failed to serialize vector: {}", e)))?;
 
             // 添加到操作列表
             operations.push((key, vector_json.into_bytes()));
@@ -270,7 +270,7 @@ impl VectorStorageManager {
             .ok_or_else(|| Error::not_found(format!("Vector '{}' not found in collection '{}'", id, collection)))?;
 
         let vector: Vector = serde_json::from_slice(&data)
-            .map_err(|e| Error::data(format!("Failed to deserialize vector: {}", e)))?;
+            .map_err(|e| Error::invalid_data(format!("Failed to deserialize vector: {}", e)))?;
 
         Ok(vector)
     }
@@ -352,7 +352,7 @@ impl VectorStorageManager {
 
         // 反序列化索引配置
         let index_config: IndexConfig = serde_json::from_slice(&index_data)
-            .map_err(|e| Error::data(format!("Failed to deserialize index config: {}", e)))?;
+            .map_err(|e| Error::invalid_data(format!("Failed to deserialize index config: {}", e)))?;
 
         // 创建相应的索引实例
         let index = self.create_index_from_config(&index_config, collection).await?;
@@ -499,7 +499,7 @@ impl VectorStorageManager {
         // 保存更新后的元数据
         let key = format!("collection:{}:metadata", collection);
         let metadata_json = serde_json::to_string(&metadata)
-            .map_err(|e| Error::data(format!("Failed to serialize collection metadata: {}", e)))?;
+            .map_err(|e| Error::invalid_data(format!("Failed to serialize collection metadata: {}", e)))?;
         self.storage.put(&key, metadata_json.as_bytes()).await?;
         
         // 更新缓存

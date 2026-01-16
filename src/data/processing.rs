@@ -399,7 +399,7 @@ impl DataProcessingSystem {
                         if let Some(processed_batch_json) = context.data.get("batch") {
                             // 反序列化处理后的DataBatch
                             let processed_batch: crate::data::batch::DataBatch = serde_json::from_value(processed_batch_json.clone())
-                                .map_err(|e| crate::error::Error::Deserialization(format!("无法反序列化处理后的DataBatch: {}", e)))?;
+                                .map_err(|e| crate::error::Error::serialization(format!("无法反序列化处理后的DataBatch: {}", e)))?;
                             processed_batch.to_bytes()?
                         } else {
                             // 如果没有batch数据，返回原始输入

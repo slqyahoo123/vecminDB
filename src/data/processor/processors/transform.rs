@@ -24,7 +24,7 @@ fn get_transformer_for_data_type(data_type: &DataType) -> Result<TransformerType
         DataType::Categorical | DataType::Text => {
             Ok(TransformerType::Categorical(CategoricalTransformer::new(Vec::new())))
         },
-        _ => Err(Error::InvalidArgument(format!("不支持的数据类型: {:?}", data_type)))
+        _ => Err(Error::invalid_argument(format!("不支持的数据类型: {:?}", data_type)))
     }
 }
 

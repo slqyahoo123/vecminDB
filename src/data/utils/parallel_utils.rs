@@ -651,12 +651,12 @@ where
     M: Fn(R, R) -> R + Sync + Send + Clone,
 {
     if data.is_empty() {
-        return Err(Error::data("并行处理失败: 数据为空".to_string()));
+        return Err(Error::invalid_data("并行处理失败: 数据为空".to_string()));
     }
     
     if !config.enabled || data.len() <= 1 {
         return data.iter().map(|item| process_fn(item)).reduce(|a, b| merge_fn(a, b))
-            .ok_or_else(|| Error::data("并行处理失败: 数据处理过程中出现错误".to_string()));
+            .ok_or_else(|| Error::invalid_data("并行处理失败: 数据处理过程中出现错误".to_string()));
     }
     
     let batch_size = get_optimal_batch_size(data.len(), config);
@@ -664,7 +664,7 @@ where
     
     // 确保至少有一个元素可用于初始化
     if data.is_empty() {
-        return Err(Error::data("并行处理失败: 数据为空".to_string()));
+        return Err(Error::invalid_data("并行处理失败: 数据为空".to_string()));
     }
     
     Ok(data.par_chunks(batch_size)
@@ -674,7 +674,7 @@ where
             chunk.iter()
                 .map(move |item| process_fn(item))
                 .reduce(|a, b| merge_fn(a, b))
-                .ok_or_else(|| Error::data("并行处理失败: 区块数据处理出错".to_string()))
+                .ok_or_else(|| Error::invalid_data("并行处理失败: 区块数据处理出错".to_string()))
                 .expect("并行处理失败: 区块不应为空") // 安全，因为par_chunks保证每个chunk至少有一个元素
         })
         .reduce(|| process_fn_clone(&data[0]), |a, b| merge_fn(a, b)))

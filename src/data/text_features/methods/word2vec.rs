@@ -73,7 +73,7 @@ impl Word2VecExtractor {
             
         let lines: Vec<&str> = content.lines().collect();
         if lines.is_empty() {
-            return Err(Error::InvalidArgument("模型文件为空".to_string()));
+            return Err(Error::invalid_argument("模型文件为空".to_string()));
         }
         
         // 解析第一行获取向量维度
@@ -81,7 +81,7 @@ impl Word2VecExtractor {
         if header_parts.len() == 2 {
             // 标准格式：词汇量 向量维度
             self.vector_dim = header_parts[1].parse::<usize>()
-                .map_err(|_| Error::InvalidArgument("无效的向量维度".to_string()))?;
+                .map_err(|_| Error::invalid_argument("无效的向量维度".to_string()))?;
         } else {
             // 推断向量维度
             let first_line_parts: Vec<&str> = lines[0].split_whitespace().collect();

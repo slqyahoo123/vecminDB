@@ -574,7 +574,7 @@ impl DataLoader for InMemoryDataLoader {
                 custom_data: HashMap::new(),
             })
         } else {
-            Err(Error::DataError("没有可用的批次数据".to_string()))
+            Err(Error::invalid_data("没有可用的批次数据".to_string()))
         }
     }
 
@@ -646,7 +646,7 @@ impl DataLoader for InMemoryDataLoader {
                 custom_data: HashMap::new(),
             })
         } else {
-            Err(Error::DataError("批次索引超出范围".to_string()))
+            Err(Error::invalid_data("批次索引超出范围".to_string()))
         }
     }
 

@@ -173,7 +173,7 @@ impl TfIdfExtractor {
     /// 加载模型状态
     pub fn load(&mut self, state_json: &str) -> Result<()> {
         let state: TfIdfModelState = serde_json::from_str(state_json)
-            .map_err(|e| Error::DeserializationError(format!("无法反序列化模型: {}", e)))?;
+            .map_err(|e| Error::serialization(format!("无法反序列化模型: {}", e)))?;
         
         self.vocabulary = state.vocabulary;
         self.document_frequencies = state.document_frequencies;

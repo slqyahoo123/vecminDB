@@ -49,7 +49,7 @@ impl CombinationExtractor {
     /// 设置权重
     pub fn set_weights(&mut self, weights: Vec<f32>) -> Result<()> {
         if weights.len() != self.extractors.len() {
-            return Err(Error::InvalidArgument("权重数量必须与提取器数量相同".to_string()));
+            return Err(Error::invalid_argument("权重数量必须与提取器数量相同".to_string()));
         }
         self.weights = Some(weights);
         Ok(())
@@ -77,7 +77,7 @@ impl CombinationExtractor {
                 
                 for feat in &features {
                     if feat.len() != vec_dim {
-                        return Err(Error::InvalidArgument("所有特征向量长度必须相同".to_string()));
+                        return Err(Error::invalid_argument("所有特征向量长度必须相同".to_string()));
                     }
                     
                     for (i, &val) in feat.iter().enumerate() {
@@ -96,7 +96,7 @@ impl CombinationExtractor {
                 // 确保有权重
                 let weights = match &self.weights {
                     Some(w) => w,
-                    None => return Err(Error::InvalidArgument("需要设置权重".to_string())),
+                    None => return Err(Error::invalid_argument("需要设置权重".to_string())),
                 };
                 
                 if features.is_empty() {
@@ -111,7 +111,7 @@ impl CombinationExtractor {
                 
                 for (i, feat) in features.iter().enumerate() {
                     if feat.len() != vec_dim {
-                        return Err(Error::InvalidArgument("所有特征向量长度必须相同".to_string()));
+                        return Err(Error::invalid_argument("所有特征向量长度必须相同".to_string()));
                     }
                     
                     let weight = weights[i] / weight_sum;
@@ -134,7 +134,7 @@ impl CombinationExtractor {
                 
                 for feat in &features {
                     if feat.len() != vec_dim {
-                        return Err(Error::InvalidArgument("所有特征向量长度必须相同".to_string()));
+                        return Err(Error::invalid_argument("所有特征向量长度必须相同".to_string()));
                     }
                     
                     for (i, &val) in feat.iter().enumerate() {
@@ -159,7 +159,7 @@ impl CombinationExtractor {
                 
                 for feat in &features {
                     if feat.len() != vec_dim {
-                        return Err(Error::InvalidArgument("所有特征向量长度必须相同".to_string()));
+                        return Err(Error::invalid_argument("所有特征向量长度必须相同".to_string()));
                     }
                     
                     for (i, &val) in feat.iter().enumerate() {

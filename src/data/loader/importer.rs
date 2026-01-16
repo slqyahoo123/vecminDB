@@ -998,7 +998,7 @@ impl BatchImporter {
         // 确保目标目录存在
         if !target_path.exists() {
             std::fs::create_dir_all(target_path)
-                .map_err(|e| Error::io(format!("创建目标目录失败: {}", e)))?;
+                .map_err(|e| Error::io_error(format!("创建目标目录失败: {}", e)))?;
         }
         
         let mut exported_files = Vec::new();

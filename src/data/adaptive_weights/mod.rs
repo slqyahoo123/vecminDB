@@ -105,15 +105,15 @@ impl AdaptiveWeightAdjuster {
     pub fn new(config: AdaptiveWeightsConfig) -> Result<Self> {
         // 验证配置
         if config.min_weight < 0.0 {
-            return Err(Error::InvalidArgument("最小权重不能为负".to_string()));
+            return Err(Error::invalid_argument("最小权重不能为负".to_string()));
         }
         
         if config.min_weight >= config.max_weight {
-            return Err(Error::InvalidArgument("最小权重必须小于最大权重".to_string()));
+            return Err(Error::invalid_argument("最小权重必须小于最大权重".to_string()));
         }
         
         if config.learning_rate <= 0.0 || config.learning_rate > 1.0 {
-            return Err(Error::InvalidArgument("学习率必须在(0,1]范围内".to_string()));
+            return Err(Error::invalid_argument("学习率必须在(0,1]范围内".to_string()));
         }
         
         // 初始化状态
@@ -200,15 +200,15 @@ impl AdaptiveWeightAdjuster {
     pub fn update_config(&mut self, config: AdaptiveWeightsConfig) -> Result<()> {
         // 验证新配置
         if config.min_weight < 0.0 {
-            return Err(Error::InvalidArgument("最小权重不能为负".to_string()));
+            return Err(Error::invalid_argument("最小权重不能为负".to_string()));
         }
         
         if config.min_weight >= config.max_weight {
-            return Err(Error::InvalidArgument("最小权重必须小于最大权重".to_string()));
+            return Err(Error::invalid_argument("最小权重必须小于最大权重".to_string()));
         }
         
         if config.learning_rate <= 0.0 || config.learning_rate > 1.0 {
-            return Err(Error::InvalidArgument("学习率必须在(0,1]范围内".to_string()));
+            return Err(Error::invalid_argument("学习率必须在(0,1]范围内".to_string()));
         }
         
         // 更新配置

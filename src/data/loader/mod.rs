@@ -226,7 +226,7 @@ pub fn set_loader_config(name: String, config: DataConfig) -> Result<()> {
         Ok(())
     } else {
         error!("无法获取加载器配置锁");
-        Err(Error::concurrency("无法获取配置锁"))
+        Err(Error::lock("无法获取配置锁"))
     }
 }
 
@@ -408,7 +408,7 @@ pub mod traits {
         /// 获取文件大小
         fn file_size(&self) -> Result<u64> {
             let metadata = std::fs::metadata(self.file_path())
-                .map_err(|e| Error::io(&format!("无法获取文件元数据: {}", e)))?;
+                .map_err(|e| Error::io_error(&format!("无法获取文件元数据: {}", e)))?;
             Ok(metadata.len())
         }
         

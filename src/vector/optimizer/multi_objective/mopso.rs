@@ -48,16 +48,16 @@ impl MOPSOOptimizer {
     pub fn new(config: MultiObjectiveConfig) -> Result<Self> {
         // 验证配置是否为MOPSO算法
         if config.algorithm != MultiObjectiveAlgorithm::MOPSO {
-            return Err(Error::InvalidArgument("配置必须指定MOPSO算法".to_string()));
+            return Err(Error::invalid_argument("配置必须指定MOPSO算法".to_string()));
         }
         
         // 验证其他参数
         if config.objectives.len() < 2 {
-            return Err(Error::InvalidArgument("MOPSO至少需要两个优化目标".to_string()));
+            return Err(Error::invalid_argument("MOPSO至少需要两个优化目标".to_string()));
         }
         
         if config.population_size < 10 {
-            return Err(Error::InvalidArgument("MOPSO需要足够的种群大小".to_string()));
+            return Err(Error::invalid_argument("MOPSO需要足够的种群大小".to_string()));
         }
         
         // 初始化随机数生成器
@@ -79,9 +79,9 @@ impl MOPSOOptimizer {
         for objective in &self.config.objectives {
             let name = &objective.name;
             let a_value = a.get(name).ok_or_else(|| 
-                Error::InvalidArgument(format!("Objective {} not found in solution", name)))?;
+                Error::invalid_argument(format!("Objective {} not found in solution", name)))?;
             let b_value = b.get(name).ok_or_else(|| 
-                Error::InvalidArgument(format!("Objective {} not found in solution", name)))?;
+                Error::invalid_argument(format!("Objective {} not found in solution", name)))?;
             
             // 根据优化方向比较
             let a_better = match objective.direction {

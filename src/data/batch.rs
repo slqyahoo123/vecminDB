@@ -820,7 +820,7 @@ impl DataBatch {
     /// 转换为字节数据
     pub fn to_bytes(&self) -> Result<Vec<u8>> {
         self.data.clone().ok_or_else(|| {
-            crate::error::Error::DataError("No data in batch".to_string())
+            crate::error::Error::invalid_data("No data in batch".to_string())
         })
     }
 

@@ -15,24 +15,24 @@ pub fn file_exists(path: &str) -> bool {
 pub fn ensure_dir_exists(path: &str) -> Result<()> {
     let path = Path::new(path);
     if !path.exists() {
-        fs::create_dir_all(path).map_err(|e| Error::io(&format!("无法创建目录: {}", e)))?;
+        fs::create_dir_all(path).map_err(|e| Error::io_error(&format!("无法创建目录: {}", e)))?;
     }
     Ok(())
 }
 
 /// 读取文件内容
 pub fn read_file(path: &str) -> Result<String> {
-    fs::read_to_string(path).map_err(|e| Error::io(&format!("无法读取文件: {}", e)))
+    fs::read_to_string(path).map_err(|e| Error::io_error(&format!("无法读取文件: {}", e)))
 }
 
 /// 写入文件内容
 pub fn write_file(path: &str, content: &str) -> Result<()> {
-    fs::write(path, content).map_err(|e| Error::io(&format!("无法写入文件: {}", e)))
+    fs::write(path, content).map_err(|e| Error::io_error(&format!("无法写入文件: {}", e)))
 }
 
 /// 获取文件大小
 pub fn get_file_size(path: &str) -> Result<u64> {
-    let metadata = fs::metadata(path).map_err(|e| Error::io(&format!("无法获取文件元数据: {}", e)))?;
+    let metadata = fs::metadata(path).map_err(|e| Error::io_error(&format!("无法获取文件元数据: {}", e)))?;
     Ok(metadata.len())
 }
 
@@ -78,7 +78,7 @@ pub fn create_temp_filename(prefix: &str, extension: &str) -> String {
 /// 安全删除文件
 pub fn safe_delete_file(path: &str) -> Result<()> {
     if file_exists(path) {
-        fs::remove_file(path).map_err(|e| Error::io(&format!("无法删除文件: {}", e)))?;
+        fs::remove_file(path).map_err(|e| Error::io_error(&format!("无法删除文件: {}", e)))?;
     }
     Ok(())
 }
@@ -86,31 +86,31 @@ pub fn safe_delete_file(path: &str) -> Result<()> {
 /// 安全删除目录
 pub fn safe_delete_dir(path: &str) -> Result<()> {
     if is_directory(path) {
-        fs::remove_dir_all(path).map_err(|e| Error::io(&format!("无法删除目录: {}", e)))?;
+        fs::remove_dir_all(path).map_err(|e| Error::io_error(&format!("无法删除目录: {}", e)))?;
     }
     Ok(())
 }
 
 /// 复制文件
 pub fn copy_file(src: &str, dst: &str) -> Result<()> {
-    fs::copy(src, dst).map_err(|e| Error::io(&format!("无法复制文件: {}", e)))?;
+    fs::copy(src, dst).map_err(|e| Error::io_error(&format!("无法复制文件: {}", e)))?;
     Ok(())
 }
 
 /// 移动文件
 pub fn move_file(src: &str, dst: &str) -> Result<()> {
-    fs::rename(src, dst).map_err(|e| Error::io(&format!("无法移动文件: {}", e)))?;
+    fs::rename(src, dst).map_err(|e| Error::io_error(&format!("无法移动文件: {}", e)))?;
     Ok(())
 }
 
 /// 列出目录中的文件
 pub fn list_files(dir_path: &str) -> Result<Vec<String>> {
-    let dir = fs::read_dir(dir_path).map_err(|e| Error::io(&format!("无法读取目录: {}", e)))?;
+    let dir = fs::read_dir(dir_path).map_err(|e| Error::io_error(&format!("无法读取目录: {}", e)))?;
     
     let mut files = Vec::new();
     for entry in dir {
-        let entry = entry.map_err(|e| Error::io(&format!("无法读取目录项: {}", e)))?;
-        if entry.file_type().map_err(|e| Error::io(&format!("无法获取文件类型: {}", e)))?.is_file() {
+        let entry = entry.map_err(|e| Error::io_error(&format!("无法读取目录项: {}", e)))?;
+        if entry.file_type().map_err(|e| Error::io_error(&format!("无法获取文件类型: {}", e)))?.is_file() {
             if let Some(filename) = entry.file_name().to_str() {
                 files.push(filename.to_string());
             }
@@ -125,7 +125,7 @@ pub fn calculate_file_hash(path: &str) -> Result<String> {
     use std::hash::{Hash, Hasher};
     use std::collections::hash_map::DefaultHasher;
     
-    let content = fs::read(path).map_err(|e| Error::io(&format!("无法读取文件: {}", e)))?;
+    let content = fs::read(path).map_err(|e| Error::io_error(&format!("无法读取文件: {}", e)))?;
     
     let mut hasher = DefaultHasher::new();
     content.hash(&mut hasher);
@@ -207,12 +207,12 @@ fn check_disk_space_detailed(path: &str) -> Result<DiskSpaceInfo> {
     
     // 确保路径存在
     if !path.exists() {
-        return Err(Error::io(&format!("路径不存在: {}", path.display())));
+        return Err(Error::io_error(&format!("路径不存在: {}", path.display())));
     }
     
     // 获取实际路径（处理符号链接）
     let canonical_path = fs::canonicalize(path)
-        .map_err(|e| Error::io(&format!("无法获取标准路径: {}", e)))?;
+        .map_err(|e| Error::io_error(&format!("无法获取标准路径: {}", e)))?;
     
     #[cfg(unix)]
     {
@@ -258,13 +258,13 @@ fn check_disk_space_unix(path: &Path) -> Result<DiskSpaceInfo> {
     }
     
     let path_cstr = CString::new(path.as_os_str().as_bytes())
-        .map_err(|e| Error::io(&format!("路径转换失败: {}", e)))?;
+        .map_err(|e| Error::io_error(&format!("路径转换失败: {}", e)))?;
     
     let mut statvfs_buf: StatVfs = unsafe { mem::zeroed() };
     let result = unsafe { statvfs(path_cstr.as_ptr(), &mut statvfs_buf) };
     
     if result != 0 {
-        return Err(Error::io(&format!(
+        return Err(Error::io_error(&format!(
             "statvfs调用失败: {}",
             std::io::Error::last_os_error()
         )));
@@ -355,7 +355,7 @@ fn check_disk_space_windows(path: &Path) -> Result<DiskSpaceInfo> {
     };
     
     if result == 0 {
-        return Err(Error::io(&format!(
+        return Err(Error::io_error(&format!(
             "GetDiskFreeSpaceExW调用失败: {}",
             std::io::Error::last_os_error()
         )));
@@ -382,7 +382,7 @@ fn get_drive_letter_windows(path: &Path) -> Result<char> {
     if path_str.len() >= 2 && path_str.chars().nth(1) == Some(':') {
         Ok(path_str.chars().next().unwrap().to_ascii_uppercase())
     } else {
-        Err(Error::io("无法确定Windows驱动器字母".to_string()))
+        Err(Error::io_error("无法确定Windows驱动器字母".to_string()))
     }
 }
 
@@ -445,7 +445,7 @@ fn get_filesystem_type_windows(drive_path: &str) -> Result<String> {
 fn check_disk_space_fallback(path: &Path) -> Result<DiskSpaceInfo> {
     // 对于不支持的平台，尝试通过文件系统操作估算
     let metadata = fs::metadata(path)
-        .map_err(|e| Error::io(&format!("无法获取文件元数据: {}", e)))?;
+        .map_err(|e| Error::io_error(&format!("无法获取文件元数据: {}", e)))?;
     
     // 提供一个保守的估算
     let estimated_total = 100_000_000_000u64; // 100GB
