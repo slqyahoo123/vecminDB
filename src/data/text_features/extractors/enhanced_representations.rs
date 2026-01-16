@@ -302,7 +302,7 @@ impl EnhancedFeatureExtractor {
         // 设置默认值
         enhanced_config.use_attention = true; // 默认使用注意力机制
         enhanced_config.use_pretrained = config.use_word_vectors; // 使用词向量配置
-        enhanced_config.pretrained_model_path = config.stopwords_path.clone(); // 使用 stopwords_path 作为模型路径的占位符
+        enhanced_config.pretrained_model_path = config.stopwords_path.clone(); // Use stopwords_path as model path if provided
         
         let mut extractor = Self::new(enhanced_config)?;
         extractor.initialize()?;
@@ -456,10 +456,10 @@ impl GraphEmbeddingTransformer {
 }
 
 impl FeatureTransformer for GraphEmbeddingTransformer {
-    fn transform(&self, _tokens: &[String], features: &[f32]) -> Result<Vec<f32>> {
-        // 实际应用中，这里应该实现图嵌入模型
-        // 这里简化实现，只返回原始特征
-        Ok(features.to_vec())
+    fn transform(&self, _tokens: &[String], _features: &[f32]) -> Result<Vec<f32>> {
+        Err(crate::error::Error::feature_not_enabled(
+            "GraphEmbeddingTransformer requires external graph embedding model integration. This feature is not available in the vector database."
+        ))
     }
     
     fn name(&self) -> &str {
@@ -489,10 +489,10 @@ impl MultiScaleTransformer {
 }
 
 impl FeatureTransformer for MultiScaleTransformer {
-    fn transform(&self, _tokens: &[String], features: &[f32]) -> Result<Vec<f32>> {
-        // 实际应用中，这里应该实现多尺度模型
-        // 这里简化实现，只返回原始特征
-        Ok(features.to_vec())
+    fn transform(&self, _tokens: &[String], _features: &[f32]) -> Result<Vec<f32>> {
+        Err(crate::error::Error::feature_not_enabled(
+            "MultiScaleTransformer requires external multi-scale model integration. This feature is not available in the vector database."
+        ))
     }
     
     fn name(&self) -> &str {
@@ -522,10 +522,10 @@ impl ContrastiveTransformer {
 }
 
 impl FeatureTransformer for ContrastiveTransformer {
-    fn transform(&self, _tokens: &[String], features: &[f32]) -> Result<Vec<f32>> {
-        // 实际应用中，这里应该实现对比学习模型
-        // 这里简化实现，只返回原始特征
-        Ok(features.to_vec())
+    fn transform(&self, _tokens: &[String], _features: &[f32]) -> Result<Vec<f32>> {
+        Err(crate::error::Error::feature_not_enabled(
+            "ContrastiveTransformer requires external contrastive learning model integration. This feature is not available in the vector database."
+        ))
     }
     
     fn name(&self) -> &str {
@@ -555,10 +555,10 @@ impl HierarchicalTransformer {
 }
 
 impl FeatureTransformer for HierarchicalTransformer {
-    fn transform(&self, _tokens: &[String], features: &[f32]) -> Result<Vec<f32>> {
-        // 实际应用中，这里应该实现层次模型
-        // 这里简化实现，只返回原始特征
-        Ok(features.to_vec())
+    fn transform(&self, _tokens: &[String], _features: &[f32]) -> Result<Vec<f32>> {
+        Err(crate::error::Error::feature_not_enabled(
+            "HierarchicalTransformer requires external hierarchical model integration. This feature is not available in the vector database."
+        ))
     }
     
     fn name(&self) -> &str {
@@ -581,10 +581,10 @@ impl CompositeTransformer {
 }
 
 impl FeatureTransformer for CompositeTransformer {
-    fn transform(&self, _tokens: &[String], features: &[f32]) -> Result<Vec<f32>> {
-        // 实际应用中，这里应该实现组合模型
-        // 这里简化实现，只返回原始特征
-        Ok(features.to_vec())
+    fn transform(&self, _tokens: &[String], _features: &[f32]) -> Result<Vec<f32>> {
+        Err(crate::error::Error::feature_not_enabled(
+            "CompositeTransformer requires external composite model integration. This feature is not available in the vector database."
+        ))
     }
     
     fn name(&self) -> &str {
@@ -607,10 +607,10 @@ impl SequenceEnhancedTransformer {
 }
 
 impl FeatureTransformer for SequenceEnhancedTransformer {
-    fn transform(&self, _tokens: &[String], features: &[f32]) -> Result<Vec<f32>> {
-        // 实际应用中，这里应该实现序列增强模型
-        // 这里简化实现，只返回原始特征
-        Ok(features.to_vec())
+    fn transform(&self, _tokens: &[String], _features: &[f32]) -> Result<Vec<f32>> {
+        Err(crate::error::Error::feature_not_enabled(
+            "SequenceEnhancedTransformer requires external sequence-enhanced model integration. This feature is not available in the vector database."
+        ))
     }
     
     fn name(&self) -> &str {
@@ -638,10 +638,10 @@ impl KnowledgeEnhancedTransformer {
 }
 
 impl FeatureTransformer for KnowledgeEnhancedTransformer {
-    fn transform(&self, _tokens: &[String], features: &[f32]) -> Result<Vec<f32>> {
-        // 实际应用中，这里应该实现知识增强模型
-        // 这里简化实现，只返回原始特征
-        Ok(features.to_vec())
+    fn transform(&self, _tokens: &[String], _features: &[f32]) -> Result<Vec<f32>> {
+        Err(crate::error::Error::feature_not_enabled(
+            "KnowledgeEnhancedTransformer requires external knowledge-enhanced model integration. This feature is not available in the vector database."
+        ))
     }
     
     fn name(&self) -> &str {
@@ -664,10 +664,10 @@ impl SemanticRoleTransformer {
 }
 
 impl FeatureTransformer for SemanticRoleTransformer {
-    fn transform(&self, _tokens: &[String], features: &[f32]) -> Result<Vec<f32>> {
-        // 实际应用中，这里应该实现语义角色模型
-        // 这里简化实现，只返回原始特征
-        Ok(features.to_vec())
+    fn transform(&self, _tokens: &[String], _features: &[f32]) -> Result<Vec<f32>> {
+        Err(crate::error::Error::feature_not_enabled(
+            "SemanticRoleTransformer requires external semantic role model integration. This feature is not available in the vector database."
+        ))
     }
     
     fn name(&self) -> &str {
@@ -697,10 +697,10 @@ impl MultiHeadAttentionTransformer {
 }
 
 impl FeatureTransformer for MultiHeadAttentionTransformer {
-    fn transform(&self, _tokens: &[String], features: &[f32]) -> Result<Vec<f32>> {
-        // 实际应用中，这里应该实现多头注意力模型
-        // 这里简化实现，只返回原始特征
-        Ok(features.to_vec())
+    fn transform(&self, _tokens: &[String], _features: &[f32]) -> Result<Vec<f32>> {
+        Err(crate::error::Error::feature_not_enabled(
+            "MultiHeadAttentionTransformer requires external multi-head attention model integration. This feature is not available in the vector database."
+        ))
     }
     
     fn name(&self) -> &str {
@@ -723,10 +723,10 @@ impl AdaptiveTransformer {
 }
 
 impl FeatureTransformer for AdaptiveTransformer {
-    fn transform(&self, _tokens: &[String], features: &[f32]) -> Result<Vec<f32>> {
-        // 实际应用中，这里应该实现自适应模型
-        // 这里简化实现，只返回原始特征
-        Ok(features.to_vec())
+    fn transform(&self, _tokens: &[String], _features: &[f32]) -> Result<Vec<f32>> {
+        Err(crate::error::Error::feature_not_enabled(
+            "AdaptiveTransformer requires external adaptive model integration. This feature is not available in the vector database."
+        ))
     }
     
     fn name(&self) -> &str {
@@ -756,10 +756,10 @@ impl FusionTransformer {
 }
 
 impl FeatureTransformer for FusionTransformer {
-    fn transform(&self, _tokens: &[String], features: &[f32]) -> Result<Vec<f32>> {
-        // 实际应用中，这里应该实现融合模型
-        // 这里简化实现，只返回原始特征
-        Ok(features.to_vec())
+    fn transform(&self, _tokens: &[String], _features: &[f32]) -> Result<Vec<f32>> {
+        Err(crate::error::Error::feature_not_enabled(
+            "FusionTransformer requires external fusion model integration. This feature is not available in the vector database."
+        ))
     }
     
     fn name(&self) -> &str {

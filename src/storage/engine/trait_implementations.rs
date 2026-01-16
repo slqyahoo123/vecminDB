@@ -6,7 +6,6 @@ use serde_json::Value;
 
 use crate::Result;
 use crate::Error;
-use crate::compat::{TrainingMetrics};
 // 未使用的导入移除，保持代码整洁
 // 注意：Model, ModelArchitecture, ModelParameters, TrainingStateManager 在代码中使用完全限定路径
 use crate::core::InferenceResult;
@@ -629,65 +628,7 @@ impl StorageEngine for StorageEngineImpl {
         self.get_data_batch(batch_id)
     }
     
-    fn save_processed_batch(
-        &self,
-        model_id: &str,
-        batch: &crate::data::ProcessedBatch,
-    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
-        let key = format!("processed_batch:{}:{}", model_id, chrono::Utc::now().timestamp());
-        let db = self.get_db_clone();
-        let batch_clone = batch.clone();
-        
-        Box::pin(async move {
-            let data = bincode::serialize(&batch_clone)
-                .map_err(|e| Error::Serialization(format!("序列化批次失败: {}", e)))?;
-            let db = db.read().await;
-            db.insert(key.as_bytes(), data.as_slice())
-                .map_err(|e| Error::storage(format!("存储批次失败: {}", e)))?;
-            Ok(())
-        })
-    }
-    
-    fn get_training_metrics_history(
-        &self,
-        model_id: &str,
-    ) -> Pin<Box<dyn Future<Output = Result<Vec<TrainingMetrics>>> + Send + '_>> {
-        let prefix = format!("model:{}:metrics:", model_id);
-        let db = self.get_db_clone();
-        
-        Box::pin(async move {
-            let db = db.read().await;
-            let mut metrics = Vec::new();
-            
-            for result in db.scan_prefix(prefix.as_bytes()) {
-                let (_, value) = result?;
-                if let Ok(metric) = bincode::deserialize::<TrainingMetrics>(&value) {
-                    metrics.push(metric);
-                }
-            }
-            
-            Ok(metrics)
-        })
-    }
-    
-    fn record_training_metrics(
-        &self,
-        model_id: &str,
-        metrics: &TrainingMetrics,
-    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + '_>> {
-        let key = format!("model:{}:metrics:{}", model_id, chrono::Utc::now().timestamp());
-        let db = self.get_db_clone();
-        let metrics_clone = metrics.clone();
-        
-        Box::pin(async move {
-            let data = bincode::serialize(&metrics_clone)
-                .map_err(|e| Error::Serialization(format!("序列化指标失败: {}", e)))?;
-            let db = db.read().await;
-            db.insert(key.as_bytes(), data.as_slice())
-                .map_err(|e| Error::storage(format!("存储指标失败: {}", e)))?;
-            Ok(())
-        })
-    }
+    // Training-related methods removed: vector database does not need training functionality
     
     fn query_dataset(
         &self,

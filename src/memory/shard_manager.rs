@@ -310,7 +310,7 @@ impl ShardManager {
         
         // 检查状态
         if shard_info.status == ShardStatus::Corrupted {
-            return Err(Error::data_corruption(&format!("Shard is corrupted: {}", shard_id)));
+            return Err(Error::storage(format!("Shard is corrupted: {}", shard_id)));
         }
         
         // 从文件读取

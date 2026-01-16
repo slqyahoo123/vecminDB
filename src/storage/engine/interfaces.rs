@@ -1,5 +1,5 @@
 use crate::Result;
-use crate::compat::{ModelArchitecture, ModelParameters, TrainingMetrics, Model};
+use crate::compat::{ModelArchitecture, ModelParameters, Model};
 use crate::storage::engine::implementation::StorageOptions;
 use crate::storage::models::{ModelInfo, ModelMetrics};
 use crate::interfaces::storage::{StorageTransaction, IsolationLevel};

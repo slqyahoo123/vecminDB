@@ -154,7 +154,7 @@ impl PatternType {
     }
 
     /// 获取模式对应的正则表达式
-    pub fn get_regex(&self) -> Result<Regex, regex::Error> {
+    pub fn get_regex(&self) -> std::result::Result<Regex, regex::Error> {
         match self {
             PatternType::Regex(regex) => Ok(regex.clone()),
             PatternType::Custom(pattern) => Regex::new(pattern),
@@ -215,7 +215,7 @@ pub struct PatternValidator {
 
 impl PatternValidator {
     /// 创建新的模式验证器
-    pub fn new(config: PatternValidatorConfig) -> Result<Self, regex::Error> {
+    pub fn new(config: PatternValidatorConfig) -> std::result::Result<Self, regex::Error> {
         let mut regex_opts = regex::RegexBuilder::new("");
         
         if config.case_insensitive {
@@ -242,7 +242,7 @@ impl PatternValidator {
     }
     
     /// 创建电子邮件验证器
-    pub fn email(error_level: ErrorSeverity) -> Result<Self, regex::Error> {
+    pub fn email(error_level: ErrorSeverity) -> std::result::Result<Self, regex::Error> {
         Self::new(PatternValidatorConfig {
             pattern_type: PatternType::Email,
             error_message: Some("无效的电子邮件地址".to_string()),
@@ -252,7 +252,7 @@ impl PatternValidator {
     }
     
     /// 创建URL验证器
-    pub fn url(error_level: ErrorSeverity) -> Result<Self, regex::Error> {
+    pub fn url(error_level: ErrorSeverity) -> std::result::Result<Self, regex::Error> {
         Self::new(PatternValidatorConfig {
             pattern_type: PatternType::Url,
             error_message: Some("无效的URL地址".to_string()),
@@ -262,7 +262,7 @@ impl PatternValidator {
     }
     
     /// 创建IP地址验证器
-    pub fn ip_address(error_level: ErrorSeverity) -> Result<Self, regex::Error> {
+    pub fn ip_address(error_level: ErrorSeverity) -> std::result::Result<Self, regex::Error> {
         Self::new(PatternValidatorConfig {
             pattern_type: PatternType::IPAddress,
             error_message: Some("无效的IP地址".to_string()),
@@ -272,7 +272,7 @@ impl PatternValidator {
     }
     
     /// 创建日期验证器
-    pub fn date(error_level: ErrorSeverity) -> Result<Self, regex::Error> {
+    pub fn date(error_level: ErrorSeverity) -> std::result::Result<Self, regex::Error> {
         Self::new(PatternValidatorConfig {
             pattern_type: PatternType::Date,
             error_message: Some("无效的日期格式，应为YYYY-MM-DD".to_string()),
@@ -282,7 +282,7 @@ impl PatternValidator {
     }
     
     /// 创建日期时间验证器
-    pub fn datetime(error_level: ErrorSeverity) -> Result<Self, regex::Error> {
+    pub fn datetime(error_level: ErrorSeverity) -> std::result::Result<Self, regex::Error> {
         Self::new(PatternValidatorConfig {
             pattern_type: PatternType::DateTime,
             error_message: Some("无效的日期时间格式，应为YYYY-MM-DDThh:mm:ss".to_string()),
@@ -292,7 +292,7 @@ impl PatternValidator {
     }
     
     /// 创建UUID验证器
-    pub fn uuid(error_level: ErrorSeverity) -> Result<Self, regex::Error> {
+    pub fn uuid(error_level: ErrorSeverity) -> std::result::Result<Self, regex::Error> {
         Self::new(PatternValidatorConfig {
             pattern_type: PatternType::UUID,
             error_message: Some("无效的UUID格式".to_string()),

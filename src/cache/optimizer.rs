@@ -951,11 +951,11 @@ impl CacheOptimizer {
     }
 
     /// 获取外部推荐
-    async fn fetch_external_recommendations(service_url: &str) -> Result<Vec<String>> {
+    async fn fetch_external_recommendations(_service_url: &str) -> Result<Vec<String>> {
         // 完整的外部推荐获取实现
         
         // 1. 构建请求参数
-        let request_data = serde_json::json!({
+        let _request_data = serde_json::json!({
             "service": "cache_optimization",
             "timestamp": chrono::Utc::now().timestamp(),
             "cache_stats": Self::get_current_cache_statistics()?,

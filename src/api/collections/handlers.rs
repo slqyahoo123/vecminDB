@@ -204,7 +204,7 @@ pub async fn get_collection_actix(
     
     if let Some(vector_db) = &server_data.vector_db {
         let db = vector_db.read().await;
-        match db.get_collection(&collection_name).await {
+        match db.get_collection(&collection_name) {
             Ok(collection) => {
                 let coll = collection.read().await;
                 let collection_info = types::CollectionInfo {
@@ -249,7 +249,7 @@ pub async fn get_collection_stats_actix(
     
     if let Some(vector_db) = &server_data.vector_db {
         let db = vector_db.read().await;
-        match db.get_collection(&collection_name).await {
+        match db.get_collection(&collection_name) {
             Ok(collection) => {
                 let coll = collection.read().await;
                 let stats = types::CollectionStats {
@@ -294,7 +294,7 @@ pub async fn rebuild_collection_index_actix(
     
     if let Some(vector_db) = &server_data.vector_db {
         let db = vector_db.read().await;
-        match db.get_collection(&collection_name).await {
+        match db.get_collection(&collection_name) {
             Ok(_collection) => {
                 // 重建索引逻辑（需要实现）
                 info!("重建集合索引: {}", collection_name);
@@ -346,17 +346,19 @@ pub async fn add_vector_to_collection_actix(
         .and_then(|v| v.as_array())
         .ok_or_else(|| ErrorBadRequest("缺少必需的values字段"))?;
     
-    let vector_values: Result<Vec<f32>, _> = values.iter()
-        .map(|v| v.as_f64().map(|f| f as f32))
+    let vector_values: Vec<f32> = values.iter()
+        .filter_map(|v| v.as_f64().map(|f| f as f32))
         .collect();
     
-    let vector_values = vector_values.map_err(|_| ErrorBadRequest("values必须是数字数组"))?;
+    if vector_values.len() != values.len() {
+        return Err(ErrorBadRequest("values必须是数字数组"));
+    }
     
     let metadata = vector_data.get("metadata").cloned();
     
     if let Some(vector_db) = &server_data.vector_db {
         let db = vector_db.read().await;
-        match db.get_collection(&collection_name).await {
+        match db.get_collection(&collection_name) {
             Ok(collection) => {
                 let mut coll = collection.write().await;
                 match coll.add_vector(id, &vector_values, metadata.as_ref()).await {
@@ -413,7 +415,7 @@ pub async fn get_vector_from_collection_actix(
     
     if let Some(vector_db) = &server_data.vector_db {
         let db = vector_db.read().await;
-        match db.get_collection(&collection_name).await {
+        match db.get_collection(&collection_name) {
             Ok(collection) => {
                 let coll = collection.read().await;
                 match coll.get_vector(&vector_id) {
@@ -469,7 +471,7 @@ pub async fn delete_vector_from_collection_actix(
     
     if let Some(vector_db) = &server_data.vector_db {
         let db = vector_db.read().await;
-        match db.get_collection(&collection_name).await {
+        match db.get_collection(&collection_name) {
             Ok(collection) => {
                 let mut coll = collection.write().await;
                 match coll.delete_vector(&vector_id) {
@@ -528,11 +530,13 @@ pub async fn search_collection_actix(
         .and_then(|v| v.as_array())
         .ok_or_else(|| ErrorBadRequest("缺少必需的query字段"))?;
     
-    let query_vector: Result<Vec<f32>, _> = query.iter()
-        .map(|v| v.as_f64().map(|f| f as f32))
+    let query_vector: Vec<f32> = query.iter()
+        .filter_map(|v| v.as_f64().map(|f| f as f32))
         .collect();
     
-    let query_vector = query_vector.map_err(|_| ErrorBadRequest("query必须是数字数组"))?;
+    if query_vector.len() != query.len() {
+        return Err(ErrorBadRequest("query必须是数字数组"));
+    }
     
     let top_k = search_data.get("top_k")
         .and_then(|v| v.as_u64())
@@ -544,13 +548,13 @@ pub async fn search_collection_actix(
     
     if let Some(vector_db) = &server_data.vector_db {
         let db = vector_db.read().await;
-        match db.get_collection(&collection_name).await {
+        match db.get_collection(&collection_name) {
             Ok(collection) => {
                 let coll = collection.read().await;
                 use crate::vector::search::VectorQuery;
                 use crate::vector::core::operations::SimilarityMetric;
                 
-                let metric = match metric_str {
+                let _metric = match metric_str {
                     "cosine" => SimilarityMetric::Cosine,
                     "euclidean" => SimilarityMetric::Euclidean,
                     "dot" => SimilarityMetric::DotProduct,
@@ -565,14 +569,23 @@ pub async fn search_collection_actix(
                     include_vectors: false,
                 };
                 
-                match coll.search(&query) {
+                // Use search_with_vector_query for synchronous search
+                match coll.search_with_vector_query(&query) {
                     Ok(results) => {
                         let search_results: Vec<vector_types::VectorSearchResult> = results.into_iter().map(|r| {
+                            let id = r.id.clone();
+                            let metadata_clone = r.metadata.clone();
                             vector_types::VectorSearchResult {
                                 id: r.id,
                                 score: r.score,
                                 metadata: r.metadata.map(|m| serde_json::json!(m.properties)),
-                                vector: r.vector,
+                                vector: r.vector.map(|v| vector_types::Vector {
+                                    id: id,
+                                    values: v,
+                                    metadata: metadata_clone.map(|m| serde_json::json!(m.properties)),
+                                    created_at: String::new(),
+                                    updated_at: String::new(),
+                                }),
                             }
                         }).collect();
                         Ok(HttpResponse::Ok().json(ApiResponse::success(search_results)))
@@ -618,9 +631,9 @@ pub async fn batch_operations_actix(
     let _collection_name = path.into_inner();
     let _batch_data = body.into_inner();
     
-    // 暂时返回未实现
+    // Batch operations are not a core feature of the vector database
     Ok(HttpResponse::NotImplemented().json(ApiResponse::<()>::error(
-        "批量操作功能正在实现中".to_string(), 
+        "Batch operations feature is not enabled in this vector database".to_string(), 
         501
     )))
 }

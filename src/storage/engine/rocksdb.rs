@@ -527,18 +527,7 @@ impl StorageEngine for RocksDBStorage {
         Box::pin(async move { Ok(result) })
     }
     
-    fn save_processed_batch(
-        &self,
-        model_id: &str,
-        batch: &crate::data::ProcessedBatch,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send + '_>> {
-        let key = format!("processed_batch:{}:{}", model_id, uuid::Uuid::new_v4());
-        let value = serde_json::to_vec(batch).unwrap_or_default();
-        let result = self.db.write().unwrap().put(key.as_bytes(), &value);
-        Box::pin(async move { result.map_err(Into::into) })
-    }
-    
-    // 注意：向量数据库系统不需要训练相关功能，已移除 get_training_metrics_history 和 record_training_metrics 方法
+    // Training-related methods removed: vector database does not need training functionality
     
     fn query_dataset(
         &self,

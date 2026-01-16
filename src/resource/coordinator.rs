@@ -154,7 +154,7 @@ impl ResourceCoordinator {
             self.publish_event("resource_waiting", &format!("资源请求等待中: {:?} 数量 {}", resource_type, amount))?;
             
             // 等待分配结果
-            receiver.await.map_err(|_| Error::resource("等待资源分配超时".into()))?
+            receiver.await.map_err(|_| Error::resource("等待资源分配超时"))?
         }
     }
     
@@ -230,7 +230,7 @@ impl ResourceCoordinator {
         if can_allocate {
             self.do_allocate_resource(request).await
         } else {
-            Err(Error::ResourceUnavailable(format!(
+            Err(Error::resource(format!(
                 "资源 {:?} 不足",
                 resource_type
             )))
@@ -351,7 +351,7 @@ impl ResourceCoordinator {
             }
         }
         
-        Err(Error::ResourceUnavailable(format!(
+        Err(Error::resource(format!(
             "资源 {:?} 仍然不足",
             resource_type
         )))
@@ -600,7 +600,7 @@ impl ResourceLimiter {
             .unwrap_or(0);
         
         if current_usage + amount > limit {
-            return Err(Error::ResourceUnavailable(format!(
+            return Err(Error::resource(format!(
                 "操作 {} 的资源 {:?} 使用量 {} + {} 超过限制 {}",
                 operation_id, resource_type, current_usage, amount, limit
             )));

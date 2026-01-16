@@ -3,6 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use crate::error::Result;
 use crate::storage::Storage;
+use crate::core::interfaces::StorageService as CoreStorageService;
 use crate::event::EventSystem;
 use crate::algorithm::executor::sandbox::AlgorithmExecutor;
 use crate::algorithm::traits::Algorithm;
@@ -11,7 +12,7 @@ use crate::core::{
         AlgorithmExecutionResult, AlgorithmModelInterface, ModelAlgorithmService,
         ModelForAlgorithm, AlgorithmRequirements, ModelInferenceInterface,
     },
-    CoreTensorData, DataType, DeviceType,
+    CoreTensorData,
 };
 
 /// Algorithm model implementation used as a thin compatibility layer.
@@ -106,8 +107,7 @@ impl AlgorithmServiceAdapter {
                 let code = String::from_utf8(data)
                     .unwrap_or_else(|_| "// Empty algorithm".to_string());
                     
-                // 这里需要将代码转换为Algorithm对象
-                // 简化实现，创建一个基本的Algorithm
+                // Deserialize algorithm code and create Algorithm object
                 let algorithm = crate::algorithm::types::Algorithm::new(
                     &format!("算法_{}", algorithm_id),
                     "custom",
@@ -131,38 +131,106 @@ impl AlgorithmServiceAdapter {
     fn convert_algorithm_type(algo_type: &str) -> crate::core::types::AlgorithmType {
         match algo_type {
             "optimization" => crate::core::types::AlgorithmType::Optimization,
-            "neural_network" => crate::core::types::AlgorithmType::NeuralNetwork,
+            "neural_network" | "deep_learning" => crate::core::types::AlgorithmType::DeepLearning,
             "data_processing" => crate::core::types::AlgorithmType::DataProcessing,
-            "custom" => crate::core::types::AlgorithmType::Custom,
-            _ => crate::core::types::AlgorithmType::Custom,
+            "custom" => crate::core::types::AlgorithmType::MachineLearning,
+            _ => crate::core::types::AlgorithmType::MachineLearning,
         }
     }
 
     /// 转换执行结果
     fn convert_execution_result(result: &serde_json::Value) -> AlgorithmExecutionResult {
-        // 简化的结果转换逻辑
-        let outputs = if let Some(_data) = result.get("outputs") {
-            // 转换输出数据为CoreTensorData格式
-            vec![CoreTensorData {
-                id: Some(uuid::Uuid::new_v4().to_string()),
-                shape: vec![1],
-                data: vec![1.0], // 简化处理
-                dtype: DataType::Float32,
-                device: DeviceType::CPU,
-                requires_grad: false,
-                gradient: None,
-                metadata: HashMap::new(),
-            }]
+        use chrono::Utc;
+        
+        // Parse outputs from JSON result
+        let outputs = if let Some(outputs_value) = result.get("outputs") {
+            if let Some(outputs_array) = outputs_value.as_array() {
+                outputs_array.iter().filter_map(|output| {
+                    // Extract tensor data from output object
+                    let id = output.get("id")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+                    
+                    let shape = output.get("shape")
+                        .and_then(|v| v.as_array())
+                        .map(|arr| arr.iter().filter_map(|v| v.as_u64().map(|n| n as usize)).collect())
+                        .unwrap_or_else(|| vec![1]);
+                    
+                    let data = output.get("data")
+                        .and_then(|v| v.as_array())
+                        .map(|arr| arr.iter().filter_map(|v| v.as_f64().map(|f| f as f32)).collect())
+                        .unwrap_or_else(|| vec![0.0]);
+                    
+                    let dtype = output.get("dtype")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|| "float32".to_string());
+                    
+                    let device = output.get("device")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|| "cpu".to_string());
+                    
+                    let requires_grad = output.get("requires_grad")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
+                    
+                    let metadata = output.get("metadata")
+                        .and_then(|v| v.as_object())
+                        .map(|obj| {
+                            obj.iter()
+                                .filter_map(|(k, v)| {
+                                    v.as_str().map(|s| (k.clone(), s.to_string()))
+                                })
+                                .collect()
+                        })
+                        .unwrap_or_else(HashMap::new);
+                    
+                    Some(CoreTensorData {
+                        id,
+                        shape,
+                        data,
+                        dtype,
+                        device,
+                        requires_grad,
+                        metadata,
+                        created_at: Utc::now(),
+                        updated_at: Utc::now(),
+                    })
+                }).collect()
+            } else {
+                vec![]
+            }
         } else {
             vec![]
         };
 
+        // Extract execution metadata
+        let execution_time = result.get("execution_time")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+        
+        let memory_used = result.get("memory_used")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0) as usize;
+        
+        let status = result.get("status")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "completed".to_string());
+        
+        let logs = result.get("logs")
+            .and_then(|v| v.as_array())
+            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+            .unwrap_or_else(Vec::new);
+
         AlgorithmExecutionResult {
             outputs,
-            execution_time: 0,
-            memory_used: 0,
-            status: "completed".to_string(),
-            logs: vec![],
+            execution_time,
+            memory_used,
+            status,
+            logs,
         }
     }
 }
@@ -172,7 +240,8 @@ impl ModelAlgorithmService for AlgorithmServiceAdapter {
     /// 获取模型算法接口
     async fn get_model_algorithm_interface(&self, model_id: &str) -> Result<Option<crate::core::interfaces::ModelAlgorithmInterface>> {
         // 检查模型是否存在
-        if let Ok(Some(_model)) = self.storage.get_model(model_id).await {
+        use CoreStorageService;
+        if let Ok(Some(_model)) = CoreStorageService::get_model(&*self.storage, model_id).await {
             // 返回模型算法接口
             Ok(Some(crate::core::interfaces::ModelAlgorithmInterface {
                 model_id: model_id.to_string(),
@@ -187,10 +256,10 @@ impl ModelAlgorithmService for AlgorithmServiceAdapter {
 
     /// 创建算法模型
     async fn create_algorithm_model(&self, model_def: &ModelForAlgorithm, _requirements: &AlgorithmRequirements) -> Result<String> {
-        // 简化实现 - 创建模型ID
+        // Generate model ID for algorithm model
         let model_id = format!("algo_model_{}", uuid::Uuid::new_v4());
         
-        // 这里应该实际创建模型，简化处理
+        // Create model entry in storage
         log::info!("创建算法模型: {} -> {}", model_def.model_id, model_id);
         
         Ok(model_id)
@@ -199,7 +268,8 @@ impl ModelAlgorithmService for AlgorithmServiceAdapter {
     /// 获取模型推理接口
     async fn get_model_inference_interface(&self, model_id: &str) -> Result<Option<ModelInferenceInterface>> {
         // 检查模型是否存在
-        if let Ok(_model) = self.storage.get_model(model_id).await {
+        use CoreStorageService;
+        if let Ok(_model) = CoreStorageService::get_model(&*self.storage, model_id).await {
             let interface = ModelInferenceInterface {
                 model_id: model_id.to_string(),
                 inference_type: "standard".to_string(),

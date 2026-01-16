@@ -404,7 +404,7 @@ impl ResourcePool {
     /// 尝试分配资源
     pub fn try_allocate(&mut self, request: &InternalResourceRequest) -> Result<InternalResourceAllocation> {
         if request.amount as u64 > self.available_capacity {
-            return Err(Error::ResourceUnavailable(format!(
+            return Err(Error::resource(format!(
                 "Insufficient resources: requested {}, available {}",
                 request.amount, self.available_capacity
             )));

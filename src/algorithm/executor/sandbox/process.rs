@@ -304,7 +304,7 @@ impl ProcessSandbox {
 
     /// 终止当前进程
     pub async fn terminate(&self) -> Result<()> {
-        let mut process_guard = self.current_process.lock().unwrap();
+        let process_guard = self.current_process.lock().unwrap();
         
         if let Some(ref handle) = *process_guard {
             // 尝试优雅终止（标准库Child没有terminate方法，直接使用kill）
@@ -648,7 +648,7 @@ impl ProcessSandbox {
         };
         info_guard.exit_code = Some(exit_code);
         info_guard.ended_at = Some(Instant::now());
-        let process_info = info_guard.clone();
+        let _process_info = info_guard.clone();
         drop(info_guard);
         
         // 收集输出

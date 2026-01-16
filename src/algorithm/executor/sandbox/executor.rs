@@ -204,9 +204,9 @@ impl SandboxExecutor {
         // 创建执行环境中的临时目录结构
         let task_id = config.task_id.as_ref().unwrap_or(&"default".to_string()).clone();
         if let Some(env) = self.get_environment(&task_id).ok() {
-            let env_guard = env.lock().await;
+            let _env_guard = env.lock().await;
             #[cfg(feature = "tempfile")]
-            if let Some(temp_dir) = &env_guard.temp_dir {
+            if let Some(temp_dir) = &_env_guard.temp_dir {
                 // 创建输入和输出目录
                 let input_dir = temp_dir.path().join("input");
                 let output_dir = temp_dir.path().join("output");

@@ -147,39 +147,45 @@ impl VectorResourceManager {
     ) -> Result<VectorResourceAllocation> {
         let mut allocations = Vec::new();
 
+        use std::time::Duration;
+        use uuid::Uuid;
+        
         // 请求内存
         let memory_size = operation.estimate_memory();
-        let memory_request = ResourceRequest {
-            resource_type: ResourceType::Memory,
-            amount: memory_size,
-            priority: self.get_priority(operation.operation_type),
-            timeout_ms: Some(30000), // 30秒超时
-        };
-        let memory_alloc = self.resource_manager.allocate(memory_request).await?;
+        let memory_request = ResourceRequest::new(
+            Uuid::new_v4().to_string(),
+            ResourceType::Memory,
+            memory_size,
+        )
+        .with_priority(self.get_priority(operation.operation_type).into())
+        .with_timeout(Duration::from_secs(30));
+        let memory_alloc = self.resource_manager.request_resource(memory_request).await?;
         allocations.push(memory_alloc);
 
         // 请求CPU
         let cpu_count = operation.estimate_cpu();
-        let cpu_request = ResourceRequest {
-            resource_type: ResourceType::CPU,
-            amount: cpu_count,
-            priority: self.get_priority(operation.operation_type),
-            timeout_ms: Some(30000),
-        };
-        let cpu_alloc = self.resource_manager.allocate(cpu_request).await?;
+        let cpu_request = ResourceRequest::new(
+            Uuid::new_v4().to_string(),
+            ResourceType::CPU,
+            cpu_count,
+        )
+        .with_priority(self.get_priority(operation.operation_type).into())
+        .with_timeout(Duration::from_secs(30));
+        let cpu_alloc = self.resource_manager.request_resource(cpu_request).await?;
         allocations.push(cpu_alloc);
 
         // 如果需要GPU，请求GPU资源
         if operation.use_gpu {
             let gpu_count = operation.estimate_gpu();
             if gpu_count > 0 {
-                let gpu_request = ResourceRequest {
-                    resource_type: ResourceType::GPU,
-                    amount: gpu_count,
-                    priority: self.get_priority(operation.operation_type),
-                    timeout_ms: Some(30000),
-                };
-                let gpu_alloc = self.resource_manager.allocate(gpu_request).await?;
+                let gpu_request = ResourceRequest::new(
+                    Uuid::new_v4().to_string(),
+                    ResourceType::GPU,
+                    gpu_count,
+                )
+                .with_priority(self.get_priority(operation.operation_type).into())
+                .with_timeout(Duration::from_secs(30));
+                let gpu_alloc = self.resource_manager.request_resource(gpu_request).await?;
                 allocations.push(gpu_alloc);
             }
         }
@@ -193,7 +199,7 @@ impl VectorResourceManager {
     /// 释放向量操作资源
     pub async fn release(&self, allocation: VectorResourceAllocation) -> Result<()> {
         for alloc in allocation.allocations {
-            self.resource_manager.release(alloc).await?;
+            self.resource_manager.release_resources(&alloc).await?;
         }
         Ok(())
     }

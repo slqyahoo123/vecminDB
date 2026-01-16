@@ -12,6 +12,7 @@ use uuid::Uuid;
 use chrono::{DateTime, Utc};
 use async_trait::async_trait;
 use crate::error::{Error, Result};
+use crate::core::interfaces::service_registry::training_interface::TrainingService;
 
 // 重新导出 AlgorithmType，使用 algorithm 模块中的定义（包含 DataProcessing, FeatureExtraction, Custom 等变体）
 pub use crate::algorithm::algorithm_types::AlgorithmType;

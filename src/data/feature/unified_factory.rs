@@ -273,7 +273,7 @@ impl FeatureExtractorManager {
     }
     
     /// 清除缓存
-    pub fn clear_cache(&self) -> Result<(), ExtractorError> {
+    pub fn clear_cache(&self) -> std::result::Result<(), ExtractorError> {
         let mut cache = self.extractors.write().map_err(|e| {
             ExtractorError::Internal(format!("无法获取提取器缓存写锁: {}", e))
         })?;

@@ -7,7 +7,6 @@ use serde_json::Value;
 // use tokio::sync::RwLock;
 // use sled::Db;
 use bincode;
-use uuid::Uuid;
 use log::{warn, debug};
 // use chrono::{DateTime, Utc};
 
@@ -374,13 +373,11 @@ impl StorageEngineImpl {
     pub async fn get_raw(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
         // 检查缓存（如果启用）
         let cache_key = format!("cache:{}", String::from_utf8_lossy(key));
-        let mut cache_hit = false;
         
         // 尝试从缓存获取
         if let Some(models_cache) = &self.models {
             if let Ok(cache) = models_cache.lock() {
                 if let Some(cached_data) = cache.get(&cache_key) {
-                    cache_hit = true;
                     // 更新统计信息
                     {
                         let mut stats = self.stats.lock()
@@ -393,6 +390,8 @@ impl StorageEngineImpl {
                 }
             }
         }
+        
+        let cache_hit = false;
         
         // 从数据库读取
         let db = self.db.read().await;
@@ -749,7 +748,7 @@ impl StorageEngineImpl {
     }
 
     /// 获取训练指标
-    pub async fn get_training_metrics(&self, task_id: &str, start_epoch: Option<u32>, end_epoch: Option<u32>) -> Result<(Vec<crate::training::types::TrainingMetrics>, u32, u32)> {
+    pub async fn get_training_metrics(&self, task_id: &str, _start_epoch: Option<u32>, _end_epoch: Option<u32>) -> Result<(Vec<crate::training::types::TrainingMetrics>, u32, u32)> {
         Err(crate::error::Error::feature_not_enabled(format!(
             "getting training metrics is not supported in vector database (task_id: {})",
             task_id
@@ -900,7 +899,7 @@ impl StorageEngineImpl {
     }
 
     /// 保存模型训练数据
-    pub async fn save_model_training_data(&self, model_id: &str, data: &crate::data::ProcessedBatch) -> Result<()> {
+    pub async fn save_model_training_data(&self, model_id: &str, _data: &crate::data::ProcessedBatch) -> Result<()> {
         Err(crate::error::Error::feature_not_enabled(format!(
             "saving model training data is not supported in vector database (model_id: {})",
             model_id
@@ -933,7 +932,7 @@ impl StorageEngineImpl {
     }
 
     /// 记录训练指标
-    pub async fn record_training_metrics(&self, model_id: &str, metrics: &crate::training::types::TrainingMetrics) -> Result<()> {
+    pub async fn record_training_metrics(&self, model_id: &str, _metrics: &crate::training::types::TrainingMetrics) -> Result<()> {
         Err(crate::error::Error::feature_not_enabled(format!(
             "recording training metrics is not supported in vector database (model_id: {})",
             model_id
@@ -941,7 +940,7 @@ impl StorageEngineImpl {
     }
 
     /// 创建新模型
-    pub async fn create_model(&self, model_id: &str, architecture: &crate::model::ModelArchitecture) -> Result<()> {
+    pub async fn create_model(&self, model_id: &str, _architecture: &crate::model::ModelArchitecture) -> Result<()> {
         Err(crate::error::Error::feature_not_enabled(format!(
             "model creation is not supported in vector database (model_id: {})",
             model_id
@@ -980,7 +979,7 @@ impl StorageEngineImpl {
     // Training task methods removed: vector database does not need training functionality
 
     /// 更新模型访问时间
-    pub async fn update_model_access_time(&self, model_id: &str, access_time: chrono::DateTime<chrono::Utc>) -> Result<()> {
+    pub async fn update_model_access_time(&self, model_id: &str, _access_time: chrono::DateTime<chrono::Utc>) -> Result<()> {
         Err(crate::error::Error::feature_not_enabled(format!(
             "updating model access time is not supported in vector database (model_id: {})",
             model_id
@@ -1013,7 +1012,7 @@ impl StorageEngineImpl {
     }
 
     /// 导出模型
-    pub async fn export_model(&self, model_id: &str, format: &str, options: Option<HashMap<String, String>>) -> Result<crate::storage::engine::types::ExportInfo> {
+    pub async fn export_model(&self, model_id: &str, format: &str, _options: Option<HashMap<String, String>>) -> Result<crate::storage::engine::types::ExportInfo> {
         Err(crate::error::Error::feature_not_enabled(format!(
             "model export is not supported in vector database (model_id: {}, format: {})",
             model_id,
@@ -1022,7 +1021,7 @@ impl StorageEngineImpl {
     }
 
     /// 部署模型
-    pub async fn deploy_model(&self, model_id: &str, options: HashMap<String, String>) -> Result<crate::storage::engine::types::DeploymentInfo> {
+    pub async fn deploy_model(&self, model_id: &str, _options: HashMap<String, String>) -> Result<crate::storage::engine::types::DeploymentInfo> {
         Err(crate::error::Error::feature_not_enabled(format!(
             "model deployment is not supported in vector database (model_id: {})",
             model_id
@@ -1030,7 +1029,7 @@ impl StorageEngineImpl {
     }
 
     /// 创建数据批次
-    pub async fn create_data_batch(&self, model_id: &str, config: &crate::data::DataConfig) -> Result<String> {
+    pub async fn create_data_batch(&self, model_id: &str, _config: &crate::data::DataConfig) -> Result<String> {
         Err(crate::error::Error::feature_not_enabled(format!(
             "creating data batch for training is not supported in vector database (model_id: {})",
             model_id

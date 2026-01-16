@@ -525,7 +525,7 @@ impl GarbageCollector {
                 region.allocation_pointer.store(new_ptr, Ordering::SeqCst);
                 Ok(current_ptr)
             } else {
-                Err(Error::out_of_memory("Region is full"))
+                Err(Error::resource("Region is full"))
             }
         } else {
             Err(Error::invalid_argument("Invalid region ID"))

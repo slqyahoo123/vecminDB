@@ -82,7 +82,7 @@ pub use self::transformer::{
     create_feature_extractor,
     create_similarity_calculator,
     create_language_processor,
-    create_trainer,
+    // create_trainer, // Removed: vector database does not need training functionality
     create_inference_engine,
     create_inference_predictor,
     
@@ -90,7 +90,7 @@ pub use self::transformer::{
     process_text,
     compute_similarity,
     process_batch,
-    train_model,
+    // train_model, // Removed: vector database does not need training functionality
     infer_text,
     batch_infer,
     predict_class,
@@ -102,7 +102,7 @@ pub use self::transformer::{
     get_default_feature_config,
     get_default_similarity_config,
     get_default_language_config,
-    get_default_training_config,
+    // get_default_training_config, // Removed: vector database does not need training functionality
     get_default_inference_config,
     get_default_prediction_config,
     validate_config,

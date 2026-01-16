@@ -15,12 +15,14 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::{Error, Result};
 use crate::algorithm::executor::config::ExecutorConfig;
+#[cfg(feature = "tempfile")]
 use crate::algorithm::types::NetworkPolicy;
 use crate::algorithm::types::{ResourceUsage, SandboxSecurityLevel};
 use crate::algorithm::executor::sandbox::interface::Sandbox;
 use crate::algorithm::executor::sandbox::result::SandboxResult;
 use crate::algorithm::types::SandboxStatus;
 use crate::algorithm::executor::sandbox::environment::ExecutionEnvironment;
+#[cfg(feature = "tempfile")]
 use crate::algorithm::executor::sandbox::error::SandboxError;
 
 /// Docker容器映像配置
@@ -172,7 +174,7 @@ impl DockerSandbox {
     }
     
     /// 创建容器
-    async fn create_container(&mut self, code: &[u8]) -> Result<String> {
+    async fn create_container(&mut self, _code: &[u8]) -> Result<String> {
         debug!("【DockerSandbox】创建容器: {}", self.id);
         
         // 准备临时目录

@@ -135,7 +135,7 @@ pub struct RangeValidator {
 
 impl RangeValidator {
     /// 创建新的范围验证器
-    pub fn new(config: RangeValidatorConfig) -> Result<Self, String> {
+    pub fn new(config: RangeValidatorConfig) -> std::result::Result<Self, String> {
         // 验证配置的有效性
         Self::validate_config(&config)?;
         
@@ -423,7 +423,7 @@ impl RangeValidator {
     }
     
     /// 创建整数范围验证器
-    pub fn integer_range(min: Option<i64>, max: Option<i64>) -> Result<Self, String> {
+    pub fn integer_range(min: Option<i64>, max: Option<i64>) -> std::result::Result<Self, String> {
         let mut config = RangeValidatorConfig::default();
         config.mode = RangeValidationMode::Value;
         
@@ -439,7 +439,7 @@ impl RangeValidator {
     }
     
     /// 创建浮点数范围验证器
-    pub fn float_range(min: Option<f64>, max: Option<f64>) -> Result<Self, String> {
+    pub fn float_range(min: Option<f64>, max: Option<f64>) -> std::result::Result<Self, String> {
         let mut config = RangeValidatorConfig::default();
         config.mode = RangeValidationMode::Value;
         config.min = min;
@@ -449,7 +449,7 @@ impl RangeValidator {
     }
     
     /// 创建长度范围验证器
-    pub fn length_range(min: Option<usize>, max: Option<usize>) -> Result<Self, String> {
+    pub fn length_range(min: Option<usize>, max: Option<usize>) -> std::result::Result<Self, String> {
         let mut config = RangeValidatorConfig::default();
         config.mode = RangeValidationMode::Length;
         
@@ -465,7 +465,7 @@ impl RangeValidator {
     }
     
     /// 创建大小范围验证器
-    pub fn size_range(min: Option<usize>, max: Option<usize>) -> Result<Self, String> {
+    pub fn size_range(min: Option<usize>, max: Option<usize>) -> std::result::Result<Self, String> {
         let mut config = RangeValidatorConfig::default();
         config.mode = RangeValidationMode::Size;
         

@@ -215,9 +215,7 @@ impl Transaction {
             fn count_models(&self) -> std::pin::Pin<Box<dyn std::future::Future<Output = crate::Result<usize>> + Send + '_>> { Box::pin(async { Ok(0) }) }
             fn get_data_batch(&self, _batch_id: &str) -> std::pin::Pin<Box<dyn std::future::Future<Output = crate::Result<crate::data::DataBatch>> + Send + '_>> { Box::pin(async { Err(crate::Error::not_found("NoopEngine")) }) }
             fn get_batch_data(&self, _batch_id: &str) -> std::pin::Pin<Box<dyn std::future::Future<Output = crate::Result<crate::data::DataBatch>> + Send + '_>> { Box::pin(async { Err(crate::Error::not_found("NoopEngine")) }) }
-            fn save_processed_batch(&self, _model_id: &str, _batch: &crate::data::ProcessedBatch) -> std::pin::Pin<Box<dyn std::future::Future<Output = crate::Result<()>> + Send + '_>> { Box::pin(async { Ok(()) }) }
-            fn get_training_metrics_history(&self, _model_id: &str) -> std::pin::Pin<Box<dyn std::future::Future<Output = crate::Result<Vec<crate::model::parameters::TrainingMetrics>>> + Send + '_>> { Box::pin(async { Ok(Vec::new()) }) }
-            fn record_training_metrics(&self, _model_id: &str, _metrics: &crate::model::parameters::TrainingMetrics) -> std::pin::Pin<Box<dyn std::future::Future<Output = crate::Result<()>> + Send + '_>> { Box::pin(async { Ok(()) }) }
+            // Training-related methods removed: vector database does not need training functionality
             fn query_dataset(&self, _name: &str, _limit: Option<usize>, _offset: Option<usize>) -> std::pin::Pin<Box<dyn std::future::Future<Output = crate::Result<Vec<serde_json::Value>>> + Send + '_>> { Box::pin(async { Ok(Vec::new()) }) }
             fn exists(&self, _key: &[u8]) -> crate::Result<bool> { Ok(false) }
             fn get_dataset_size(&self, _dataset_id: &str) -> std::pin::Pin<Box<dyn std::future::Future<Output = crate::Result<usize>> + Send + '_>> { Box::pin(async { Ok(0) }) }
