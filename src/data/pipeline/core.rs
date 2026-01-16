@@ -652,28 +652,19 @@ impl DataPipeline {
     
     /// 根据字段名过滤记录
     pub fn filter_records_by_field(&self, records: Vec<DataRecord>, field_name: &str, field_value: &DataField) -> Result<Vec<DataRecord>> {
-        // 从 DataField 中提取比较值
-        let target_value = if let Some(ref default_val) = field_value.default_value {
-            // 使用默认值
-            crate::data::value::DataValue::from_json(
-                serde_json::from_str(default_val)
-                    .unwrap_or_else(|_| serde_json::Value::String(default_val.to_string()))
-            )
-        } else {
-            // 根据字段类型创建默认值
-            match field_value.field_type {
-                FieldType::Boolean => crate::data::value::DataValue::Boolean(false),
-                FieldType::Numeric | FieldType::Integer | FieldType::Int | FieldType::Float => {
-                    crate::data::value::DataValue::Number(0.0)
-                },
-                FieldType::Text | FieldType::String => {
-                    crate::data::value::DataValue::String(String::new())
-                },
-                FieldType::DateTime => {
-                    crate::data::value::DataValue::DateTime(String::new())
-                },
-                _ => crate::data::value::DataValue::Null,
-            }
+        // 根据字段类型创建默认比较值
+        let target_value = match field_value.field_type {
+            FieldType::Boolean => crate::data::value::DataValue::Boolean(false),
+            FieldType::Numeric | FieldType::Integer | FieldType::Int | FieldType::Float => {
+                crate::data::value::DataValue::Number(0.0)
+            },
+            FieldType::Text | FieldType::String => {
+                crate::data::value::DataValue::String(String::new())
+            },
+            FieldType::DateTime => {
+                crate::data::value::DataValue::DateTime(String::new())
+            },
+            _ => crate::data::value::DataValue::Null,
         };
         
         // 过滤记录
@@ -683,7 +674,7 @@ impl DataPipeline {
                     // 将 Value 转换为 DataValue 进行比较
                     if let Ok(record_data_value) = value.to_data_value() {
                         // 比较值
-                        compare_data_values(&record_data_value, &target_value)
+                        Self::compare_data_values(&record_data_value, &target_value)
                     } else {
                         false
                     }
